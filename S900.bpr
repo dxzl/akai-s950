@@ -1,0 +1,204 @@
+# ---------------------------------------------------------------------------
+!if !$d(BCB)
+BCB = $(MAKEDIR)\..
+!endif
+
+# ---------------------------------------------------------------------------
+# IDE SECTION
+# ---------------------------------------------------------------------------
+# The following section of the project makefile is managed by the BCB IDE.
+# It is recommended to use the IDE to change any of the values in this
+# section.
+# ---------------------------------------------------------------------------
+
+VERSION = BCB.04.04
+# ---------------------------------------------------------------------------
+PROJECT = S900.exe
+OBJFILES = S900.obj MainForm.obj
+RESFILES = S900.res
+RESDEPEN = $(RESFILES) MainForm.dfm
+LIBFILES =
+LIBRARIES = A406_R41.lib Vcl40.lib
+SPARELIBS = Vcl40.lib A406_R41.lib
+PACKAGES = Vcl40.bpi Vclx40.bpi vcljpg40.bpi bcbsmp40.bpi Qrpt40.bpi Vcldb40.bpi \
+  ibsmp40.bpi vcldbx40.bpi TeeUI40.bpi teedb40.bpi tee40.bpi nmfast40.bpi \
+  dclocx40.bpi TaeRichEditComponent.bpi
+DEFFILE =
+# ---------------------------------------------------------------------------
+PATHCPP = .;
+PATHASM = .;
+PATHPAS = .;
+PATHRC = .;
+DEBUGLIBPATH = $(BCB)\lib\debug
+RELEASELIBPATH = $(BCB)\lib\release
+USERDEFINES =
+SYSDEFINES = NO_STRICT
+# ---------------------------------------------------------------------------
+CFLAG1 = -I..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl -O2 -Hc \
+  -H=$(BCB)\lib\vcl40.csm -w -Ve -a8 -k- -vi -c -b- -w-par -w-inl -Vx -tW -tWM \
+  -D$(SYSDEFINES);$(USERDEFINES)
+PFLAGS = -U..\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib;$(RELEASELIBPATH) \
+  -I..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl -$Y- -$L- -$D- -v \
+  -JPHNE -M
+RFLAGS = -i..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+AFLAGS = /i..\apro\source /iS900 /i$(BCB)\include /i$(BCB)\include\vcl /mx /w2 /zn
+LFLAGS = -L..\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib;$(RELEASELIBPATH) \
+  -aa -Tpe -x -Gn
+# ---------------------------------------------------------------------------
+ALLOBJ = c0w32.obj sysinit.obj $(OBJFILES)
+ALLRES = $(RESFILES)
+ALLLIB = $(LIBFILES) $(LIBRARIES) import32.lib cp32mt.lib
+# ---------------------------------------------------------------------------
+!ifdef IDEOPTIONS
+
+[Version Info]
+IncludeVerInfo=1
+AutoIncBuild=0
+MajorVer=1
+MinorVer=3
+Release=0
+Build=0
+Debug=0
+PreRelease=0
+Special=0
+Private=0
+DLL=0
+Locale=1033
+CodePage=1252
+
+[Version Info Keys]
+CompanyName=Scott Swift
+FileDescription=Send WAV files to Akai S900/S950 Sampler, etc.
+FileVersion=1.3.0.0
+InternalName=S900
+LegalCopyright=2013
+LegalTrademarks=
+OriginalFilename=S900.exe
+ProductName=Akai S900/S950 Sampler Communications
+ProductVersion=1.2.0.0
+Comments=program can upload WAV files to S900/S950, and download/upload as AKI files... can retreive catalog also.
+
+[Excluded Packages]
+$(BCB)\Bin\bcbide40.bpl=Borland C++Builder Core IDE Package
+$(BCB)\Bin\tlib40.bpl=Borland Type Library Engine
+$(BCB)\Bin\proide40.bpl=Borland Core IDE Package
+$(BCB)\Bin\stride40.bpl=String Resource Editor IDE Package
+$(BCB)\Bin\bcbcxp40.bpl=Borland C++ Builder Code Explorer
+$(BCB)\Bin\bcbdrt40.bpl=C++ Builder Direct module
+$(BCB)\Bin\dbx40.bpl=(untitled)
+
+[HistoryLists\hlIncludePath]
+Count=2
+Item0=..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+Item1=$(BCB)\Projects\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+
+[HistoryLists\hlLibraryPath]
+Count=2
+Item0=..\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+Item1=$(BCB)\Projects\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+
+[HistoryLists\hlDebugSourcePath]
+Count=1
+Item0=$(BCB)\source\vcl
+
+[Debugging]
+DebugSourceDirs=$(BCB)\source\vcl
+
+[Parameters]
+RunParams=
+HostApplication=
+RemoteHost=
+RemotePath=
+RemoteDebug=0
+
+[Compiler]
+InMemoryExe=0
+ShowInfoMsgs=0
+
+!endif
+
+# ---------------------------------------------------------------------------
+# MAKE SECTION
+# ---------------------------------------------------------------------------
+# This section of the project file is not used by the BCB IDE.  It is for
+# the benefit of building from the command-line using the MAKE utility.
+# ---------------------------------------------------------------------------
+
+.autodepend
+# ---------------------------------------------------------------------------
+!if !$d(BCC32)
+BCC32 = bcc32
+!endif
+
+!if !$d(CPP32)
+CPP32 = cpp32
+!endif
+
+!if !$d(DCC32)
+DCC32 = dcc32
+!endif
+
+!if !$d(TASM32)
+TASM32 = tasm32
+!endif
+
+!if !$d(LINKER)
+LINKER = ilink32
+!endif
+
+!if !$d(BRCC32)
+BRCC32 = brcc32
+!endif
+
+# ---------------------------------------------------------------------------
+!if $d(PATHCPP)
+.PATH.CPP = $(PATHCPP)
+.PATH.C   = $(PATHCPP)
+!endif
+
+!if $d(PATHPAS)
+.PATH.PAS = $(PATHPAS)
+!endif
+
+!if $d(PATHASM)
+.PATH.ASM = $(PATHASM)
+!endif
+
+!if $d(PATHRC)
+.PATH.RC  = $(PATHRC)
+!endif
+# ---------------------------------------------------------------------------
+$(PROJECT): $(OBJFILES) $(RESDEPEN) $(DEFFILE)
+    $(BCB)\BIN\$(LINKER) @&&!
+    $(LFLAGS) +
+    $(ALLOBJ), +
+    $(PROJECT),, +
+    $(ALLLIB), +
+    $(DEFFILE), +
+    $(ALLRES)
+!
+# ---------------------------------------------------------------------------
+.pas.hpp:
+    $(BCB)\BIN\$(DCC32) $(PFLAGS) {$< }
+
+.pas.obj:
+    $(BCB)\BIN\$(DCC32) $(PFLAGS) {$< }
+
+.cpp.obj:
+    $(BCB)\BIN\$(BCC32) $(CFLAG1) -n$(@D) {$< }
+
+.c.obj:
+    $(BCB)\BIN\$(BCC32) $(CFLAG1) -n$(@D) {$< }
+
+.c.i:
+    $(BCB)\BIN\$(CPP32) $(CFLAG1) -n. {$< }
+
+.cpp.i:
+    $(BCB)\BIN\$(CPP32) $(CFLAG1) -n. {$< }
+
+.asm.obj:
+    $(BCB)\BIN\$(TASM32) $(AFLAGS) $<, $@
+
+.rc.res:
+    $(BCB)\BIN\$(BRCC32) $(RFLAGS) -fo$@ $<
+# ---------------------------------------------------------------------------
