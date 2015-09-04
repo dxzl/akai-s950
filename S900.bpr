@@ -34,15 +34,15 @@ RELEASELIBPATH = $(BCB)\lib\release
 USERDEFINES =
 SYSDEFINES = NO_STRICT
 # ---------------------------------------------------------------------------
-CFLAG1 = -I..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl -O2 -Hc \
+CFLAG1 = -I..\AsyncPro\source;S900;$(BCB)\include;$(BCB)\include\vcl -O2 -Hc \
   -H=$(BCB)\lib\vcl40.csm -w -Ve -a8 -k- -vi -c -b- -w-par -w-inl -Vx -tW -tWM \
   -D$(SYSDEFINES);$(USERDEFINES)
-PFLAGS = -U..\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib;$(RELEASELIBPATH) \
-  -I..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl -$Y- -$L- -$D- -v \
+PFLAGS = -U..\AsyncPro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib;$(RELEASELIBPATH) \
+  -I..\AsyncPro\source;S900;$(BCB)\include;$(BCB)\include\vcl -$Y- -$L- -$D- -v \
   -JPHNE -M
-RFLAGS = -i..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl
-AFLAGS = /i..\apro\source /iS900 /i$(BCB)\include /i$(BCB)\include\vcl /mx /w2 /zn
-LFLAGS = -L..\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib;$(RELEASELIBPATH) \
+RFLAGS = -i..\AsyncPro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+AFLAGS = /i..\AsyncPro\source /iS900 /i$(BCB)\include /i$(BCB)\include\vcl /mx /w2 /zn
+LFLAGS = -L..\AsyncPro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib;$(RELEASELIBPATH) \
   -aa -Tpe -x -Gn
 # ---------------------------------------------------------------------------
 ALLOBJ = c0w32.obj sysinit.obj $(OBJFILES)
@@ -84,18 +84,26 @@ $(BCB)\BIN\tlib40.bpl=Borland Type Library Engine
 $(BCB)\Bin\stride40.bpl=String Resource Editor IDE Package
 $(BCB)\Bin\bcbcxp40.bpl=Borland C++ Builder Code Explorer
 $(BCB)\Bin\dbx40.bpl=(untitled)
+C:\PROGRA~2\Borland\CBUILD~1\Projects\Bpl\A406_R41.bpl=TurboPower Async Professional 4.05 Runtime Package - VCL41
 $(BCB)\Bin\proide40.bpl=Borland Core IDE Package
 $(BCB)\Bin\bcbdrt40.bpl=C++ Builder Direct module
 
 [HistoryLists\hlIncludePath]
-Count=2
-Item0=..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl
-Item1=$(BCB)\Projects\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+Count=5
+Item0=..\AsyncPro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+Item1=$(BCB)\AsyncPro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+Item2=..\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+Item3=S900;$(BCB)\include;$(BCB)\include\vcl
+Item4=$(BCB)\Projects\apro\source;S900;$(BCB)\include;$(BCB)\include\vcl
 
 [HistoryLists\hlLibraryPath]
-Count=2
-Item0=..\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
-Item1=$(BCB)\Projects\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+Count=6
+Item0=..\AsyncPro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+Item1=..\AsyncPro;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+Item2=$(BCB)\AsyncPro;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+Item3=..\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+Item4=S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+Item5=$(BCB)\Projects\apro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
 
 [HistoryLists\hlDebugSourcePath]
 Count=1

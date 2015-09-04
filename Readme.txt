@@ -10,6 +10,26 @@ my code...
 
 http://sourceforge.net/projects/tpapro/
 
-tpapro.sourceforge.net/ApdComPort.html
+http://tpapro.sourceforge.net/ApdComPort.html
 
-Info on the S900 Protocol is at http://yahcolorize.com/S900/index.htm
+
+NOTE: I copied AsyncPro into my $(BCB)\Projects folder! (Windows 10
+has some access issues with writing to the Program Files (x86) directory...)
+
+My C++ Builder Tools->Environment Options Library Path:
+$(BCB)\Lib;
+$(BCB)\Bin;
+$(BCB)\Imports;
+$(BCB)\Projects\Lib;
+$(BCB)\PROJECTS\Bpl;
+
+My S900 Project Include path:
+..\AsyncPro\source;S900;$(BCB)\include;$(BCB)\include\vcl
+
+My S900 Project Library path:
+..\AsyncPro\source;S900;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib
+
+Lots of Info. on the S900 Protocol can be found at http://yahcolorize.com/S900/index.htm
+
+PLEASE DON'T ASK ME TO HELP DEBUG THIS PROGRAM FOR YOUR SYSTEM - I DO NOT
+EVEN HAVE AN AKAI S900 ANYMORE! - Scott Swift
