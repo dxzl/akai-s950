@@ -55,7 +55,7 @@ ALLLIB = $(LIBFILES) $(LIBRARIES) import32.lib cp32mt.lib
 IncludeVerInfo=1
 AutoIncBuild=0
 MajorVer=1
-MinorVer=4
+MinorVer=5
 Release=0
 Build=0
 Debug=0
@@ -69,24 +69,14 @@ CodePage=1252
 [Version Info Keys]
 CompanyName=Scott Swift
 FileDescription=Send WAV files to Akai S900/S950 Sampler, etc.
-FileVersion=1.4.0.0
+FileVersion=1.5.0.0
 InternalName=S900
-LegalCopyright=2015
+LegalCopyright=2016
 LegalTrademarks=
 OriginalFilename=S900.exe
 ProductName=Akai S900/S950 Sampler Communications
-ProductVersion=1.4.0.0
-Comments=program can upload WAV files to S900/S950, and download/upload as AKI files... can retreive catalog also.
-
-[Excluded Packages]
-$(BCB)\Bin\bcbide40.bpl=Borland C++Builder Core IDE Package
-$(BCB)\BIN\tlib40.bpl=Borland Type Library Engine
-$(BCB)\Bin\stride40.bpl=String Resource Editor IDE Package
-$(BCB)\Bin\bcbcxp40.bpl=Borland C++ Builder Code Explorer
-$(BCB)\Bin\dbx40.bpl=(untitled)
-C:\PROGRA~2\Borland\CBUILD~1\Projects\Bpl\A406_R41.bpl=TurboPower Async Professional 4.05 Runtime Package - VCL41
-$(BCB)\Bin\proide40.bpl=Borland Core IDE Package
-$(BCB)\Bin\bcbdrt40.bpl=C++ Builder Direct module
+ProductVersion=1.5.0.0
+Comments=Akai S900/S950 send or receive samples via RS232
 
 [HistoryLists\hlIncludePath]
 Count=5

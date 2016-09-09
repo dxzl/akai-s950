@@ -133,7 +133,7 @@ __published:  // IDE-managed Components
     TMenuItem *MenuSendRightChan;
     TMenuItem *N2;
     TApdComPort *ApdComPort1;
-    
+
     void __fastcall Cat1Click(TObject *Sender);
     void __fastcall Put1Click(TObject *Sender);
     void __fastcall Get1Click(TObject *Sender);
@@ -141,9 +141,14 @@ __published:  // IDE-managed Components
     void __fastcall Help1Click(TObject *Sender);
     void __fastcall MenuUseRS232Click(TObject *Sender);
     void __fastcall MenuSendRightChanClick(TObject *Sender);
-  void __fastcall FormCreate(TObject *Sender);
+    void __fastcall FormCreate(TObject *Sender);
+    void __fastcall Timer1Timer(TObject *Sender);
 
 private:  // User declarations
+    void __fastcall PutFile(String sFilePath);
+    String __fastcall GetFileName(void);
+    bool __fastcall StrCmpCaseInsens(char* sA, char* sB, int len);
+    __int32 __fastcall FindSubsection(unsigned char* &fileBuffer, char* chunkName, UINT maxBytes);
     void __fastcall encode_parameters(int samp, PSTOR * ps);
     void __fastcall encode_parmsDB(unsigned char * source, unsigned char * dest, int numchars);
     void __fastcall encode_parmsDD(unsigned int value, unsigned char * tp);
@@ -175,10 +180,11 @@ private:  // User declarations
     unsigned int __fastcall decode_hedrTB(unsigned char * tp);
     void __fastcall chandshake(int mode);
     void __fastcall cxmit(int samp, int mode);
+    void __fastcall WMDropFile(TWMDropFiles &Msg);
 
-    int ByteCount;
-    int SampEntries;
-    int ProgEntries;
+    int g_byteCount;
+    int g_numSampEntries;
+    int g_numProgEntries;
 
     unsigned char TempArray[TEMPCATBUFSIZ];
     unsigned char PermSampArray[sizeof(CAT)*MAX_SAMPS_S900];
@@ -186,6 +192,16 @@ private:  // User declarations
 
     unsigned char samp_parms[PARMSIZ];
     unsigned char samp_hedr[HEDRSIZ];
+
+    String g_DragDropFilePath;
+
+protected:
+
+BEGIN_MESSAGE_MAP
+  //add message handler for WM_DROPFILES
+  // NOTE: All of the TWM* types are in messages.hpp!
+  VCL_MESSAGE_HANDLER(WM_DROPFILES, TWMDropFiles, WMDropFile)
+END_MESSAGE_MAP(TComponent)
 
 public:    // User declarations
     __fastcall TFormS900(TComponent* Owner);

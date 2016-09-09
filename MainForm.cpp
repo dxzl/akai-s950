@@ -14,11 +14,23 @@
 #pragma resource "*.dfm"
 TFormS900 *FormS900;
 //---------------------------------------------------------------------------
+__fastcall TFormS900::TFormS900(TComponent* Owner)
+        : TForm(Owner)
+{
+    Memo1->Lines->Add("Version: September 9, 2016");
+    Memo1->Lines->Add("Click the menu above and select \"Help\"...");
+}
+//---------------------------------------------------------------------------
 void __fastcall TFormS900::FormCreate(TObject *Sender)
 {
-    this->ByteCount = 0;
-    this->SampEntries = 0;
-    this->ProgEntries = 0;
+    this->g_byteCount = 0;
+    this->g_numSampEntries = 0;
+    this->g_numProgEntries = 0;
+
+    g_DragDropFilePath = "";
+    
+    //enable drag&drop files
+    ::DragAcceptFiles(this->Handle, true);
 }
 //---------------------------------------------------------------------------
 // Get sample routines
@@ -251,7 +263,7 @@ int __fastcall TFormS900::getdata2(unsigned char * bufptr, int max_bytes)
     if (receive(0))
         return(1);
 
-    if (ByteCount != max_bytes)
+    if (g_byteCount != max_bytes)
         return(2);
 
     cp = TempArray+7;
@@ -373,14 +385,14 @@ void __fastcall TFormS900::trim(char * trimstr, char * sourcestr)
 void __fastcall TFormS900::catalog(bool print)
 {
     // 7 hedr bytes + chksum byte + EEX = 9...
-    if (ByteCount < 9 || TempArray[3] != DCAT)
+    if (g_byteCount < 9 || TempArray[3] != DCAT)
     {
         printerror("check cable, is sampler on and configured\r\n"
           "for RS232, 38400 baud?");
         return;
     }
 
-    int entries = (ByteCount-9)/sizeof(S900CAT);
+    int entries = (g_byteCount-9)/sizeof(S900CAT);
 
     if (!entries)
     {
@@ -392,8 +404,8 @@ void __fastcall TFormS900::catalog(bool print)
     CAT * permsampptr = (CAT *)&PermSampArray[0];
     CAT * permprogptr = (CAT *)&PermProgArray[0];
 
-    SampEntries = 0;
-    ProgEntries = 0;
+    g_numSampEntries = 0;
+    g_numProgEntries = 0;
 
     for (int ii = 0 ; ii < entries ; ii++)
     {
@@ -404,7 +416,7 @@ void __fastcall TFormS900::catalog(bool print)
 
             permsampptr->sampidx = tempptr->sampidx;
 
-            SampEntries++; /* increment counter */
+            g_numSampEntries++; /* increment counter */
             permsampptr++; // next structure
         }
         else if (tempptr->type == 'P')
@@ -414,7 +426,7 @@ void __fastcall TFormS900::catalog(bool print)
 
             permprogptr->sampidx = tempptr->sampidx;
 
-            ProgEntries++; /* increment counter */
+            g_numProgEntries++; /* increment counter */
             permprogptr++; // next structure
         }
 
@@ -429,7 +441,7 @@ void __fastcall TFormS900::catalog(bool print)
 
         FormS900->Memo1->Lines->Add("Programs:");
 
-        for (int ii = 0 ; ii < ProgEntries ; ii++)
+        for (int ii = 0 ; ii < g_numProgEntries ; ii++)
         {
             FormS900->Memo1->Lines->Add(String(permprogptr->sampidx+1) + ':' + String(permprogptr->name));
             permprogptr++;
@@ -437,7 +449,7 @@ void __fastcall TFormS900::catalog(bool print)
 
         FormS900->Memo1->Lines->Add("Samples:");
 
-        for (int ii = 0 ; ii < SampEntries ; ii++)
+        for (int ii = 0 ; ii < g_numSampEntries ; ii++)
         {
             FormS900->Memo1->Lines->Add(String(permsampptr->sampidx+1) + ':' + String(permsampptr->name));
             permsampptr++;
@@ -453,16 +465,16 @@ int __fastcall TFormS900::get_ack(void)
         return(1);
     }
 
-    if (ByteCount == ACKSIZ && TempArray[ByteCount-2] == NAKS)
+    if (g_byteCount == ACKSIZ && TempArray[g_byteCount-2] == NAKS)
     {
-        printerror("packet NAKed");
+        printerror("packet \"not-acknowledge\" (NAK) received");
 
         return(1);
     }
 
-    if (ByteCount != ACKSIZ || TempArray[ByteCount-2] != ACKS)
+    if (g_byteCount != ACKSIZ || TempArray[g_byteCount-2] != ACKS)
     {
-        printerror("bad ACK packet");
+        printerror("bad ACK (acknowledge) packet");
 
         return(1);
     }
@@ -477,7 +489,7 @@ int __fastcall TFormS900::receive(int count)
     unsigned char tempc;
     bool have_bex = false;
 
-    ByteCount = 0;
+    g_byteCount = 0;
 
     int timer = 0;
 
@@ -495,20 +507,20 @@ int __fastcall TFormS900::receive(int count)
                 if (tempc == BEX || count != 0)
                 {
                     have_bex = true;
-                    TempArray[ByteCount++] = tempc;
+                    TempArray[g_byteCount++] = tempc;
                 }
             }
             else
             {
-                TempArray[ByteCount++] = tempc;
+                TempArray[g_byteCount++] = tempc;
 
-                if (count != 0 && ByteCount == count)
+                if (count != 0 && g_byteCount == count)
                     return(0);
 
                 if (tempc == EEX)
                     return(0);
 
-                if (ByteCount == TEMPCATBUFSIZ) // at buffer capacity... error
+                if (g_byteCount == TEMPCATBUFSIZ) // at buffer capacity... error
                     return(2);
             }
         }
@@ -694,12 +706,12 @@ int __fastcall TFormS900::findidx(int * samp, char * name)
     if (receive(0))
     {
         printerror("error receiving catalog");
-        return(16);
+        return 16;
     }
 
     catalog(false); // populate sample and program structs (no printout)
 
-    if (SampEntries == 0)
+    if (g_numSampEntries == 0)
     {
         *samp = 0;
         return(32); /* no samples... we are the only one */
@@ -707,21 +719,21 @@ int __fastcall TFormS900::findidx(int * samp, char * name)
 
     CAT * catptr = (CAT *)PermSampArray;
 
-    for (int ii = 0 ; ii < SampEntries ; ii++)
+    for (int ii = 0 ; ii < g_numSampEntries ; ii++)
     {
-        if (strncmp(catptr->name, name, MAX_NAME_S900) == 0)
+        if (StrCmpCaseInsens(catptr->name, name, MAX_NAME_S900))
         {
             *samp = catptr->sampidx;
 
-            return(0); /* match! */
+            return 0; /* match! */
         }
 
         catptr++;
     }
 
-    *samp = SampEntries;
+    *samp = g_numSampEntries;
 
-    return(64);
+    return 64;
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::exmit(int samp, int mode)
@@ -766,12 +778,12 @@ unsigned char __fastcall TFormS900::send_data(short int * intptr, PSTOR * ps)
 
         val = *intptr++;
         val += baseline; /* convert out of two's complement format */
-        temp = (unsigned char)(((unsigned short int)val >> 5) & 0x7f);
+        temp = (unsigned char)(((unsigned short)val >> 5) & 0x7f);
         checksum ^= temp;
 
         comws(1, &temp);
 
-        temp = (unsigned char)(((unsigned short int)val << 2) & 0x7c);
+        temp = (unsigned char)(((unsigned short)val << 2) & 0x7c);
         checksum ^= temp;
 
         comws(1, &temp);
@@ -832,49 +844,31 @@ void __fastcall TFormS900::print_ps_info(PSTOR * ps)
 {
     FormS900->Memo1->Lines->Add("");
     FormS900->Memo1->Lines->Add("Output Parameters:");
-    FormS900->Memo1->Lines->Add("start: " + String(ps->startidx));
-    FormS900->Memo1->Lines->Add("end: " + String(ps->endidx));
-    FormS900->Memo1->Lines->Add("loop: " + String(ps->loopidx));
+    FormS900->Memo1->Lines->Add("start index: " + String(ps->startidx));
+    FormS900->Memo1->Lines->Add("end index: " + String(ps->endidx));
+    FormS900->Memo1->Lines->Add("loop index: " + String(ps->loopidx));
     FormS900->Memo1->Lines->Add("frequency: " + String(ps->freq));
     FormS900->Memo1->Lines->Add("pitch: " + String(ps->pitch));
     FormS900->Memo1->Lines->Add("size(in words): " + String(ps->totalct));
     FormS900->Memo1->Lines->Add("period: " + String((unsigned int)ps->period));
     FormS900->Memo1->Lines->Add("bits per word: " + String(ps->bits_per_sample));
     FormS900->Memo1->Lines->Add("name: " + String(ps->name));
-    FormS900->Memo1->Lines->Add("looping: " + String((char)ps->looping));
-}
-//---------------------------------------------------------------------------
-__fastcall TFormS900::TFormS900(TComponent* Owner)
-        : TForm(Owner)
-{
-    Memo1->Lines->Add("Click the menu above and select \"Help\"...");
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::Cat1Click(TObject *Sender)
-{
-    ListBox1->Clear();
-
-    // Request S900 Catalog
-    exmit(0, RCAT);
-
-    if (receive(0))
-    {
-        printerror("error receiving catalog");
-        return;
-    }
-
-    catalog(true);
+    FormS900->Memo1->Lines->Add("looping mode: \"" + String((char)ps->looping) + "\""); // prints "O" or "L"
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::Put1Click(TObject *Sender)
 {
+  PutFile(GetFileName());
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormS900::PutFile(String sFilePath)
+{
     ListBox1->Clear();
 
-    char tbuf[WORDS_PER_BLOCK*2]; // 120 bytes
-    char *pszBuffer;
+    unsigned char tbuf[WORDS_PER_BLOCK*2]; // 120 bytes
+    unsigned char *pszBuffer = NULL;
 
-    String sFileName = "";
-    int iFileHandle;
+    int iFileHandle = 0;
     int iFileLength;
     int iBytesRead;
     int retval;
@@ -887,289 +881,326 @@ void __fastcall TFormS900::Put1Click(TObject *Sender)
 
     try
     {
-        OpenDialog1->Title = "Open .WAV or .AKI File, Send To Akai";
-        OpenDialog1->DefaultExt = "aki";
-        OpenDialog1->Filter = "Aki files (*.aki)|*.aki|" "Wav files (*.wav)|*.wav|"
-                 "All files (*.*)|*.*";
-        OpenDialog1->FilterIndex = 3; // start the dialog showing all files
-        OpenDialog1->Options.Clear();
-        OpenDialog1->Options << ofHideReadOnly
-        << ofPathMustExist << ofFileMustExist << ofEnableSizing;
-
-        if (!OpenDialog1->Execute())
-          return; // Cancel
-
         Memo1->Clear();
         Memo1->Repaint();
 
-        sFileName = OpenDialog1->FileName;
-
-        // Load file
-        Memo1->Lines->Add("Loading File : \"" + sFileName + "\"");
-
-        iFileHandle = FileOpen(sFileName, fmOpenRead);
-        iFileLength = FileSeek(iFileHandle,0,2);
-        FileSeek(iFileHandle,0,0);
-        pszBuffer = new char[iFileLength+1];
-        iBytesRead = FileRead(iFileHandle, pszBuffer, iFileLength);
-        FileClose(iFileHandle);
-
-        strncpy(newname, ExtractFileName(sFileName).c_str(), 10);
-
-        while (strlen(newname) < 10)
-            newname[strlen(newname)] = ' ';
-
-        newname[11] = '\0';
-
-        bool exton = false;
-
-        for (int ii = 0 ; ii < (int)strlen(newname) ; ii++)
+        if (sFilePath.IsEmpty() || !FileExists(sFilePath))
         {
-            if (newname[ii] == '.')
-                exton = true;
-
-            if (!isalnum(newname[ii]) || exton)
-                newname[ii] = ' ';
+          Memo1->Lines->Add("file does not exist!");
+          return;
         }
 
-        strncpy(fileext, ExtractFileExt(sFileName).c_str(), 4);
+        // Load file
+        Memo1->Lines->Add("file path: \"" + sFilePath + "\"");
 
-        // set file extension (if any) lowercase
-        for (int ii = 0 ; ii < 4 ; ii++)
-          fileext[ii] = (char)tolower(fileext[ii]);
+        iFileHandle = FileOpen(sFilePath, fmOpenRead);
 
-    //    Memo1->Lines->Add("ext: " + String(fileext));
-
-        if (strncmp(".aki", fileext, 4)) // Not an AKI file? (try WAV...)
+        if (iFileHandle == 0)
         {
-            unsigned char *dp;
-            char tempstr[5];
-            int file_size, SampleRate, BytesPerSample;
-            int AudioFormat, NumChannels, BytesPerFrame, BitsPerSample;
-            int SubChunck1Size, DataSize, TotalFrames;
+            Memo1->Lines->Add("unable to open file, handle is 0!");
+            return;
+        }
 
-            if (iBytesRead < 45)
+        iFileLength = FileSeek(iFileHandle,0,2);
+
+        if (iFileLength == 0)
+        {
+            FileClose(iFileHandle);
+            Memo1->Lines->Add("unable to open file, length is 0!");
+            return;
+        }
+
+        pszBuffer = new unsigned char[iFileLength+1];
+
+        if (pszBuffer == NULL)
+        {
+            FileClose(iFileHandle);
+            Memo1->Lines->Add("unable to allocate " + String(iFileLength+1) + " bytes of memory!");
+            return;
+        }
+
+        //Memo1->Lines->Add("allocated " + String(iFileLength+1) + " bytes...");
+
+        try
+        {
+            FileSeek(iFileHandle,0,0); // back to start
+
+            try
             {
-                Memo1->Lines->Add("bad file (1)");
+                iBytesRead = FileRead(iFileHandle, pszBuffer, iFileLength);
+                //Memo1->Lines->Add("read " + String(iBytesRead) + " bytes...");
+            }
+            catch(...)
+            {
+                Memo1->Lines->Add("unable to read file into buffer...");
                 return;
             }
 
-            sprintf(tempstr, "%4s", &pszBuffer[0]);
-            if (!strcmp(tempstr, "RIFF"))
+            FileClose(iFileHandle);
+            iFileHandle = 0;
+
+            strncpy(newname, ExtractFileName(sFilePath).c_str(), 10);
+
+            while (strlen(newname) < 10)
+                newname[strlen(newname)] = ' ';
+
+            newname[11] = '\0';
+
+            bool exton = false;
+
+            for (int ii = 0 ; ii < (int)strlen(newname) ; ii++)
             {
-                Memo1->Lines->Add("bad file (2)");
-                return;
+                if (newname[ii] == '.')
+                    exton = true;
+
+                if (!isalnum(newname[ii]) || exton)
+                    newname[ii] = ' ';
             }
 
-            file_size = *(int *)&pszBuffer[4];
-            if (file_size != iBytesRead-8)
+            strncpy(fileext, ExtractFileExt(sFilePath).c_str(), 4);
+
+            // set file extension (if any) lowercase
+            for (int ii = 0 ; ii < 4 ; ii++)
+                fileext[ii] = (char)tolower(fileext[ii]);
+
+        //    Memo1->Lines->Add("ext: " + String(fileext));
+
+            if (!StrCmpCaseInsens(".aki", fileext, 4)) // Not an AKI file? (try WAV...)
             {
-                Memo1->Lines->Add("bad file (3)");
-                return;
-            }
-
-            sprintf(tempstr, "%4s", &pszBuffer[8]);
-            if (!strcmp(tempstr, "WAVE"))
-            {
-                Memo1->Lines->Add("bad file (4)");
-                return;
-            }
-
-            sprintf(tempstr, "%4s", &pszBuffer[12]);
-            if (!strcmp(tempstr, "fmt "))
-            {
-                Memo1->Lines->Add("bad file (5)");
-                return;
-            }
-
-            SubChunck1Size = *(int *)&pszBuffer[16];
-            if (SubChunck1Size < 16)
-            {
-                Memo1->Lines->Add("bad file (6)");
-                return;
-            }
-
-            sprintf(tempstr, "%4s", &pszBuffer[20+SubChunck1Size+0]);            
-            if (!strcmp(tempstr, "data"))
-            {
-                Memo1->Lines->Add("bad file (7)");
-                return;
-            }
-
-            // Bytes of data following "data"
-            //**** Data must end on an even byte boundary!!! (explains
-            // why the file may appear 1 byte over-size for 8-bit mono)
-            DataSize = *(int *)&pszBuffer[20+SubChunck1Size+4];
-            Memo1->Lines->Add("DataSize: " + String(DataSize));
-
-            AudioFormat = (int)*(short int *)&pszBuffer[20];
-            if (AudioFormat != 1) // we can't handle compressed WAV-files
-            {
-                Memo1->Lines->Add("unknown wave format: " + String(AudioFormat));
-                return;
-            }
-
-            NumChannels = (int)*(short int *)&pszBuffer[22];
-            Memo1->Lines->Add("NumChannels: " + String(NumChannels));
-
-            SampleRate = *(int *)&pszBuffer[24];
-            Memo1->Lines->Add("SampleRate: " + String(SampleRate));
-
-            // BytesPerFrame: Number of bytes per frame
-            BytesPerFrame = (int)*(short int *)&pszBuffer[32];
-            Memo1->Lines->Add("BytesPerFrame: " + String(BytesPerFrame));
-
-            BitsPerSample = (int)*(short int *)&pszBuffer[34];
-            Memo1->Lines->Add("BitsPerSample: " + String(BitsPerSample));
-            if (BitsPerSample < 8 || BitsPerSample > 64)
-            {
-                Memo1->Lines->Add("bits per sample out of range: " +
-                                     String(BitsPerSample));
-                return;
-            }
-
-            BytesPerSample = BitsPerSample/8;            
-            if (BitsPerSample % 8) // remaining bits?
-                BytesPerSample++; // round up
-
-            if (BytesPerSample > 8)
-            {
-                Memo1->Lines->Add("error: can't handle samples over 64-bits!");
-                return;
-            }
-
-            if (NumChannels * BytesPerSample != BytesPerFrame)
-            {
-                Memo1->Lines->Add("error: (NumChannels * BytesPerSample != BytesPerFrame)");
-                return;
-            }
-
-            if (DataSize == 4) // Sound Recorder bug-fix
-            {
-                DataSize = iBytesRead - (20+SubChunck1Size+4+4);
-                Memo1->Lines->Add("Recomputed DataSize: " + String(DataSize));
-            }
-
-            if (DataSize % (NumChannels * BytesPerSample))
-            {
-                Memo1->Lines->Add("data are corrupt");
-                return;
-            }
-
-            Memo1->Lines->Add("BytesPerSample: " + String(BytesPerSample));
-
-            TotalFrames = DataSize / (NumChannels * BytesPerSample);
-            Memo1->Lines->Add("TotalFrames: " + String(TotalFrames));
-
-            // Need to populate a PSTOR structure for S900
-            ps.startidx = 0; /* start of play index (4 bytes) */
-            ps.endidx = (unsigned int)TotalFrames-1; /* end of play index (4 bytes) */
-            ps.loopidx = ps.endidx; /* end of play index (4 bytes) */
-
-            int tempfreq = SampleRate;
-            if (tempfreq > 49999)
-                tempfreq = 49999;
-            ps.freq = (unsigned int)tempfreq; /* sample freq. in Hz (4 bytes) */
-
-            ps.pitch = 960; /* pitch - units = 1/16 semitone (4 bytes) (middle C) */
-            ps.totalct = (unsigned int)TotalFrames; /* total number of words in sample (4 bytes) */
-            ps.period = 1.0e9/(double)ps.freq; /* sample period in nanoseconds (8 bytes) */
-
-            ps.bits_per_sample = S900_BITS_PER_SAMPLE; /* (2 bytes, 14-bits) */
-
-            strcpy(ps.name, newname); /* ASCII sample name (17 bytes) */
-            ps.looping = 'O'; /* (1 byte) */
-
-            // now we need to set "samp index"
-            retval = findidx((int *)&index, ps.name);
-
-            // 0=samples present, one matched
-            // 16=error
-            // 32=no samples
-            // 64=samples present, but no match
-            if (retval == 16)
-                return; // catalog error
-
-            if (retval == 0)
-                Memo1->Lines->Add("sample exists on S900, index: " +
-                                               String(index+1));
-
-            // encode samp_hedr and samp_parms arrays
-            encode_parameters(index, &ps);
-
-            print_ps_info(&ps);
-
-            // request common reception enable
-            exmit(0, SECRE);
-
-            // transmit sample header info
-            comws(HEDRSIZ, samp_hedr);
-
-            // wait for acknowledge
-            if (get_ack())
-                return;
-
-            int FrameCounter = 0; // We already processed the header
-
-            blockct = 0;
-
-            String dots = ".";
-            Memo1->Lines->Add(dots); // progress display
-
-            // Left-channel data begins at 20 + SubChunck1Size + 4 + 4
-            int InitialOffset = 20+SubChunck1Size+4+4;
-
-            // if Stereo and User checked "send right channel"
-            // point to first right-channel sample-datum
-            if (NumChannels > 1 && MenuSendRightChan->Checked)
-              InitialOffset += BytesPerSample;
-
-            dp = (unsigned char *)&pszBuffer[InitialOffset];
-
-    //        NS9dither16 * d = new NS9dither16();
-
-            // for each frame in WAV-file (one-sample of 1-8 bytes...)
-            for(;;)
-            {
-                // End of file?
-                if (FrameCounter >= TotalFrames)
-                    break;
-
-                // read and encode block of 60 frames...
-
-                // Strategy: encode WAV samples of 8-64 bits
-                // as unsigned 14-bit (two-byte S900 "SW" format)
-                // S900 is 12-bits but can receive 14-bits.
-                // 8-bit wav-format is already un-signed, but
-                // over 8-bits we need to convert from signed to
-                // unsigned.  All values need to be converted into
-                // a 14-bit form...
-
-                // We generate a buffer (tbuf) of 14-bit,
-                // right-justified, UNSIGNED
-                // values in a 16-bit, unsigned short format!!!
-
-                for (int ii = 0 ; ii < WORDS_PER_BLOCK ; ii++)
+                if (iBytesRead < 45)
                 {
-                    if (FrameCounter >= TotalFrames)
+                    Memo1->Lines->Add("bad file (1)");
+                    return;
+                }
+
+                if (!StrCmpCaseInsens((char*)&pszBuffer[0], "RIFF", 4))
+                {
+                    Memo1->Lines->Add("bad file (2) [no \'RIFF\' preamble!]");
+                    return;
+                }
+
+                int file_size = *(__int32 *)&pszBuffer[4];
+                if (file_size+8 != iBytesRead)
+                {
+                    Memo1->Lines->Add("bad file (3), (file_size = " +
+                     String(file_size+8) + ", iBytesRead = " +
+                        String(iBytesRead) + ")!");
+                    return;
+                }
+
+                if (!StrCmpCaseInsens((char*)&pszBuffer[8], "WAVE", 4))
+                {
+                    Memo1->Lines->Add("bad file (4) [no \'WAVE\' preamble!]");
+                    return;
+                }
+
+                // Search file for "fmt " block
+                unsigned char* headerPtr = pszBuffer;
+                // NOTE: the FindSubsection will return headerPtr by reference!
+                __int32 headerSize = FindSubsection(headerPtr, "fmt ", iBytesRead);
+                if (headerSize < 0)
+                {
+                    Memo1->Lines->Add("bad file (4) [no \'fmt \' sub-section!]");
+                    return;
+                }
+
+                // Length of the format data in bytes is a four-byte int at
+                // offset 16. It should be at least 16 bytes of sample-info...
+                if (headerSize < 16)
+                {
+                    Memo1->Lines->Add("bad file (6) [\'fmt \' sub-section is < 16 bytes!]");
+                    return;
+                }
+
+                // Search file for "data" block
+                // (Left-channel data typically begins after the header
+                // at 12 + 4 + 4 + 16 + 4 + 4 - BUT - could be anywhere...)
+                unsigned char* dataPtr = pszBuffer;
+                // NOTE: the FindSubsection will return dataPtr by reference!
+                __int32 dataLength = FindSubsection(dataPtr, "data", iBytesRead);
+                if (dataLength < 0)
+                {
+                    Memo1->Lines->Add("bad file (4) [no \'data\' sub-section!]");
+                    return;
+                }
+
+                // NOTE: Metadata tags will appear at the end of the file,
+                // after the data. You will see "LIST". I've also seen
+                // "JUNK" and "smpl", etc.
+
+                // Bytes of data following "data"
+                //**** Data must end on an even byte boundary!!! (explains
+                // why the file may appear 1 byte over-size for 8-bit mono)
+                Memo1->Lines->Add("data-section length (in bytes): " + String(dataLength));
+
+                int AudioFormat = *(__int16*)(&headerPtr[0]);
+                if (AudioFormat != 1) // we can't handle compressed WAV-files
+                {
+                    Memo1->Lines->Add("cannot read this WAV file-type " +
+                                      String(AudioFormat) + "!");
+                    return;
+                }
+
+                int NumChannels = *(__int16*)(&headerPtr[2]);
+                Memo1->Lines->Add("number of channels: " + String(NumChannels));
+
+                int SampleRate = *(__int32*)(&headerPtr[4]);
+                Memo1->Lines->Add("sample rate: " + String(SampleRate));
+
+                // BytesPerFrame: Number of bytes per frame
+                int BytesPerFrame = *(__int16*)(&headerPtr[12]);
+                Memo1->Lines->Add("bytes per frame: " + String(BytesPerFrame));
+
+                int BitsPerSample = *(__int16*)(&headerPtr[14]);
+                Memo1->Lines->Add("bits per sample: " + String(BitsPerSample));
+                if (BitsPerSample < 8 || BitsPerSample > 64)
+                {
+                    Memo1->Lines->Add("bits per sample out of range: " +
+                                         String(BitsPerSample));
+                    return;
+                }
+
+                int BytesPerSample = BitsPerSample/8;
+                if (BitsPerSample % 8) // remaining bits?
+                    BytesPerSample++; // round up
+
+                if (BytesPerSample > 8)
+                {
+                    Memo1->Lines->Add("error: can't handle samples over 64-bits!");
+                    return;
+                }
+
+                if (NumChannels * BytesPerSample != BytesPerFrame)
+                {
+                    Memo1->Lines->Add("error: (NumChannels * BytesPerSample != BytesPerFrame)");
+                    return;
+                }
+
+                // there should be no "remainder" bytes...
+                if (dataLength % (NumChannels * BytesPerSample))
+                {
+                    Memo1->Lines->Add("error: incomplete data-block!");
+                    return;
+                }
+
+                Memo1->Lines->Add("bytes per sample: " + String(BytesPerSample));
+
+                int TotalFrames = dataLength / (NumChannels * BytesPerSample);
+                Memo1->Lines->Add("number of frames: " + String(TotalFrames));
+
+                Memo1->Lines->Add("sample name: " + String(newname));
+
+                // make sure we have a file-length that accomodates the expected data-length!
+                if (dataPtr+dataLength > pszBuffer+iBytesRead)
+                {
+                    Memo1->Lines->Add("error: [dataPtr+dataLength > pszBuffer+iBytesRead!]");
+                    return;
+                }
+
+                // Need to populate a PSTOR structure for S900
+                ps.startidx = 0; /* start of play index (4 bytes) */
+                ps.endidx = (unsigned int)TotalFrames-1; /* end of play index (4 bytes) */
+                ps.loopidx = ps.endidx; /* end of play index (4 bytes) */
+
+                int tempfreq = SampleRate;
+                if (tempfreq > 49999)
+                    tempfreq = 49999;
+                ps.freq = (unsigned int)tempfreq; /* sample freq. in Hz (4 bytes) */
+
+                ps.pitch = 960; /* pitch - units = 1/16 semitone (4 bytes) (middle C) */
+                ps.totalct = (unsigned int)TotalFrames; /* total number of words in sample (4 bytes) */
+                ps.period = 1.0e9/(double)ps.freq; /* sample period in nanoseconds (8 bytes) */
+
+                ps.bits_per_sample = S900_BITS_PER_SAMPLE; /* (2 bytes, 14-bits) */
+
+                strcpy(ps.name, newname); /* ASCII sample name (17 bytes) */
+                ps.looping = 'O'; /* (1 byte) */
+
+                // now we need to set "samp index"
+                retval = findidx((int *)&index, ps.name);
+
+                // 0=samples present, one matched
+                // 16=error
+                // 32=no samples
+                // 64=samples present, but no match
+                if (retval == 16)
+                    return; // catalog error
+
+                if (retval == 0)
+                    Memo1->Lines->Add("sample exists on S900, index: " +
+                                                   String(index+1));
+
+                // encode samp_hedr and samp_parms arrays
+                encode_parameters(index, &ps);
+
+                print_ps_info(&ps);
+
+                // request common reception enable
+                exmit(0, SECRE);
+
+                // transmit sample header info
+                comws(HEDRSIZ, samp_hedr);
+
+                // wait for acknowledge
+                if (get_ack())
+                  return;
+
+                int FrameCounter = 0; // We already processed the header
+
+                blockct = 0;
+
+                String dots = ".";
+                Memo1->Lines->Add(dots); // progress display
+
+                // if Stereo and User checked "send right channel"
+                // point to first right-channel sample-datum
+                if (NumChannels > 1 && MenuSendRightChan->Checked)
+                  dataPtr += BytesPerSample;
+
+        //        NS9dither16 * d = new NS9dither16();
+
+                // for each frame in WAV-file (one-sample of 1-8 bytes...)
+                for(;;)
+                {
+                  // End of file?
+                  if (FrameCounter >= TotalFrames)
+                      break;
+
+                  // read and encode block of 60 frames...
+
+                  // Strategy: encode WAV samples of 8-64 bits
+                  // as unsigned 14-bit (two-byte S900 "SW" format)
+                  // S900 is 12-bits but can receive 14-bits.
+                  // 8-bit wav-format is already un-signed, but
+                  // over 8-bits we need to convert from signed to
+                  // unsigned.  All values need to be converted into
+                  // a 14-bit form...
+
+                  // We generate a buffer (tbuf) of 14-bit,
+                  // right-justified, UNSIGNED
+                  // values in a 16-bit, unsigned short format!!!
+
+                  for (int ii = 0 ; ii < WORDS_PER_BLOCK ; ii++)
                   {
+                    if (FrameCounter >= TotalFrames)
+                    {
                       tbuf[ii*2] = 0;
                       tbuf[(ii*2)+1] = 0;
-                  }
-                  else
-                  {
+                    }
+                    else
+                    {
                       unsigned long acc;
 
                       // one-byte wave samples are un-signed by default
                       if (BytesPerSample < 2) // one byte?
-                    {
+                      {
                         // convert byte to 14-bits and save in tbuf
                         // (left-channel sample)
-                        acc = *dp; // don't add ii here!
+                        acc = *dataPtr; // don't add ii here!
                         acc <<= 6; // 14-bit sample-conversion
-                    }
+                      }
                       else // between 2-7 bytes per sample (signed)
-                    {
+                      {
                         // Allowed BitsPerSample => 9-56
                         // Stored as MSB then LSB in "dp" buffer.
                         // Left-justified...
@@ -1197,7 +1228,7 @@ void __fastcall TFormS900::Put1Click(TObject *Sender)
 
                         // load accumulator with sample 8-64 bits
                         for (int ii = 0 ; ii < BytesPerSample ; ii++)
-                          acc |= *(dp+ii) << (8*ii);
+                          acc |= *(dataPtr+ii) << (8*ii);
 
                         acc >>= (8*BytesPerSample)-BitsPerSample; // right-justify so we can add
 
@@ -1209,203 +1240,301 @@ void __fastcall TFormS900::Put1Click(TObject *Sender)
                           acc >>= BitsPerSample-14;
                         else if (BitsPerSample < 14)
                           acc <<= 14-BitsPerSample;
+                      }
+
+                      // save converted sample in tbuf
+                      // a short int in memory is ordered LSB first, then MSB!
+                      tbuf[ii*2] = (unsigned char)acc; // LSB
+                      tbuf[(ii*2)+1] = (char)((unsigned short)acc >> 8); // MSB
                     }
 
-                    // save converted sample in tbuf
-                    // a short int in memory is ordered LSB first, then MSB!
-                    tbuf[ii*2] = (unsigned char)acc; // LSB
-                    tbuf[(ii*2)+1] = (char)((unsigned short)acc >> 8); // MSB
+                    dataPtr += BytesPerFrame; // Next frame
+                    FrameCounter++;
                   }
 
-                  dp += BytesPerFrame; // Next frame (only use left channel for stereo)
-                  FrameCounter++;
-                }
+                  // Print progress-display
+                  blockct++;
 
-                // Print progress-display
-                blockct++;
-
-                if (ps.totalct <= 19200)
-                {
+                  if (ps.totalct <= 19200)
+                  {
                     if (blockct % 8 == 0)
                     {
-                        dots += ".";
-                        FormS900->Memo1->Lines->Add(dots);
+                      dots += ".";
+                      FormS900->Memo1->Lines->Add(dots);
                     }
-                }
-                else
-                {
+                  }
+                  else
+                  {
                     if (blockct % 32 == 0)
                     {
-                        dots += ".";
-                        FormS900->Memo1->Lines->Add(dots);
+                      dots += ".";
+                      FormS900->Memo1->Lines->Add(dots);
                     }
+                  }
+
+                  unsigned char temp = (unsigned char)(blockct & 0x7f);
+                  comws(1, &temp);
+
+                  // Send data and checksum
+                  temp = wav_send_data((unsigned short *)tbuf, &ps);
+                  comws(1, &temp);
+
+                  // wait for acknowledge
+                  if (get_ack())
+                  {
+                    FormS900->Memo1->Lines->Add("no acknowledge packet received! (block = " + String(blockct) + ")");
+                    break;
+                  }
+                }
+            }
+            else // AKI file (my custom format)
+            {
+                if (iBytesRead < (WORDS_PER_BLOCK*2) + PSTOR_SIZ + MAGIC_SIZ)
+                {
+                  printerror("file is corrupt");
+                  return;
                 }
 
-                unsigned char temp = (unsigned char)(blockct & 0x7f);
-                comws(1, &temp);
+                Memo1->Lines->Add("Read " + String(iBytesRead) + " bytes");
 
-                // Send data and checksum
-                temp = wav_send_data((unsigned short *)tbuf, &ps);
-                comws(1, &temp);
+                unsigned int my_magic;
+
+                memcpy(&my_magic, &pszBuffer[0], sizeof(my_magic));
+        //    Memo1->Lines->Add("magic = " + String(my_magic));
+
+                if (my_magic != MAGIC_NUM)
+                {
+                  printerror("File is not the right kind!");
+                  return;
+                }
+
+                memcpy(&ps, &pszBuffer[0+MAGIC_SIZ], PSTOR_SIZ);
+
+                trim(ps.name, ps.name);
+
+                // encode new sample name if any entered
+                //    char name[11] = "TEMPNAME00";
+                //    sprintf(ps.name, "%.*s", MAX_NAME_S900, name);
+
+                // now we need to set "samp index"
+                retval = findidx((int *)&index, ps.name);
+
+                // 0=samples present, one matched
+                // 16=error
+                // 32=no samples
+                // 64=samples present, but no match
+                if (retval == 16)
+                  return; // catalog error
+
+                if (retval == 0)
+                  Memo1->Lines->Add("sample exists on S900, index: " +
+                                             String(index+1));
+
+                // encode samp_hedr and samp_parms arrays
+                encode_parameters(index, &ps);
+
+                print_ps_info(&ps);
+
+                // request common reception enable
+                exmit(0, SECRE);
+
+                // transmit sample header info
+                comws(HEDRSIZ, samp_hedr);
 
                 // wait for acknowledge
                 if (get_ack())
-                    return;
+                  return;
+
+                unsigned char * ptr = &pszBuffer[PSTOR_SIZ + MAGIC_SIZ];
+                int ReadCounter = PSTOR_SIZ + MAGIC_SIZ; // We already processed the header
+
+                blockct = 0;
+
+                String dots = ".";
+                Memo1->Lines->Add(dots);
+
+                for(;;)
+                {
+                  // End of file?
+                  if (ReadCounter >= iBytesRead)
+                      break;
+
+                  // read block of 60 words from buffer... */
+                  for (int ii = 0 ; ii < WORDS_PER_BLOCK*2 ; ii++)
+                  {
+                    if (ReadCounter >= iBytesRead)
+                      tbuf[ii] = 0; // pad last block if end of file
+                    else
+                      tbuf[ii] = *ptr++;
+
+                    ReadCounter++;
+                  }
+
+                  blockct++;
+
+                  if (ps.totalct <= 19200)
+                  {
+                    if (blockct % 8 == 0)
+                    {
+                      dots += ".";
+                      FormS900->Memo1->Lines->Add(dots);
+                    }
+                  }
+                  else
+                  {
+                    if (blockct % 32 == 0)
+                    {
+                      dots += ".";
+                      FormS900->Memo1->Lines->Add(dots);
+                    }
+                  }
+
+                  unsigned char temp = (unsigned char)(blockct & 0x7f);
+                  comws(1, &temp);
+
+                  // Send data and checksum
+                  temp = send_data((short int *)tbuf, &ps);
+                  comws(1, &temp);
+
+                  // wait for acknowledge
+                  if (get_ack())
+                  {
+                    FormS900->Memo1->Lines->Add("no acknowledge packet received! (block = " + String(blockct) + ")");
+                    break;
+                  }
+                }
             }
 
-    //        delete d;
-        }
-        else // AKI file (my custom format)
-        {
-            if (iBytesRead < (WORDS_PER_BLOCK*2) + PSTOR_SIZ + MAGIC_SIZ)
-            {
-                printerror("file is corrupt");
-                return;
-            }
+            unsigned char temp = EEX;
+            comws(1, &temp);
 
-            Memo1->Lines->Add("Read " + String(iBytesRead) + " bytes");
+            exmit(0, SECRD); /* request common reception disable */
 
-            unsigned int my_magic;
+            sprintf(locstr, "%02d", index);
 
-            memcpy(&my_magic, &pszBuffer[0], sizeof(my_magic));
-    //    Memo1->Lines->Add("magic = " + String(my_magic));
-
-            if (my_magic != MAGIC_NUM)
-            {
-                printerror("File is not the right kind!");
-                return;
-            }
-
-            memcpy(&ps, &pszBuffer[0+MAGIC_SIZ], PSTOR_SIZ);
-
-            trim(ps.name, ps.name);
-
-            // encode new sample name if any entered
-            //    char name[11] = "TEMPNAME00";
-            //    sprintf(ps.name, "%.*s", MAX_NAME_S900, name);
-
-            // now we need to set "samp index"
-            retval = findidx((int *)&index, ps.name);
+            retval = findidx((int *)&index, locstr);
 
             // 0=samples present, one matched
             // 16=error
             // 32=no samples
             // 64=samples present, but no match
             if (retval == 16)
-                return; // catalog error
-
-            if (retval == 0)
-                Memo1->Lines->Add("sample exists on S900, index: " +
-                                         String(index+1));
-
-            // encode samp_hedr and samp_parms arrays
-            encode_parameters(index, &ps);
-
-            print_ps_info(&ps);
-
-            // request common reception enable
-            exmit(0, SECRE);
-
-            // transmit sample header info
-            comws(HEDRSIZ, samp_hedr);
-
-            // wait for acknowledge
-            if (get_ack())
-                return;
-
-            char * ptr = &pszBuffer[PSTOR_SIZ + MAGIC_SIZ];
-            int ReadCounter = PSTOR_SIZ + MAGIC_SIZ; // We already processed the header
-
-            blockct = 0;
-
-            String dots = ".";
-            Memo1->Lines->Add(dots);
-
-            for(;;)
             {
-                // End of file?
-                if (ReadCounter >= iBytesRead)
-                    break;
-
-                // read block of 60 words from buffer... */
-                for (int ii = 0 ; ii < WORDS_PER_BLOCK*2 ; ii++)
-                {
-                    if (ReadCounter >= iBytesRead)
-                        tbuf[ii] = 0; // pad last block if end of file
-                    else
-                        tbuf[ii] = *ptr++;
-
-                    ReadCounter++;
-                }
-
-                blockct++;
-
-                if (ps.totalct <= 19200)
-                {
-                    if (blockct % 8 == 0)
-                    {
-                        dots += ".";
-                        FormS900->Memo1->Lines->Add(dots);
-                    }
-                }
-                else
-                {
-                    if (blockct % 32 == 0)
-                    {
-                        dots += ".";
-                        FormS900->Memo1->Lines->Add(dots);
-                    }
-                }
-
-                unsigned char temp = (unsigned char)(blockct & 0x7f);
-                comws(1, &temp);
-
-                // Send data and checksum
-                temp = send_data((short int *)tbuf, &ps);
-                comws(1, &temp);
-
-                // wait for acknowledge
-                if (get_ack())
-                {
-                    FormS900->Memo1->Lines->Add("no ACK at block: " + String(blockct));
-                    break;
-                }
+                Memo1->Lines->Add("Error looking up new sample in catalog...");
+                return; // catalog error
             }
 
+            if (retval == 0)
+                Memo1->Lines->Add("sample written, index: " + String(index+1));
+            else
+            {
+                Memo1->Lines->Add("index string not found, index: " + String(index+1));
+                return;
+            }
+
+            send_samp_parms(index);
         }
-
-        unsigned char temp = EEX;
-        comws(1, &temp);
-
-        exmit(0, SECRD); /* request common reception disable */
-
-        sprintf(locstr, "%02d", index);
-
-        retval = findidx((int *)&index, locstr);
-
-        // 0=samples present, one matched
-        // 16=error
-        // 32=no samples
-        // 64=samples present, but no match
-        if (retval == 16)
-            return; // catalog error
-
-        if (retval == 0)
-            Memo1->Lines->Add("sample written, index: " + String(index+1));
-        else
+        __finally
         {
-            Memo1->Lines->Add("index string not found, index: " + String(index+1));
-            return;
+          if (pszBuffer != NULL)
+              delete [] pszBuffer;
+
+          if (iFileHandle != 0)
+              FileClose(iFileHandle);
         }
-
-        send_samp_parms(index);
-
-        delete [] pszBuffer;
     }
     catch(...)
     {
-        ShowMessage("Can't load file: \"" + sFileName + "\"");
+        ShowMessage("Can't load file: \"" + sFilePath + "\"");
     }
+}
+//---------------------------------------------------------------------------
+String __fastcall TFormS900::GetFileName(void)
+{
+    OpenDialog1->Title = "Open .WAV or .AKI File, Send To Akai";
+    OpenDialog1->DefaultExt = "aki";
+    OpenDialog1->Filter = "Aki files (*.aki)|*.aki|" "Wav files (*.wav)|*.wav|"
+                 "All files (*.*)|*.*";
+    OpenDialog1->FilterIndex = 3; // start the dialog showing all files
+    OpenDialog1->Options.Clear();
+    OpenDialog1->Options << ofHideReadOnly
+        << ofPathMustExist << ofFileMustExist << ofEnableSizing;
+
+    if (!OpenDialog1->Execute())
+      return ""; // Cancel
+
+    String sFileName = OpenDialog1->FileName;
+
+    return sFileName;
+}
+//---------------------------------------------------------------------------
+// Search file for named chunk
+//
+// Returns:
+// -2 = not found
+// -1 = exception thrown
+// 0-N length of chunk
+//
+// Returns a byte-pointer to the start of data in the chunk
+// as a reference: fileBuffer
+//
+// On entry, set fileBuffer to the start of the file-buffer
+__int32 __fastcall TFormS900::FindSubsection(unsigned char* &fileBuffer, char* chunkName, UINT fileLength)
+{
+  try
+  {
+    // bypass the first 12-bytes "RIFFnnnnWAVE" at the file's beginning...
+    unsigned char* chunkPtr = fileBuffer+12;
+
+    unsigned char* pMax = fileBuffer+fileLength;
+
+    int chunkLength;
+
+    // Search file for named chunk
+    for(;;)
+    {
+      // Chunks are 4-bytes ANSI followed by a 4-byte length, lsb-to-msb
+      if (chunkPtr+8 >= pMax)
+        return -2;
+
+      chunkLength = *(__int32*)(chunkPtr+4);
+
+      // look for the 4-byte chunk-name
+      if (StrCmpCaseInsens((char*)chunkPtr, (char*)chunkName, 4))
+      {
+        fileBuffer = chunkPtr+8; // return pointer to data, by reference
+        return chunkLength;
+      }
+
+      chunkPtr += chunkLength+8;
+    }
+  }
+  catch(...)
+  {
+    return -1;
+  }
+}
+//---------------------------------------------------------------------------
+// returns TRUE if strings match - insensitive to case
+bool __fastcall TFormS900::StrCmpCaseInsens(char* sA, char* sB, int len)
+{
+  return String(sA, len).LowerCase() == String(sB, len).LowerCase();
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormS900::Cat1Click(TObject *Sender)
+{
+    ListBox1->Clear();
+
+    // Request S900 Catalog
+    exmit(0, RCAT);
+
+    if (receive(0))
+    {
+        printerror("error receiving catalog");
+        return;
+    }
+
+    catalog(true);
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::Get1Click(TObject *Sender)
@@ -1425,15 +1554,15 @@ void __fastcall TFormS900::Get1Click(TObject *Sender)
 
         catalog(false);
 
-        if (!SampEntries)
+        if (!g_numSampEntries)
         {
-            Memo1->Lines->Add("No samples in S900!");
+            Memo1->Lines->Add("No samples in S900/S950!");
             return;
         }
 
         CAT *catp = (CAT *)PermSampArray;
 
-        for (int ii = 0 ; ii < SampEntries ; ii++, catp++)
+        for (int ii = 0 ; ii < g_numSampEntries ; ii++, catp++)
             ListBox1->Items->Add(catp->name);
 
         Memo1->Lines->Add("\r\n***Click a sample at the right to receive\r\n"
@@ -1507,6 +1636,46 @@ void __fastcall TFormS900::MenuUseRS232Click(TObject *Sender)
 void __fastcall TFormS900::MenuSendRightChanClick(TObject *Sender)
 {
   MenuSendRightChan->Checked = !MenuSendRightChan->Checked;
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormS900::WMDropFile(TWMDropFiles &Msg)
+{
+  try
+  {
+    //get dropped files count
+    int cnt = ::DragQueryFileW((HDROP)Msg.Drop, -1, NULL, 0);
+
+    if (cnt != 1)
+      return; // only one file!
+
+    wchar_t wBuf[MAX_PATH];
+
+    // Get first file-name
+    if (::DragQueryFileW((HDROP)Msg.Drop, 0, wBuf, MAX_PATH) > 0)
+    {
+      // Load and convert file as per the file-type (either plain or rich text)
+      WideString wFile(wBuf);
+
+      if (!wFile.IsEmpty())
+      {
+          String sFile = String(wFile);
+          if (FileExists(sFile))
+          {
+            g_DragDropFilePath = sFile;
+            Timer1->Interval = 50;
+            Timer1->Enabled = true; // fire event to send file
+          }
+      }
+    }
+  }
+  catch(...){}
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormS900::Timer1Timer(TObject *Sender)
+{
+  Timer1->Enabled = false;
+  PutFile(g_DragDropFilePath);
+  g_DragDropFilePath = "";
 }
 //---------------------------------------------------------------------------
 
