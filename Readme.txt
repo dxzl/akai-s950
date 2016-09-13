@@ -1,5 +1,5 @@
-Copyright 2008 Scott Swift - This program is distributed under the
-terms of the GNU General Public License.
+Original software by Scott Swift 2008-2016 - This program is distributed
+under the terms of the GNU General Public License.
 
 Use Borland's C++ Builder 4 to compile. The free compiler can probably
 compile it but I've never tried http://edn.embarcadero.com/article/21205

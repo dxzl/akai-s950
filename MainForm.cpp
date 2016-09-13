@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//Copyright 2008 Scott Swift - This program is distributed under the
+//Software written by Scott Swift 2016 - This program is distributed under the
 //terms of the GNU General Public License.
 //---------------------------------------------------------------------------
 #include <vcl.h>
@@ -17,8 +17,8 @@ TFormS900 *FormS900;
 __fastcall TFormS900::TFormS900(TComponent* Owner)
         : TForm(Owner)
 {
-    Memo1->Lines->Add("Version: September 9, 2016");
-    Memo1->Lines->Add("Click the menu above and select \"Help\"...");
+    printm(VERSION_STR);
+    printm("Click the menu above and select \"Help\"...");
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::FormCreate(TObject *Sender)
@@ -28,24 +28,31 @@ void __fastcall TFormS900::FormCreate(TObject *Sender)
     this->g_numProgEntries = 0;
 
     g_DragDropFilePath = "";
-    
+
+    ApdComPort1->ComNumber = 0; // COM1
+    ApdComPort1->Baud = 38400;
+    ApdComPort1->DataBits = 8;
+    ApdComPort1->StopBits = 1;
+    ApdComPort1->Parity = pNone;
+    ApdComPort1->RTS = true;
+
     //enable drag&drop files
     ::DragAcceptFiles(this->Handle, true);
 }
 //---------------------------------------------------------------------------
 // Get sample routines
 //---------------------------------------------------------------------------
-int __fastcall TFormS900::get_sample(int samp, String Name)
+int __fastcall TFormS900::get_sample(int samp, String fileName)
 {
     unsigned int my_magic;
     PSTOR ps;
     int iFileHandle;
 
-    if (!FileExists(Name))
-        iFileHandle = FileCreate(Name);
+    if (!FileExists(fileName))
+        iFileHandle = FileCreate(fileName);
     else
     {
-        iFileHandle = FileOpen(Name, fmOpenReadWrite);
+        iFileHandle = FileOpen(fileName, fmShareDenyNone | fmOpenReadWrite);
         FileSeek(iFileHandle, 0, 0); // Back to beginning of the file
     }
 
@@ -109,11 +116,11 @@ int __fastcall TFormS900::get_samp_hedr(int samp)
     /* see if chars waiting from serial port... */
     if (receive(HEDRSIZ))
     {
-        printerror("error receiving data");
-        return(1);
+        printm("error receiving data");
+        return 1;
     }
 
-    return(0); /* 0=OK, 1=com error */
+    return 0; /* 0=OK, 1=com error */
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::decode_parameters(PSTOR * ps)
@@ -142,7 +149,7 @@ void __fastcall TFormS900::decode_parameters(PSTOR * ps)
 
     /* ASCII sample name */
     decode_parmsDB((unsigned char *)&samp_parms[7], (unsigned char *)ps->name, MAX_NAME_S900);
-    trim(ps->name, ps->name); /* trim off the blanks */
+    trimright(ps->name); /* trim off the blanks */
 
     /* looping mode */
     decode_parmsDB((unsigned char *)&samp_parms[59], &ps->looping, 1);
@@ -184,7 +191,7 @@ int __fastcall TFormS900::get_samp_data(PSTOR * ps, int handle)
             if (blockct % 8 == 0)
             {
                 dots += ".";
-                FormS900->Memo1->Lines->Add(dots);
+                printm(dots);
             }
         }
         else
@@ -192,7 +199,7 @@ int __fastcall TFormS900::get_samp_data(PSTOR * ps, int handle)
             if (blockct % 32 == 0)
             {
                 dots += ".";
-                FormS900->Memo1->Lines->Add(dots);
+                printm(dots);
             }
         }
 
@@ -365,29 +372,12 @@ void __fastcall TFormS900::chandshake(int mode)
     comws(4, midistr);
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::trim(char * trimstr, char * sourcestr)
-{
-    while (*sourcestr != '\0' && *sourcestr == ' ')
-      sourcestr++;
-
-    strcpy(trimstr, sourcestr);
-
-    /* point to NUL */
-    sourcestr = trimstr + strlen(trimstr);
-
-    while (*(sourcestr-1) == ' ' && sourcestr != trimstr)
-    {
-      *(sourcestr-1) = '\0';
-      sourcestr--;
-    }
-}
-//---------------------------------------------------------------------------
 void __fastcall TFormS900::catalog(bool print)
 {
     // 7 hedr bytes + chksum byte + EEX = 9...
     if (g_byteCount < 9 || TempArray[3] != DCAT)
     {
-        printerror("check cable, is sampler on and configured\r\n"
+        printm("check cable, is sampler on and configured\r\n"
           "for RS232, 38400 baud?");
         return;
     }
@@ -396,7 +386,7 @@ void __fastcall TFormS900::catalog(bool print)
 
     if (!entries)
     {
-        printerror("No Samples or programs in S900");
+        printm("No Samples or programs in S900");
         return;
     }
 
@@ -412,7 +402,7 @@ void __fastcall TFormS900::catalog(bool print)
         if (tempptr->type == 'S')
         {
             sprintf(permsampptr->name, "%.*s", MAX_NAME_S900, tempptr->name);
-            trim(permsampptr->name, permsampptr->name);
+            trimright(permsampptr->name);
 
             permsampptr->sampidx = tempptr->sampidx;
 
@@ -422,7 +412,7 @@ void __fastcall TFormS900::catalog(bool print)
         else if (tempptr->type == 'P')
         {
             sprintf(permprogptr->name, "%.*s", MAX_NAME_S900, tempptr->name);
-            trim(permprogptr->name, permprogptr->name);
+            trimright(permprogptr->name);
 
             permprogptr->sampidx = tempptr->sampidx;
 
@@ -439,19 +429,19 @@ void __fastcall TFormS900::catalog(bool print)
         permsampptr = (CAT *)&PermSampArray[0];
         permprogptr = (CAT *)&PermProgArray[0];
 
-        FormS900->Memo1->Lines->Add("Programs:");
+        printm("Programs:");
 
         for (int ii = 0 ; ii < g_numProgEntries ; ii++)
         {
-            FormS900->Memo1->Lines->Add(String(permprogptr->sampidx+1) + ':' + String(permprogptr->name));
+            printm(String(permprogptr->sampidx) + ':' + String(permprogptr->name).TrimRight());
             permprogptr++;
         }
 
-        FormS900->Memo1->Lines->Add("Samples:");
+        printm("Samples:");
 
         for (int ii = 0 ; ii < g_numSampEntries ; ii++)
         {
-            FormS900->Memo1->Lines->Add(String(permsampptr->sampidx+1) + ':' + String(permsampptr->name));
+            printm(String(permsampptr->sampidx) + ':' + String(permsampptr->name).TrimRight());
             permsampptr++;
         }
     }
@@ -461,25 +451,25 @@ int __fastcall TFormS900::get_ack(void)
 {
     if (receive(0))
     {
-        printerror("error receiving ack");
-        return(1);
+        printm("error receiving ack");
+        return 1;
     }
 
     if (g_byteCount == ACKSIZ && TempArray[g_byteCount-2] == NAKS)
     {
-        printerror("packet \"not-acknowledge\" (NAK) received");
+        printm("packet \"not-acknowledge\" (NAK) received");
 
-        return(1);
+        return 1;
     }
 
     if (g_byteCount != ACKSIZ || TempArray[g_byteCount-2] != ACKS)
     {
-        printerror("bad ACK (acknowledge) packet");
+        printm("bad ACK (acknowledge) packet");
 
-        return(1);
+        return 1;
     }
 
-    return(0);
+    return 0;
 }
 //---------------------------------------------------------------------------
 int __fastcall TFormS900::receive(int count)
@@ -498,9 +488,9 @@ int __fastcall TFormS900::receive(int count)
         if(++timer >= ACKTIMEOUT)
             return(1); // timeout
 
-        if (FormS900->ApdComPort1->CharReady())
+        if (ApdComPort1->CharReady())
         {
-            tempc = FormS900->ApdComPort1->GetChar();
+            tempc = ApdComPort1->GetChar();
 
             if (!have_bex)
             {
@@ -599,17 +589,12 @@ void __fastcall TFormS900::encode_parameters(int samp, PSTOR* ps)
     /* pitch */
     encode_parmsDW(ps->pitch,&samp_parms[51]);
 
-    // truncate to fit S900
-    ps->name[MAX_NAME_S900] = '\0';
-
-    /* ASCII sample name */
-    strcpy((char *)locstr, (char *)ps->name);
-
+    // copy ASCII sample name, pad with blanks and terminate
+    strncpy((char *)locstr, (char *)ps->name, MAX_NAME_S900);
     int size = strlen(locstr);
-
-    // Pad with blanks
     while (size < MAX_NAME_S900)
         locstr[size++] = ' ';
+    locstr[MAX_NAME_S900] = '\0';
 
     encode_parmsDB((unsigned char *)locstr, (unsigned char *)&samp_parms[7], MAX_NAME_S900);
 
@@ -694,46 +679,35 @@ void __fastcall TFormS900::compute_checksum(void)
     samp_parms[ii] = checksum;
 }
 //---------------------------------------------------------------------------
-int __fastcall TFormS900::findidx(int * samp, char * name)
-// 0=samples present, match
-// 16=error
-// 32=no samples
-// 64=samples present, but no match
+int __fastcall TFormS900::findidx(char* sampName)
+// returns the 0-based sample index if a match is found
+// -1 = error
+// -2 = no samples on machine
+// -3 = samples on machine, but no match
 {
     // Request S900 Catalog
     exmit(0, RCAT);
 
     if (receive(0))
-    {
-        printerror("error receiving catalog");
-        return 16;
-    }
+        return -1;
 
+    // sets g_numSampEntries...
     catalog(false); // populate sample and program structs (no printout)
 
     if (g_numSampEntries == 0)
-    {
-        *samp = 0;
-        return(32); /* no samples... we are the only one */
-    }
+        return -2; // no samples on machine
 
-    CAT * catptr = (CAT *)PermSampArray;
+    CAT* catptr = (CAT*)PermSampArray;
 
     for (int ii = 0 ; ii < g_numSampEntries ; ii++)
     {
-        if (StrCmpCaseInsens(catptr->name, name, MAX_NAME_S900))
-        {
-            *samp = catptr->sampidx;
-
-            return 0; /* match! */
-        }
+        if (StrCmpTrimRight(catptr->name, sampName, MAX_NAME_S900))
+            return catptr->sampidx;
 
         catptr++;
     }
 
-    *samp = g_numSampEntries;
-
-    return 64;
+    return -3;
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::exmit(int samp, int mode)
@@ -757,8 +731,8 @@ void __fastcall TFormS900::comws(int count, unsigned char * ptr)
 {
     for (int ii = 0 ; ii < count ; ii++)
     {
-          while (FormS900->ApdComPort1->OutBuffFree < 1);
-          FormS900->ApdComPort1->PutChar(*ptr++);
+          while (ApdComPort1->OutBuffFree < 1);
+          ApdComPort1->PutChar(*ptr++);
     }
 }
 //---------------------------------------------------------------------------
@@ -835,25 +809,25 @@ void __fastcall TFormS900::send_samp_parms(unsigned int index)
     comws(PARMSIZ, samp_parms);
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::printerror(String message)
+void __fastcall TFormS900::printm(String message)
 {
-    FormS900->Memo1->Lines->Add(message);
+    Memo1->Lines->Add(message);
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::print_ps_info(PSTOR * ps)
 {
-    FormS900->Memo1->Lines->Add("");
-    FormS900->Memo1->Lines->Add("Output Parameters:");
-    FormS900->Memo1->Lines->Add("start index: " + String(ps->startidx));
-    FormS900->Memo1->Lines->Add("end index: " + String(ps->endidx));
-    FormS900->Memo1->Lines->Add("loop index: " + String(ps->loopidx));
-    FormS900->Memo1->Lines->Add("frequency: " + String(ps->freq));
-    FormS900->Memo1->Lines->Add("pitch: " + String(ps->pitch));
-    FormS900->Memo1->Lines->Add("size(in words): " + String(ps->totalct));
-    FormS900->Memo1->Lines->Add("period: " + String((unsigned int)ps->period));
-    FormS900->Memo1->Lines->Add("bits per word: " + String(ps->bits_per_sample));
-    FormS900->Memo1->Lines->Add("name: " + String(ps->name));
-    FormS900->Memo1->Lines->Add("looping mode: \"" + String((char)ps->looping) + "\""); // prints "O" or "L"
+    FormS900->printm("");
+    FormS900->printm("Output Parameters:");
+    FormS900->printm("start index: " + String(ps->startidx));
+    FormS900->printm("end index: " + String(ps->endidx));
+    FormS900->printm("loop index: " + String(ps->loopidx));
+    FormS900->printm("frequency: " + String(ps->freq));
+    FormS900->printm("pitch: " + String(ps->pitch));
+    FormS900->printm("size(in words): " + String(ps->totalct));
+    FormS900->printm("period: " + String((unsigned int)ps->period));
+    FormS900->printm("bits per word: " + String(ps->bits_per_sample));
+    FormS900->printm("name: " + String(ps->name));
+    FormS900->printm("looping mode: \"" + String((char)ps->looping) + "\""); // prints "O" or "L"
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::Put1Click(TObject *Sender)
@@ -871,13 +845,10 @@ void __fastcall TFormS900::PutFile(String sFilePath)
     int iFileHandle = 0;
     int iFileLength;
     int iBytesRead;
-    int retval;
+    int sampIndex;
     PSTOR ps;
-    int index;
     int blockct;
-    char locstr[3];
-    char newname[11];
-    char fileext[5];
+    char newname[MAX_NAME_S900+1];
 
     try
     {
@@ -886,18 +857,19 @@ void __fastcall TFormS900::PutFile(String sFilePath)
 
         if (sFilePath.IsEmpty() || !FileExists(sFilePath))
         {
-          Memo1->Lines->Add("file does not exist!");
+          printm("file does not exist!");
           return;
         }
 
         // Load file
-        Memo1->Lines->Add("file path: \"" + sFilePath + "\"");
+        printm("file path: \"" + sFilePath + "\"");
 
-        iFileHandle = FileOpen(sFilePath, fmOpenRead);
+        // allow file to be opened for reading by another program at the same time
+        iFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenRead);
 
         if (iFileHandle == 0)
         {
-            Memo1->Lines->Add("unable to open file, handle is 0!");
+            printm("unable to open file, handle is 0!");
             return;
         }
 
@@ -906,7 +878,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
         if (iFileLength == 0)
         {
             FileClose(iFileHandle);
-            Memo1->Lines->Add("unable to open file, length is 0!");
+            printm("unable to open file, length is 0!");
             return;
         }
 
@@ -915,11 +887,11 @@ void __fastcall TFormS900::PutFile(String sFilePath)
         if (pszBuffer == NULL)
         {
             FileClose(iFileHandle);
-            Memo1->Lines->Add("unable to allocate " + String(iFileLength+1) + " bytes of memory!");
+            printm("unable to allocate " + String(iFileLength+1) + " bytes of memory!");
             return;
         }
 
-        //Memo1->Lines->Add("allocated " + String(iFileLength+1) + " bytes...");
+        //printm("allocated " + String(iFileLength+1) + " bytes...");
 
         try
         {
@@ -928,61 +900,55 @@ void __fastcall TFormS900::PutFile(String sFilePath)
             try
             {
                 iBytesRead = FileRead(iFileHandle, pszBuffer, iFileLength);
-                //Memo1->Lines->Add("read " + String(iBytesRead) + " bytes...");
+                //printm("read " + String(iBytesRead) + " bytes...");
             }
             catch(...)
             {
-                Memo1->Lines->Add("unable to read file into buffer...");
+                printm("unable to read file into buffer...");
                 return;
             }
 
             FileClose(iFileHandle);
             iFileHandle = 0;
 
-            strncpy(newname, ExtractFileName(sFilePath).c_str(), 10);
-
-            while (strlen(newname) < 10)
-                newname[strlen(newname)] = ' ';
-
-            newname[11] = '\0';
-
-            bool exton = false;
-
-            for (int ii = 0 ; ii < (int)strlen(newname) ; ii++)
+            // copy up to the first 10 chars of file-name without extension
+            // into newname and pad the rest with spaces, terminate
+            String sName = ExtractFileName(sFilePath);
+            int lenName = sName.Length();
+            bool bStop = false;
+            for (int ii = 1; ii <= MAX_NAME_S900; ii++)
             {
-                if (newname[ii] == '.')
-                    exton = true;
+              if (!bStop && (ii > lenName || sName[ii] == '.'))
+                  bStop = true;
 
-                if (!isalnum(newname[ii]) || exton)
-                    newname[ii] = ' ';
+              if (bStop)
+                newname[ii-1] = ' ';
+              else
+                newname[ii-1] = sName[ii];
             }
+            // terminate it
+            newname[MAX_NAME_S900] = '\0';
 
-            strncpy(fileext, ExtractFileExt(sFilePath).c_str(), 4);
+            printm("serial baud-rate: " + String(ApdComPort1->Baud));
 
-            // set file extension (if any) lowercase
-            for (int ii = 0 ; ii < 4 ; ii++)
-                fileext[ii] = (char)tolower(fileext[ii]);
-
-        //    Memo1->Lines->Add("ext: " + String(fileext));
-
-            if (!StrCmpCaseInsens(".aki", fileext, 4)) // Not an AKI file? (try WAV...)
+            if (ExtractFileExt(sName).LowerCase() != ".aki") // Not an AKI file? (try WAV...)
             {
                 if (iBytesRead < 45)
                 {
-                    Memo1->Lines->Add("bad file (1)");
+                    printm("bad file (1)");
                     return;
                 }
 
                 if (!StrCmpCaseInsens((char*)&pszBuffer[0], "RIFF", 4))
                 {
-                    Memo1->Lines->Add("bad file (2) [no \'RIFF\' preamble!]");
+                    printm("bad file (2) [no \'RIFF\' preamble!]");
                     return;
                 }
 
                 int file_size = *(__int32 *)&pszBuffer[4];
                 if (file_size+8 != iBytesRead)
                 {
-                    Memo1->Lines->Add("bad file (3), (file_size = " +
+                    printm("bad file (3), (file_size = " +
                      String(file_size+8) + ", iBytesRead = " +
                         String(iBytesRead) + ")!");
                     return;
@@ -990,7 +956,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
 
                 if (!StrCmpCaseInsens((char*)&pszBuffer[8], "WAVE", 4))
                 {
-                    Memo1->Lines->Add("bad file (4) [no \'WAVE\' preamble!]");
+                    printm("bad file (4) [no \'WAVE\' preamble!]");
                     return;
                 }
 
@@ -1000,7 +966,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                 __int32 headerSize = FindSubsection(headerPtr, "fmt ", iBytesRead);
                 if (headerSize < 0)
                 {
-                    Memo1->Lines->Add("bad file (4) [no \'fmt \' sub-section!]");
+                    printm("bad file (4) [no \'fmt \' sub-section!]");
                     return;
                 }
 
@@ -1008,7 +974,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                 // offset 16. It should be at least 16 bytes of sample-info...
                 if (headerSize < 16)
                 {
-                    Memo1->Lines->Add("bad file (6) [\'fmt \' sub-section is < 16 bytes!]");
+                    printm("bad file (6) [\'fmt \' sub-section is < 16 bytes!]");
                     return;
                 }
 
@@ -1020,7 +986,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                 __int32 dataLength = FindSubsection(dataPtr, "data", iBytesRead);
                 if (dataLength < 0)
                 {
-                    Memo1->Lines->Add("bad file (4) [no \'data\' sub-section!]");
+                    printm("bad file (4) [no \'data\' sub-section!]");
                     return;
                 }
 
@@ -1031,31 +997,31 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                 // Bytes of data following "data"
                 //**** Data must end on an even byte boundary!!! (explains
                 // why the file may appear 1 byte over-size for 8-bit mono)
-                Memo1->Lines->Add("data-section length (in bytes): " + String(dataLength));
+                printm("data-section length (in bytes): " + String(dataLength));
 
                 int AudioFormat = *(__int16*)(&headerPtr[0]);
                 if (AudioFormat != 1) // we can't handle compressed WAV-files
                 {
-                    Memo1->Lines->Add("cannot read this WAV file-type " +
+                    printm("cannot read this WAV file-type " +
                                       String(AudioFormat) + "!");
                     return;
                 }
 
                 int NumChannels = *(__int16*)(&headerPtr[2]);
-                Memo1->Lines->Add("number of channels: " + String(NumChannels));
+                printm("number of channels: " + String(NumChannels));
 
                 int SampleRate = *(__int32*)(&headerPtr[4]);
-                Memo1->Lines->Add("sample rate: " + String(SampleRate));
+                printm("sample rate: " + String(SampleRate));
 
                 // BytesPerFrame: Number of bytes per frame
                 int BytesPerFrame = *(__int16*)(&headerPtr[12]);
-                Memo1->Lines->Add("bytes per frame: " + String(BytesPerFrame));
+                printm("bytes per frame: " + String(BytesPerFrame));
 
                 int BitsPerSample = *(__int16*)(&headerPtr[14]);
-                Memo1->Lines->Add("bits per sample: " + String(BitsPerSample));
+                printm("bits per sample: " + String(BitsPerSample));
                 if (BitsPerSample < 8 || BitsPerSample > 64)
                 {
-                    Memo1->Lines->Add("bits per sample out of range: " +
+                    printm("bits per sample out of range: " +
                                          String(BitsPerSample));
                     return;
                 }
@@ -1066,34 +1032,34 @@ void __fastcall TFormS900::PutFile(String sFilePath)
 
                 if (BytesPerSample > 8)
                 {
-                    Memo1->Lines->Add("error: can't handle samples over 64-bits!");
+                    printm("error: can't handle samples over 64-bits!");
                     return;
                 }
 
                 if (NumChannels * BytesPerSample != BytesPerFrame)
                 {
-                    Memo1->Lines->Add("error: (NumChannels * BytesPerSample != BytesPerFrame)");
+                    printm("error: (NumChannels * BytesPerSample != BytesPerFrame)");
                     return;
                 }
 
                 // there should be no "remainder" bytes...
                 if (dataLength % (NumChannels * BytesPerSample))
                 {
-                    Memo1->Lines->Add("error: incomplete data-block!");
+                    printm("error: incomplete data-block!");
                     return;
                 }
 
-                Memo1->Lines->Add("bytes per sample: " + String(BytesPerSample));
+                printm("bytes per sample: " + String(BytesPerSample));
 
                 int TotalFrames = dataLength / (NumChannels * BytesPerSample);
-                Memo1->Lines->Add("number of frames: " + String(TotalFrames));
+                printm("number of frames: " + String(TotalFrames));
 
-                Memo1->Lines->Add("sample name: " + String(newname));
+                printm("sample name: " + String(newname).TrimRight());
 
                 // make sure we have a file-length that accomodates the expected data-length!
                 if (dataPtr+dataLength > pszBuffer+iBytesRead)
                 {
-                    Memo1->Lines->Add("error: [dataPtr+dataLength > pszBuffer+iBytesRead!]");
+                    printm("error: [dataPtr+dataLength > pszBuffer+iBytesRead!]");
                     return;
                 }
 
@@ -1113,25 +1079,17 @@ void __fastcall TFormS900::PutFile(String sFilePath)
 
                 ps.bits_per_sample = S900_BITS_PER_SAMPLE; /* (2 bytes, 14-bits) */
 
-                strcpy(ps.name, newname); /* ASCII sample name (17 bytes) */
+                strncpy(ps.name, newname, MAX_NAME_S900); /* ASCII sample name (10 bytes) */
+                ps.name[MAX_NAME_S900] = '\0';
+
                 ps.looping = 'O'; /* (1 byte) */
 
-                // now we need to set "samp index"
-                retval = findidx((int *)&index, ps.name);
-
-                // 0=samples present, one matched
-                // 16=error
-                // 32=no samples
-                // 64=samples present, but no match
-                if (retval == 16)
-                    return; // catalog error
-
-                if (retval == 0)
-                    Memo1->Lines->Add("sample exists on S900, index: " +
-                                                   String(index+1));
+                // find the sample's index on the target machine
+                if ((sampIndex = FindIndex(ps.name)) < 0)
+                    return;
 
                 // encode samp_hedr and samp_parms arrays
-                encode_parameters(index, &ps);
+                encode_parameters(sampIndex, &ps);
 
                 print_ps_info(&ps);
 
@@ -1150,7 +1108,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                 blockct = 0;
 
                 String dots = ".";
-                Memo1->Lines->Add(dots); // progress display
+                printm(dots); // progress display
 
                 // if Stereo and User checked "send right channel"
                 // point to first right-channel sample-datum
@@ -1260,7 +1218,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                     if (blockct % 8 == 0)
                     {
                       dots += ".";
-                      FormS900->Memo1->Lines->Add(dots);
+                      FormS900->printm(dots);
                     }
                   }
                   else
@@ -1268,7 +1226,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                     if (blockct % 32 == 0)
                     {
                       dots += ".";
-                      FormS900->Memo1->Lines->Add(dots);
+                      FormS900->printm(dots);
                     }
                   }
 
@@ -1282,56 +1240,46 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                   // wait for acknowledge
                   if (get_ack())
                   {
-                    FormS900->Memo1->Lines->Add("no acknowledge packet received! (block = " + String(blockct) + ")");
+                    FormS900->printm("no acknowledge packet received! (block = " + String(blockct) + ")");
                     break;
                   }
                 }
             }
             else // AKI file (my custom format)
             {
+                // min size is two 60-byte blocks of data plus the magic-number and
+                // PSTOR (program info) array
                 if (iBytesRead < (WORDS_PER_BLOCK*2) + PSTOR_SIZ + MAGIC_SIZ)
                 {
-                  printerror("file is corrupt");
-                  return;
+                    printm("file is corrupt");
+                    return;
                 }
 
-                Memo1->Lines->Add("Read " + String(iBytesRead) + " bytes");
+                printm("Read " + String(iBytesRead) + " bytes");
 
                 unsigned int my_magic;
 
                 memcpy(&my_magic, &pszBuffer[0], sizeof(my_magic));
-        //    Memo1->Lines->Add("magic = " + String(my_magic));
+        //    printm("magic = " + String(my_magic));
 
                 if (my_magic != MAGIC_NUM)
                 {
-                  printerror("File is not the right kind!");
-                  return;
+                    printm("File is not the right kind!");
+                    return;
                 }
 
                 memcpy(&ps, &pszBuffer[0+MAGIC_SIZ], PSTOR_SIZ);
-
-                trim(ps.name, ps.name);
 
                 // encode new sample name if any entered
                 //    char name[11] = "TEMPNAME00";
                 //    sprintf(ps.name, "%.*s", MAX_NAME_S900, name);
 
-                // now we need to set "samp index"
-                retval = findidx((int *)&index, ps.name);
-
-                // 0=samples present, one matched
-                // 16=error
-                // 32=no samples
-                // 64=samples present, but no match
-                if (retval == 16)
-                  return; // catalog error
-
-                if (retval == 0)
-                  Memo1->Lines->Add("sample exists on S900, index: " +
-                                             String(index+1));
+                // find the sample's index on the target machine
+                if ((sampIndex = FindIndex(ps.name)) < 0)
+                    return;
 
                 // encode samp_hedr and samp_parms arrays
-                encode_parameters(index, &ps);
+                encode_parameters(sampIndex, &ps);
 
                 print_ps_info(&ps);
 
@@ -1351,7 +1299,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                 blockct = 0;
 
                 String dots = ".";
-                Memo1->Lines->Add(dots);
+                printm(dots);
 
                 for(;;)
                 {
@@ -1377,7 +1325,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                     if (blockct % 8 == 0)
                     {
                       dots += ".";
-                      FormS900->Memo1->Lines->Add(dots);
+                      FormS900->printm(dots);
                     }
                   }
                   else
@@ -1385,7 +1333,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                     if (blockct % 32 == 0)
                     {
                       dots += ".";
-                      FormS900->Memo1->Lines->Add(dots);
+                      FormS900->printm(dots);
                     }
                   }
 
@@ -1399,7 +1347,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                   // wait for acknowledge
                   if (get_ack())
                   {
-                    FormS900->Memo1->Lines->Add("no acknowledge packet received! (block = " + String(blockct) + ")");
+                    FormS900->printm("no acknowledge packet received! (block = " + String(blockct) + ")");
                     break;
                   }
                 }
@@ -1410,29 +1358,32 @@ void __fastcall TFormS900::PutFile(String sFilePath)
 
             exmit(0, SECRD); /* request common reception disable */
 
-            sprintf(locstr, "%02d", index);
+            // look up new sample in catalog, when you write a new sample it
+            // shows up as "00", "01", "02"
 
-            retval = findidx((int *)&index, locstr);
+            char locstr[3];
+            sprintf(locstr, "%02d", sampIndex);
+            sampIndex = findidx(locstr);
 
-            // 0=samples present, one matched
-            // 16=error
-            // 32=no samples
-            // 64=samples present, but no match
-            if (retval == 16)
+            // returns the 0-based sample index if a match is found
+            // -1 = error
+            // -2 = no samples on machine
+            // -3 = samples on machine, but no match
+            if (sampIndex == -1)
             {
-                Memo1->Lines->Add("Error looking up new sample in catalog...");
+                printm("catalog search error for: \"" + String(locstr) + "\"");
                 return; // catalog error
             }
 
-            if (retval == 0)
-                Memo1->Lines->Add("sample written, index: " + String(index+1));
+            if (sampIndex >= 0)
+                printm("sample written ok!");
             else
             {
-                Memo1->Lines->Add("index string not found, index: " + String(index+1));
+                printm("index string \"" + String(locstr) + "\" not found!");
                 return;
             }
 
-            send_samp_parms(index);
+            send_samp_parms(sampIndex);
         }
         __finally
         {
@@ -1447,6 +1398,33 @@ void __fastcall TFormS900::PutFile(String sFilePath)
     {
         ShowMessage("Can't load file: \"" + sFilePath + "\"");
     }
+}
+//---------------------------------------------------------------------------
+int __fastcall TFormS900::FindIndex(char* pName)
+{
+    String trimmedName = String(pName).TrimRight();
+
+    // now we need to set "samp index"
+    // sampIndex is returned by reference
+    int sampIndex = findidx(pName);
+
+    // retval = the 0-based sample index if a match is found
+    // -1 = error
+    // -2 = no samples on machine
+    // -3 = samples on machine, but no match
+    if (sampIndex == -1)
+    {
+        printm("catalog search error for: \"" + trimmedName + "\"");
+        printm("check RS232 connection and/or baud-rate: " + String(ApdComPort1->Baud));
+    }
+    else if (sampIndex >= 0) // sample we are about to write is already on machine
+        printm("found sample " + trimmedName + " at index " + String(sampIndex));
+    else if (sampIndex == -3) // samples on machine, but not the one we are about to write
+        sampIndex = g_numSampEntries;
+    else // no samples on machine
+        sampIndex = 0;
+
+    return sampIndex;
 }
 //---------------------------------------------------------------------------
 String __fastcall TFormS900::GetFileName(void)
@@ -1521,6 +1499,12 @@ bool __fastcall TFormS900::StrCmpCaseInsens(char* sA, char* sB, int len)
   return String(sA, len).LowerCase() == String(sB, len).LowerCase();
 }
 //---------------------------------------------------------------------------
+// returns TRUE if strings match - insensitive to case
+bool __fastcall TFormS900::StrCmpTrimRight(char* sA, char* sB, int len)
+{
+  return String(sA, len).TrimRight() == String(sB, len).TrimRight();
+}
+//---------------------------------------------------------------------------
 void __fastcall TFormS900::Cat1Click(TObject *Sender)
 {
     ListBox1->Clear();
@@ -1530,7 +1514,7 @@ void __fastcall TFormS900::Cat1Click(TObject *Sender)
 
     if (receive(0))
     {
-        printerror("error receiving catalog");
+        printm("error receiving catalog");
         return;
     }
 
@@ -1548,15 +1532,15 @@ void __fastcall TFormS900::Get1Click(TObject *Sender)
 
         if (receive(0))
         {
-            printerror("error receiving catalog");
+            printm("error receiving catalog");
             return;
         }
 
-        catalog(false);
+        catalog(false); // sets g_numSampEntries
 
         if (!g_numSampEntries)
         {
-            Memo1->Lines->Add("No samples in S900/S950!");
+            printm("No samples in S900/S950!");
             return;
         }
 
@@ -1565,7 +1549,7 @@ void __fastcall TFormS900::Get1Click(TObject *Sender)
         for (int ii = 0 ; ii < g_numSampEntries ; ii++, catp++)
             ListBox1->Items->Add(catp->name);
 
-        Memo1->Lines->Add("\r\n***Click a sample at the right to receive\r\n"
+        printm("\r\n***Click a sample at the right to receive\r\n"
                            "and save it to a .AKI file*** --->");
     }
     catch(...)
@@ -1588,20 +1572,20 @@ void __fastcall TFormS900::ListBox1Click(TObject *Sender)
          << ofPathMustExist << ofOverwritePrompt << ofEnableSizing
             << ofNoReadOnlyReturn;
 
+        // Use the sample-name in the list as the file-name    
         SaveDialog1->FileName = ExtractFilePath(SaveDialog1->FileName) +
                                     ListBox1->Items->Strings[ListBox1->ItemIndex];
 
         SaveDialog1->FileName.TrimRight();
-        SaveDialog1->FileName.TrimLeft();
 
         if (SaveDialog1->Execute())
         {
             ListBox1->Repaint();
 
             if (get_sample(ListBox1->ItemIndex, SaveDialog1->FileName) != 0)
-                Memo1->Lines->Add("Not able to save sample!");
+                printm("Not able to save sample!");
             else
-                Memo1->Lines->Add("Sample saved as: \"" + SaveDialog1->FileName + "\"");
+                printm("Sample saved as: \"" + SaveDialog1->FileName + "\"");
         }
     }
     catch(...)
@@ -1610,10 +1594,15 @@ void __fastcall TFormS900::ListBox1Click(TObject *Sender)
     }
 }
 //---------------------------------------------------------------------------
+void __fastcall TFormS900::trimright(char* pStr)
+{
+    StrCopy(pStr, String(pStr, MAX_NAME_S900).TrimRight().c_str());
+}
+//---------------------------------------------------------------------------
 void __fastcall TFormS900::Help1Click(TObject *Sender)
 {
     Memo1->Lines->Clear();
-    Memo1->Lines->Add("Connect a cable between the S900's (or S950) RS232\r\n"
+    printm("Connect a cable between the S900's (or S950) RS232\r\n"
       "PORT and COM1 (or other port) on your computer. This is an ordinary\r\n"
       "DB25-male to DB9-female null-modem cable.\r\n\r\n"
       "On the S900/S950 push the MIDI button.\r\n"
@@ -1656,7 +1645,8 @@ void __fastcall TFormS900::WMDropFile(TWMDropFiles &Msg)
       // Load and convert file as per the file-type (either plain or rich text)
       WideString wFile(wBuf);
 
-      if (!wFile.IsEmpty())
+      // don't process this drag-drop until previous one sets g_DragDropFilePath = ""
+      if (g_DragDropFilePath.IsEmpty() && !wFile.IsEmpty())
       {
           String sFile = String(wFile);
           if (FileExists(sFile))
@@ -1676,6 +1666,11 @@ void __fastcall TFormS900::Timer1Timer(TObject *Sender)
   Timer1->Enabled = false;
   PutFile(g_DragDropFilePath);
   g_DragDropFilePath = "";
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormS900::ComboBox1Change(TObject *Sender)
+{
+  ApdComPort1->Baud = ComboBox1->Text.ToIntDef(38400);
 }
 //---------------------------------------------------------------------------
 
