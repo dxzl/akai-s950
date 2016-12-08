@@ -6,6 +6,7 @@
 #pragma hdrstop
 USERES("S900.res");
 USEFORM("MainForm.cpp", FormS900);
+USEUNIT("RegHelper.cpp");
 //---------------------------------------------------------------------------
 WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
@@ -13,7 +14,7 @@ WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     {
         Application->Initialize();
         Application->CreateForm(__classid(TFormS900), &FormS900);
-        Application->Run();
+     Application->Run();
     }
     catch (Exception &exception)
     {

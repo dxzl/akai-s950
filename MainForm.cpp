@@ -6,6 +6,7 @@
 #pragma hdrstop
 
 #include "MainForm.h"
+#include "RegHelper.h"
 #include "stdio.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
@@ -19,13 +20,14 @@ TFormS900 *FormS900;
 __fastcall TFormS900::TFormS900(TComponent* Owner)
         : TForm(Owner)
 {
-    printm(VERSION_STR);
-    printm("Click the menu above and select \"Help\"...");
-
 #if (AKI_FILE_HEADER_SIZE != 72)
     printm("\r\nWARNING: sizeof(PSTOR) != 72\r\n"
              "TO DEVELOPER: sizeof(PSTOR) MUST be " + String(72) + " bytes\r\n"
              " to maintain compatibility with old .AKI files!");
+#endif
+#if (sizeof(S900CAT) != 12)
+    printm("\r\nWARNING: sizeof(S900CAT) != 12\r\n"
+             "TO DEVELOPER: sizeof(S900CAT) MUST be " + String(12) + " bytes!");
 #endif
     // use the following # for PSTOR_STRUCT_SIZ in MainForm.h!
     //printm("sizeof(PSTOR):" + String(sizeof(PSTOR)));
@@ -33,26 +35,117 @@ __fastcall TFormS900::TFormS900(TComponent* Owner)
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::FormCreate(TObject *Sender)
 {
+    Timer1->OnTimer = NULL;
+    Timer1->Enabled = false;
+
     this->g_byteCount = 0;
     this->g_numSampEntries = 0;
     this->g_numProgEntries = 0;
-
     this->g_DragDropFilePath = "";
     this->g_timeout = false;
 
-// Added SetCommPort() 10/9/16
-//    ApdComPort1->ComNumber = 0; // COM1
-//    ApdComPort1->Baud = 38400;
-//    ApdComPort1->DataBits = 8;
-//    ApdComPort1->StopBits = 1;
-//    ApdComPort1->Parity = pNone;
-//    ApdComPort1->RTS = true;
-    SetCommPort(38400);
+    // read settings from registry HKEY_CURRENT_USER
+    // \\Software\\Discrete-Time Systems\\AkaiS900
+    TRegHelper* pReg = NULL;
 
-    Timer1->OnTimer = NULL;
+    try
+    {
+        try
+        {
+            pReg = new TRegHelper(true);
+
+            if (pReg != NULL)
+            {
+                // tell user how to delete reg key if this is first use...
+                if (pReg->ReadSetting(S9_REGKEY_VERSION).IsEmpty())
+                {
+                    pReg->WriteSetting(S9_REGKEY_VERSION, VERSION_STR);
+
+                    // cmd reg delete "HKCU\Software\Discrete-Time Systems\AkaiS900" /f
+                    printm("This app stores its settings in the windows registry.\r\n"
+                      "To delete settings, go to Start => Run and type \"cmd\"\r\n"
+                      "In the window type the line below and press enter:\r\n\r\n"
+                      "reg delete \"HKCU\\Software\\Discrete-Time Systems\\AkaiS900\" /f\r\n"
+                      "(or: Start => Run, \"regedit\" and search for \"AkaiS900\")\r\n");
+                }
+
+                pReg->ReadSetting(S9_REGKEY_BAUD, g_baud, 38400);
+                pReg->ReadSetting(S9_REGKEY_USE_RIGHT_CHAN, g_use_right_chan, true);
+                pReg->ReadSetting(S9_REGKEY_AUTO_RENAME, g_auto_rename, true);
+                pReg->ReadSetting(S9_REGKEY_FORCE_HWFLOW, g_force_hwflow, false);
+//                pReg->ReadSetting(S9_REGKEY_TARGET_S950, g_target_S950, false);
+            }
+            else
+            {
+                ShowMessage("Unable to read settings from the registry!");
+                g_baud = 38400;
+                g_use_right_chan = true;
+                g_auto_rename = true;
+                g_force_hwflow = false;
+//                g_target_S950 = false;
+            }
+        }
+        catch(...)
+        {
+            ShowMessage("Unable to read settings from the registry!");
+            g_baud = 38400;
+            g_use_right_chan = true;
+            g_auto_rename = true;
+            g_force_hwflow = false;
+//            g_target_S950 = false;
+        }
+
+        printm(VERSION_STR);
+        printm("Click \"Menu\" and select \"Help\"...");
+    }
+    __finally
+    {
+        try { if (pReg != NULL) delete pReg; } catch(...) {}
+    }
+
+    // in the ApdComPort1 component, set:
+    //HWFlowOptions:
+    //hwUseDTR = false;
+    //hwUseRTS = false;
+    //hwRequireDSR = false;
+    //hwRequireCTS = false;
+    //SWFlowOptions = swfNone;
+
+    MenuUseRightChanForStereoSamples->Checked = g_use_right_chan;
+    MenuAutomaticallyRenameSample->Checked = g_auto_rename;
+    MenuUseHWFlowControlBelow50000Baud->Checked = g_force_hwflow;
+//    MenuTargetS950->Checked = g_target_S950;
+
+    ComboBox1->Text = String(g_baud);
+    SetComPort(g_baud);
 
     //enable drag&drop files
     ::DragAcceptFiles(this->Handle, true);
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormS900::FormClose(TObject *Sender, TCloseAction &Action)
+{
+    // save settings to registry HKEY_CURRENT_USER
+    // \\Software\\Discrete-Time Systems\\AkaiS900
+    TRegHelper* pReg = NULL;
+
+    try
+    {
+        pReg = new TRegHelper(false);
+
+        if (pReg != NULL)
+        {
+            pReg->WriteSetting(S9_REGKEY_BAUD, g_baud);
+            pReg->WriteSetting(S9_REGKEY_USE_RIGHT_CHAN, g_use_right_chan);
+            pReg->WriteSetting(S9_REGKEY_AUTO_RENAME, g_auto_rename);
+            pReg->WriteSetting(S9_REGKEY_FORCE_HWFLOW, g_force_hwflow);
+//            pReg->WriteSetting(S9_REGKEY_TARGET_S950, g_target_S950);
+        }
+    }
+    __finally
+    {
+        try { if (pReg != NULL) delete pReg; } catch(...) {}
+    }
 }
 //---------------------------------------------------------------------------
 // Get sample routines
@@ -679,16 +772,6 @@ int __fastcall TFormS900::receive(int count)
   return 1; // timeout
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuPutSampleClick(TObject *Sender)
-{
-  String filePath = GetFileName();
-
-  if (!filePath.IsEmpty())
-    PutFile(filePath);
-
-  g_DragDropFilePath = "";
-}
-//---------------------------------------------------------------------------
 void __fastcall TFormS900::PutFile(String sFilePath)
 {
     ListBox1->Clear();
@@ -979,8 +1062,17 @@ void __fastcall TFormS900::PutFile(String sFilePath)
 
                 // if Stereo and User checked "send right channel"
                 // point to first right-channel sample-datum
-                if (NumChannels > 1 && MenuSendRightChan->Checked)
+                if (NumChannels > 1 && g_use_right_chan)
                   dataPtr += BytesPerSample;
+
+                // 1/2 the full numeric range for the # bits per sample
+                unsigned __int64 baseline = (1 << (BitsPerSample-1));
+
+                // catch an overflow if we are rounding acc up (see below)
+                unsigned __int64 max_val = (1 << S900_BITS_PER_SAMPLE)-1;
+
+                // amount of +/- shift needed (if any) to convert to 14-bits
+                int shift_count = BitsPerSample-S900_BITS_PER_SAMPLE;
 
                 // for each frame in WAV-file (one-sample of 1-8 bytes...)
                 for(;;)
@@ -1052,13 +1144,24 @@ void __fastcall TFormS900::PutFile(String sFilePath)
                         // convert from 2's compliment to offset-binary:
                         // store N + (1<<(BitsPerSample-1)) in a 64-bit
                         // unsigned int.
-                        acc += (1 << (BitsPerSample-1));
+                        acc += baseline;
 
                         // convert to 14-bits
-                        if (BitsPerSample > 14)
-                          acc >>= BitsPerSample-14;
-                        else if (BitsPerSample < 14)
-                          acc <<= 14-BitsPerSample;
+                        if (shift_count > 0)
+                        {
+                          // shift msb of discarded bits to lsb of val
+                          acc >>= shift_count-1;
+
+                          bool bRoundUp = acc & 1; // need to round up?
+
+                          // discard msb of discarded bits...
+                          acc >>= 1;
+
+                          if (bRoundUp && acc != max_val)
+                              acc++;
+                        }
+                        else if (shift_count < 0)
+                          acc <<= S900_BITS_PER_SAMPLE-BitsPerSample;
                       }
 
                       // save converted sample in tbuf
@@ -1234,7 +1337,7 @@ void __fastcall TFormS900::PutFile(String sFilePath)
 
             Sleep(50); // delay
 
-            if (MenuAutomaticallyRenameSample->Checked)
+            if (g_auto_rename)
             {
               // look up new sample in catalog, when you write a new sample it
               // shows up as "00", "01", "02"
@@ -1730,6 +1833,17 @@ __int32 __fastcall TFormS900::FindSubsection(unsigned char* &fileBuffer, char* c
   }
 }
 //---------------------------------------------------------------------------
+void __fastcall TFormS900::MenuPutSampleClick(
+      TObject *Sender)
+{
+  String filePath = GetFileName();
+
+  if (!filePath.IsEmpty())
+    PutFile(filePath);
+
+  g_DragDropFilePath = "";
+}
+//---------------------------------------------------------------------------
 void __fastcall TFormS900::MenuGetCatalogClick(TObject *Sender)
 {
     ListBox1->Clear();
@@ -1851,20 +1965,29 @@ void __fastcall TFormS900::Help1Click(TObject *Sender)
       "in this window. - Cheers, Scott Swift dxzl@live.com");
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuUseRS232Click(TObject *Sender)
+void __fastcall TFormS900::MenuUseRightChanForStereoSamplesClick(TObject *Sender)
 {
-//  MenuUseRS232->Checked = !MenuUseRS232->Checked;
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuSendRightChanClick(TObject *Sender)
-{
-  MenuSendRightChan->Checked = !MenuSendRightChan->Checked;
+  MenuUseRightChanForStereoSamples->Checked = !MenuUseRightChanForStereoSamples->Checked;
+  g_use_right_chan = MenuUseRightChanForStereoSamples->Checked;
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::MenuAutomaticallyRenameSampleClick(
       TObject *Sender)
 {
   MenuAutomaticallyRenameSample->Checked = !MenuAutomaticallyRenameSample->Checked;
+  g_auto_rename = MenuAutomaticallyRenameSample->Checked;
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormS900::MenuUseHWFlowControlBelow50000BaudClick(
+      TObject *Sender)
+{
+  MenuUseHWFlowControlBelow50000Baud->Checked =
+                          !MenuUseHWFlowControlBelow50000Baud->Checked;
+  g_force_hwflow = MenuUseHWFlowControlBelow50000Baud->Checked;
+
+  // reset port if below 50000
+  if (g_baud < 50000)
+      SetComPort(g_baud);
 }
 //---------------------------------------------------------------------------
 // custom .prg file-format:
@@ -2399,13 +2522,13 @@ void __fastcall TFormS900::Timer1RxTimeout(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TFormS900::ComboBox1Change(TObject *Sender)
 {
-// Added SetCommPort() 10/9/16
+// Added SetComPort() 10/9/16
 //  ApdComPort1->Baud = ComboBox1->Text.ToIntDef(38400);
-  SetCommPort(ComboBox1->Text.ToIntDef(38400));
+  SetComPort(ComboBox1->Text.ToIntDef(38400));
   Memo1->SetFocus();
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::SetCommPort(int baud)
+void __fastcall TFormS900::SetComPort(int baud)
 {
     // From Akai protocol: "Hardware handshake using CTS/RTS. Handshake need not
     // be used on rates below 50000 baud, in which case RTS should be tied high.”
@@ -2414,7 +2537,7 @@ void __fastcall TFormS900::SetCommPort(int baud)
     // hwfUseDTR, hwfUseRTS, hwfRequireDSR, hwfRequireCTS
     THWFlowOptionSet hwflow;
     bool rts;
-    if (baud >= 50000)
+    if (baud >= 50000 || g_force_hwflow)
     {
         hwflow = (THWFlowOptionSet() << hwfUseRTS << hwfRequireCTS);
         rts = false; // state of the RTS line low
@@ -2434,7 +2557,8 @@ void __fastcall TFormS900::SetCommPort(int baud)
     ApdComPort1->StopBits = 1;
     ApdComPort1->Parity = pNone;
     ApdComPort1->AutoOpen = true;
-//    ApdComPort1->InitPort();
+
+    g_baud = baud;
 }
 //---------------------------------------------------------------------------
 

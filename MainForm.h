@@ -17,8 +17,18 @@
 
 // defines
 //---------------------------------------------------------------------------
-#define VERSION_STR "Version 1.28: October 9, 2016"
+#define VERSION_STR "Version 1.29: December 3, 2016"
 //---------------------------------------------------------------------------
+
+#define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS900"
+
+// Registry entries we save in HKEY_CURRENT_USER
+#define S9_REGKEY_VERSION "Version"
+#define S9_REGKEY_BAUD "Baud"
+#define S9_REGKEY_USE_RIGHT_CHAN "UseRightChan"
+#define S9_REGKEY_AUTO_RENAME "AutoRename"
+#define S9_REGKEY_FORCE_HWFLOW "ForceHWFlowControl"
+#define S9_REGKEY_TARGET_S950 "TargetS950"
 
 #define LOAD 1
 #define SAVE 2
@@ -162,7 +172,7 @@ __published:  // IDE-managed Components
     TMenuItem *Help1;
     TTimer *Timer1;
     TMenuItem *N1;
-    TMenuItem *MenuSendRightChan;
+  TMenuItem *MenuUseRightChanForStereoSamples;
     TMenuItem *N2;
     TApdComPort *ApdComPort1;
     TPanel *Panel1;
@@ -175,14 +185,14 @@ __published:  // IDE-managed Components
   TMenuItem *MenuPutPrograms;
   TMenuItem *N3;
   TMenuItem *N4;
+  TMenuItem *MenuUseHWFlowControlBelow50000Baud;
 
     void __fastcall MenuGetCatalogClick(TObject *Sender);
     void __fastcall MenuPutSampleClick(TObject *Sender);
     void __fastcall MenuGetSampleClick(TObject *Sender);
     void __fastcall ListBox1Click(TObject *Sender);
     void __fastcall Help1Click(TObject *Sender);
-    void __fastcall MenuUseRS232Click(TObject *Sender);
-    void __fastcall MenuSendRightChanClick(TObject *Sender);
+    void __fastcall MenuUseRightChanForStereoSamplesClick(TObject *Sender);
     void __fastcall FormCreate(TObject *Sender);
     void __fastcall Timer1FileDrop(TObject *Sender);
     void __fastcall Timer1RxTimeout(TObject *Sender);
@@ -190,9 +200,11 @@ __published:  // IDE-managed Components
     void __fastcall MenuAutomaticallyRenameSampleClick(TObject *Sender);
   void __fastcall MenuGetProgramsClick(TObject *Sender);
   void __fastcall MenuPutProgramsClick(TObject *Sender);
+  void __fastcall MenuUseHWFlowControlBelow50000BaudClick(TObject *Sender);
+  void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
 
 private:  // User declarations
-    void __fastcall SetCommPort(int baud);
+    void __fastcall SetComPort(int baud);
     int __fastcall FindIndex(char* pName);
     void __fastcall PutFile(String sFilePath);
     String __fastcall GetFileName(void);
@@ -239,11 +251,6 @@ private:  // User declarations
     void __fastcall cxmit(int samp, int mode);
     void __fastcall WMDropFile(TWMDropFiles &Msg);
 
-    int g_byteCount;
-    int g_numSampEntries;
-    int g_numProgEntries;
-    bool g_timeout;
-
     // receive data buffer, needs to be big enough for a catalog of a
     // sampler with the max samples allowed OR large enough for
     // the largest sysex dump you expect, sample parameters, drum settings, etc.
@@ -256,6 +263,16 @@ private:  // User declarations
     // holds the Rx/Tx sample information
     unsigned char samp_parms[PARMSIZ];
     unsigned char samp_hedr[HEDRSIZ];
+
+    // settings vars
+    int g_baud;
+    bool g_use_right_chan, g_auto_rename, g_force_hwflow;
+//    bool g_target_S950;
+
+    int g_byteCount;
+    int g_numSampEntries;
+    int g_numProgEntries;
+    bool g_timeout;
 
     String g_DragDropFilePath;
 
