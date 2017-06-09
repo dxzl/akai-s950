@@ -56,7 +56,7 @@ ALLLIB = $(LIBFILES) $(LIBRARIES) import32.lib cp32mt.lib
 IncludeVerInfo=1
 AutoIncBuild=0
 MajorVer=1
-MinorVer=29
+MinorVer=38
 Release=0
 Build=0
 Debug=0
@@ -70,13 +70,13 @@ CodePage=1252
 [Version Info Keys]
 CompanyName=Scott Swift
 FileDescription=Send WAV files to Akai S900/S950 Sampler, etc.
-FileVersion=1.29.0.0
+FileVersion=1.38.0.0
 InternalName=S900
-LegalCopyright=2016
+LegalCopyright=2017
 LegalTrademarks=
 OriginalFilename=S900.exe
 ProductName=Akai S900/S950 Sampler Communications
-ProductVersion=1.29.0.0
+ProductVersion=1.38.0.0
 Comments=Akai S900/S950 send or receive samples via RS232
 
 [HistoryLists\hlIncludePath]

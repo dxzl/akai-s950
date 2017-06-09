@@ -17,7 +17,7 @@
 
 // defines
 //---------------------------------------------------------------------------
-#define VERSION_STR "Version 1.29: December 3, 2016"
+#define VERSION_STR "Version 1.38: February 5, 2017"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS900"
@@ -28,7 +28,8 @@
 #define S9_REGKEY_USE_RIGHT_CHAN "UseRightChan"
 #define S9_REGKEY_AUTO_RENAME "AutoRename"
 #define S9_REGKEY_FORCE_HWFLOW "ForceHWFlowControl"
-#define S9_REGKEY_TARGET_S950 "TargetS950"
+//#define S9_REGKEY_TARGET_S950 "TargetS950"
+//#define S9_REGKEY_USE_SMOOTH_QUANTIZATION "UseSmoothQuantization"
 
 #define LOAD 1
 #define SAVE 2
@@ -45,9 +46,12 @@
 // NOTE: increasing this will cause much more memory to be used because many
 // arrays are not dynamically allocated (they should be dynamic and use "new"
 // instead)... TODO!
-#define MAX_SAMPS_S900 32 // S900 is 32 but S950 is "99" (I think it's 100 with TONE)
+#define MAX_SAMPS 100 // S900 is 32 but S950 is "99" (I think it's 100 with TONE)
+#define MAX_PROGS 100 // S900 is 32 but S950 is "99" (I think it's 100 with TONE)
 
-#define WORDS_PER_BLOCK 60
+#define DATA_PACKET_SIZE 120
+#define S900_BITS_PER_WORD 14
+#define S950_BITS_PER_WORD 16
 
 // S900 sample parameters size
 #define PARMSIZ 129
@@ -72,14 +76,15 @@
 #define HEDRSIZ 19  // starts with BEX but no EEX
 #define ACKSIZ  4
 
+#define UINT16SIZE ((int)sizeof(unsigned __int16))
 #define UINT32SIZE ((int)sizeof(unsigned __int32))
 
-#define BEX  ((unsigned char)0xF0)  // beginning of exclusive
-#define EEX  ((unsigned char)0xF7)  // end of EXCLUSIVE
+#define BEX  ((Byte)0xF0)  // beginning of exclusive
+#define EEX  ((Byte)0xF7)  // end of EXCLUSIVE
 
-#define AKAI_ID   ((unsigned char)0x47)  // AKAI I.D.
-#define S900_ID   ((unsigned char)64)    // S900 I.D.
-#define COMMON_ID ((unsigned char)0x7e)  // system common I.D.
+#define AKAI_ID   ((Byte)0x47)  // AKAI I.D.
+#define S900_ID   ((Byte)64)    // S900 I.D.
+#define COMMON_ID ((Byte)0x7e)  // system common I.D.
 
 // akai exclusive
 #define RDRS  0     // request drum settings
@@ -98,28 +103,35 @@
 // system exclusive
 #define RSD   0     // request sample dump
 #define SD    1     // sample dump
-#define ACKS  ((unsigned char)0x7f)  // acknowledge sample block or header
-#define ASD   ((unsigned char)0x7d)  // abort sample dump
-#define NAKS  ((unsigned char)0x7e)  // not-acknowledge (request re-trans.)*/
+#define ACKS  ((Byte)0x7f)  // acknowledge sample block or header
+#define ASD   ((Byte)0x7d)  // abort sample dump
+#define NAKS  ((Byte)0x7e)  // not-acknowledge (request re-trans.)*/
 
 // the number of chars the S900 can handle, is 10 chars max
 #define MAX_NAME_S900 10
-
-#define S900_BITS_PER_SAMPLE 14
 
 #define DAC12UNSIGNED 4095 // 2^12 / 2 - 1
 #define DAC12 2047 // 2^12 / 2 - 1
 #define DAC16 32767 // 2^16 / 2 - 1
 
-#define TEMPCATBUFSIZ (sizeof(S900CAT)*MAX_SAMPS_S900*2 + 9)
+// this TempArray is used for all receive() data and needs to be big enough
+// for the largest single transmission from the target machine
+// (we need 122 bytes for a data packet)
+// 2400 bytes for the largest possible catalog...
+#define TEMPCATBUFSIZ (sizeof(S900CAT)*(MAX_SAMPS+MAX_PROGS) + 9)
 
+// Delay (in ms) between sending individual programs from a .prg file
+#define DELAY_BETWEEN_PROGRAMS 125
+
+// this struct can be modified if you need to rearrange it or add fields...
 typedef struct
 {
   char name[MAX_NAME_S900+1];
   int sampidx;
-  int select; // user select flag
 } CAT;
 
+// this struct MUST be 12 bytes and always be in this order!
+// (it reflects the cat data returned by the target machine)
 typedef struct
 {
   char type; // ASCII: "P" = program, "S" = sample
@@ -147,15 +159,15 @@ typedef struct
   unsigned __int32 totalct; // total number of words in sample (4 bytes)
   unsigned __int32 period; // sample period in nanoseconds (4 bytes)
   unsigned __int32 spareint1; // (4 bytes)
-  unsigned __int16 bits_per_sample; // (2 bytes)
+  unsigned __int16 bits_per_word; // (2 bytes)
   char name[PSTOR_NAME_COUNT]; // ASCII sample name (14 bytes)
   char spares[PSTOR_SPARE_COUNT]; // unused bytes (12 bytes)
   __int32 spareint2; // signed value (4 bytes)
   __int32 loudnessoffset; // signed value (4 bytes)
-  unsigned char sparechar1; // (1 byte)
-  unsigned char sparechar2; // (1 byte)
-  unsigned char flags; // (1 byte)
-  unsigned char loopmode; // (1 byte)
+  Byte sparechar1; // (1 byte)
+  Byte sparechar2; // (1 byte)
+  Byte flags; // (1 byte)
+  Byte loopmode; // (1 byte)
 } PSTOR; // sizeof(PSTOR) must always be 72 bytes!
 
 //---------------------------------------------------------------------------
@@ -164,15 +176,15 @@ class TFormS900 : public TForm
 __published:  // IDE-managed Components
     TMainMenu *MainMenu1;
     TMenuItem *S9001;
-  TMenuItem *MenuGetCatalog;
-  TMenuItem *MenuGetSample;
-  TMenuItem *MenuPutSample;
+    TMenuItem *MenuGetCatalog;
+    TMenuItem *MenuGetSample;
+    TMenuItem *MenuPutSample;
     TOpenDialog *OpenDialog1;
     TSaveDialog *SaveDialog1;
     TMenuItem *Help1;
     TTimer *Timer1;
     TMenuItem *N1;
-  TMenuItem *MenuUseRightChanForStereoSamples;
+    TMenuItem *MenuUseRightChanForStereoSamples;
     TMenuItem *N2;
     TApdComPort *ApdComPort1;
     TPanel *Panel1;
@@ -181,11 +193,11 @@ __published:  // IDE-managed Components
     TComboBox *ComboBox1;
     TMemo *Memo1;
     TMenuItem *MenuAutomaticallyRenameSample;
-  TMenuItem *MenuGetPrograms;
-  TMenuItem *MenuPutPrograms;
-  TMenuItem *N3;
-  TMenuItem *N4;
-  TMenuItem *MenuUseHWFlowControlBelow50000Baud;
+    TMenuItem *MenuGetPrograms;
+    TMenuItem *MenuPutPrograms;
+    TMenuItem *N3;
+    TMenuItem *N4;
+    TMenuItem *MenuUseHWFlowControlBelow50000Baud;
 
     void __fastcall MenuGetCatalogClick(TObject *Sender);
     void __fastcall MenuPutSampleClick(TObject *Sender);
@@ -194,87 +206,96 @@ __published:  // IDE-managed Components
     void __fastcall Help1Click(TObject *Sender);
     void __fastcall MenuUseRightChanForStereoSamplesClick(TObject *Sender);
     void __fastcall FormCreate(TObject *Sender);
-    void __fastcall Timer1FileDrop(TObject *Sender);
-    void __fastcall Timer1RxTimeout(TObject *Sender);
     void __fastcall ComboBox1Change(TObject *Sender);
     void __fastcall MenuAutomaticallyRenameSampleClick(TObject *Sender);
-  void __fastcall MenuGetProgramsClick(TObject *Sender);
-  void __fastcall MenuPutProgramsClick(TObject *Sender);
-  void __fastcall MenuUseHWFlowControlBelow50000BaudClick(TObject *Sender);
-  void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
+    void __fastcall MenuGetProgramsClick(TObject *Sender);
+    void __fastcall MenuPutProgramsClick(TObject *Sender);
+    void __fastcall MenuUseHWFlowControlBelow50000BaudClick(TObject *Sender);
+    void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
 
 private:  // User declarations
+    void __fastcall Timer1FileDropTimeout(TObject *Sender);
+    void __fastcall Timer1RxTimeout(TObject *Sender);
+    void __fastcall Timer1GpTimeout(TObject *Sender);
+
+    bool __fastcall IsGpTimeout(void);
+    void __fastcall StopGpTimer(void);
+    void __fastcall DelayGpTimer(int time);
+    void __fastcall StartGpTimer(int time);
+
+    void __fastcall PutSample(String sFilePath);
+    int __fastcall GetSample(int samp, String Name);
     void __fastcall SetComPort(int baud);
     int __fastcall FindIndex(char* pName);
-    void __fastcall PutFile(String sFilePath);
     String __fastcall GetFileName(void);
     bool __fastcall StrCmpCaseInsens(char* sA, char* sB, int len);
-    __int32 __fastcall FindSubsection(unsigned char* &fileBuffer, char* chunkName, UINT maxBytes);
+    __int32 __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
 
     void __fastcall encode_sample_info(int samp, PSTOR* ps);
     void __fastcall decode_sample_info(PSTOR* ps);
 
-    void __fastcall encode_parmsDB(unsigned char c, unsigned char* dest);
-    void __fastcall encode_parmsDB(unsigned char* source, unsigned char* dest, int numchars);
-    unsigned char __fastcall decode_parmsDB(unsigned char* source);
-    void __fastcall decode_parmsDB(unsigned char* dest, unsigned char* source, int numchars);
+    void __fastcall encode_parmsDB(Byte c, Byte* dest);
+    void __fastcall encode_parmsDB(Byte* source, Byte* dest, int numchars);
+    Byte __fastcall decode_parmsDB(Byte* source);
+    void __fastcall decode_parmsDB(Byte* dest, Byte* source, int numchars);
 
-    void __fastcall encode_parmsDD(unsigned __int32 value, unsigned char* tp);
-    unsigned __int32 __fastcall decode_parmsDD(unsigned char* tp);
+    void __fastcall encode_parmsDD(unsigned __int32 value, Byte* tp);
+    unsigned __int32 __fastcall decode_parmsDD(Byte* tp);
 
-    void __fastcall encode_parmsDW(unsigned __int32 value, unsigned char* tp);
-    unsigned __int32 __fastcall decode_parmsDW(unsigned char* tp);
+    void __fastcall encode_parmsDW(unsigned __int32 value, Byte* tp);
+    unsigned __int32 __fastcall decode_parmsDW(Byte* tp);
 
-    void __fastcall encode_hedrTB(unsigned __int32 value, unsigned char* tp);
-    unsigned __int32 __fastcall decode_hedrTB(unsigned char* tp);
+    void __fastcall encode_hedrTB(unsigned __int32 value, Byte* tp);
+    unsigned __int32 __fastcall decode_hedrTB(Byte* tp);
 
     void __fastcall compute_checksum(int min_index, int max_index);
     int __fastcall findidx(char* sampName);
-    void __fastcall exmit(int samp, int mode);
-    void __fastcall comws(int count, unsigned char* ptr);
-    unsigned char __fastcall send_data(__int16* intptr, PSTOR* ps);
-    unsigned char __fastcall wav_send_data(unsigned __int16* ptr);
+    void __fastcall xmit(unsigned __int16 val, int bytes_per_word,
+                               int bits_per_word, Byte &checksum);
     void __fastcall send_samp_parms(unsigned int index);
     void __fastcall printm(String message);
     void __fastcall print_ps_info(PSTOR* ps);
     int __fastcall receive(int count);
     void __fastcall catalog(bool print);
-    int __fastcall get_ack(int blockct);
     void __fastcall trimright(char* pStr);
 
-    int __fastcall get_sample(int samp, String Name);
+    void __fastcall chandshake(int mode);
+    int __fastcall get_ack(int blockct);
+    void __fastcall exmit(int samp, int mode, bool bDelay);
+    void __fastcall cxmit(int samp, int mode, bool bDelay);
+    void __fastcall comws(int count, Byte* ptr, bool bDelay);
+
     int __fastcall get_samp_data(PSTOR * ps, int handle);
-    int __fastcall get_comm_samp_data(__int16* bufptr, int max_bytes, PSTOR* ps, int blockct);
+    int __fastcall get_comm_samp_data(__int16* bufptr, int bytes_per_word,
+                 int samples_per_block, int bits_per_word, int blockct);
     int __fastcall get_comm_samp_parms(int samp);
     int __fastcall get_comm_samp_hedr(int samp);
-    void __fastcall chandshake(int mode);
-    void __fastcall cxmit(int samp, int mode);
     void __fastcall WMDropFile(TWMDropFiles &Msg);
 
     // receive data buffer, needs to be big enough for a catalog of a
     // sampler with the max samples allowed OR large enough for
     // the largest sysex dump you expect, sample parameters, drum settings, etc.
-    unsigned char TempArray[TEMPCATBUFSIZ];
+    Byte TempArray[TEMPCATBUFSIZ];
 
     // holds the processed catalog info
-    unsigned char PermSampArray[sizeof(CAT)*MAX_SAMPS_S900];
-    unsigned char PermProgArray[sizeof(CAT)*MAX_SAMPS_S900];
+    Byte PermSampArray[sizeof(CAT)*MAX_SAMPS];
+    Byte PermProgArray[sizeof(CAT)*MAX_PROGS];
 
     // holds the Rx/Tx sample information
-    unsigned char samp_parms[PARMSIZ];
-    unsigned char samp_hedr[HEDRSIZ];
+    Byte samp_parms[PARMSIZ];
+    Byte samp_hedr[HEDRSIZ];
 
     // settings vars
-    int g_baud;
-    bool g_use_right_chan, g_auto_rename, g_force_hwflow;
-//    bool g_target_S950;
+    int m_baud;
+    bool m_use_right_chan, m_auto_rename, m_force_hwflow;
+    bool m_target_S950, m_use_smooth_quantization;
 
-    int g_byteCount;
-    int g_numSampEntries;
-    int g_numProgEntries;
-    bool g_timeout;
+    int m_byteCount;
+    int m_numSampEntries;
+    int m_numProgEntries;
+    bool m_rxTimeout, m_gpTimeout, m_systemBusy;
 
-    String g_DragDropFilePath;
+    String m_DragDropFilePath;
 
 protected:
 
@@ -287,6 +308,7 @@ END_MESSAGE_MAP(TComponent)
 public:    // User declarations
     __fastcall TFormS900(TComponent* Owner);
 
+    __property bool SystemBusy = {read = m_systemBusy};
 };
 //---------------------------------------------------------------------------
 extern PACKAGE TFormS900 *FormS900;

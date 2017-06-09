@@ -1,4 +1,4 @@
-Authored 2016 Scott Swift - This program is distributed under the
+Copyright 2008 Scott Swift - This program is distributed under the
 terms of the GNU General Public License.
 
 Use Borland's C++ Builder 4 to compile. The free compiler can probably
@@ -34,4 +34,5 @@ to vclmid40.lib).
 
 Lots of Info. on the S900 Protocol can be found at http://yahcolorize.com/S900/index.htm
 
-- Scott Swift (dxzl@live.com)
+PLEASE DON'T ASK ME TO HELP DEBUG THIS PROGRAM FOR YOUR SYSTEM - I DO NOT
+EVEN HAVE AN AKAI S900 ANYMORE! - Scott Swift
