@@ -5,19 +5,19 @@
 #ifndef MainFormH
 #define MainFormH
 //---------------------------------------------------------------------------
-#include <Classes.hpp>
-#include <Controls.hpp>
-#include <StdCtrls.hpp>
-#include <Forms.hpp>
-#include <Menus.hpp>
-#include <Dialogs.hpp>
-#include <ExtCtrls.hpp>
+#include <System.Classes.hpp>
+#include <Vcl.Controls.hpp>
+#include <Vcl.StdCtrls.hpp>
+#include <Vcl.Forms.hpp>
+#include <Vcl.Dialogs.hpp>
+#include <Vcl.ExtCtrls.hpp>
+#include <Vcl.Menus.hpp>
 #include "AdPort.hpp"
 #include "OoMisc.hpp"
 
 // defines
 //---------------------------------------------------------------------------
-#define VERSION_STR "Version 1.38: February 5, 2017"
+#define VERSION_STR "Version 1.39: June 11, 2017"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS900"
@@ -174,49 +174,49 @@ typedef struct
 class TFormS900 : public TForm
 {
 __published:  // IDE-managed Components
-    TMainMenu *MainMenu1;
-    TMenuItem *S9001;
-    TMenuItem *MenuGetCatalog;
-    TMenuItem *MenuGetSample;
-    TMenuItem *MenuPutSample;
-    TOpenDialog *OpenDialog1;
-    TSaveDialog *SaveDialog1;
-    TMenuItem *Help1;
-    TTimer *Timer1;
-    TMenuItem *N1;
-    TMenuItem *MenuUseRightChanForStereoSamples;
-    TMenuItem *N2;
-    TApdComPort *ApdComPort1;
-    TPanel *Panel1;
-    TPanel *Panel2;
-    TListBox *ListBox1;
-    TComboBox *ComboBox1;
-    TMemo *Memo1;
-    TMenuItem *MenuAutomaticallyRenameSample;
-    TMenuItem *MenuGetPrograms;
-    TMenuItem *MenuPutPrograms;
-    TMenuItem *N3;
-    TMenuItem *N4;
-    TMenuItem *MenuUseHWFlowControlBelow50000Baud;
+	TMainMenu *MainMenu1;
+	TTimer *Timer1;
+	TOpenDialog *OpenDialog1;
+	TSaveDialog *SaveDialog1;
+	TApdComPort *ApdComPort1;
+	TPanel *Panel1;
+	TPanel *Panel2;
+	TComboBox *ComboBox1;
+	TListBox *ListBox1;
+	TMemo *Memo1;
+	TMenuItem *S9001;
+	TMenuItem *MenuGetCatalog;
+	TMenuItem *N4;
+	TMenuItem *MenuGetSample;
+	TMenuItem *MenuPutSample;
+	TMenuItem *N3;
+	TMenuItem *MenuGetPrograms;
+	TMenuItem *MenuPutPrograms;
+	TMenuItem *N1;
+	TMenuItem *MenuUseRightChanForStereoSamples;
+	TMenuItem *MenuAutomaticallyRenameSample;
+	TMenuItem *N2;
+	TMenuItem *MenuUseHWFlowControlBelow50000Baud;
+	TMenuItem *Help1;
+	void __fastcall MenuGetCatalogClick(TObject *Sender);
+	void __fastcall MenuGetSampleClick(TObject *Sender);
+	void __fastcall MenuPutSampleClick(TObject *Sender);
+	void __fastcall MenuGetProgramsClick(TObject *Sender);
+	void __fastcall MenuPutProgramsClick(TObject *Sender);
+	void __fastcall MenuUseRightChanForStereoSamplesClick(TObject *Sender);
+	void __fastcall MenuAutomaticallyRenameSampleClick(TObject *Sender);
+	void __fastcall MenuUseHWFlowControlBelow50000BaudClick(TObject *Sender);
+	void __fastcall Help1Click(TObject *Sender);
 
-    void __fastcall MenuGetCatalogClick(TObject *Sender);
-    void __fastcall MenuPutSampleClick(TObject *Sender);
-    void __fastcall MenuGetSampleClick(TObject *Sender);
-    void __fastcall ListBox1Click(TObject *Sender);
-    void __fastcall Help1Click(TObject *Sender);
-    void __fastcall MenuUseRightChanForStereoSamplesClick(TObject *Sender);
-    void __fastcall FormCreate(TObject *Sender);
-    void __fastcall ComboBox1Change(TObject *Sender);
-    void __fastcall MenuAutomaticallyRenameSampleClick(TObject *Sender);
-    void __fastcall MenuGetProgramsClick(TObject *Sender);
-    void __fastcall MenuPutProgramsClick(TObject *Sender);
-    void __fastcall MenuUseHWFlowControlBelow50000BaudClick(TObject *Sender);
-    void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
+	void __fastcall ListBox1Click(TObject *Sender);
+	void __fastcall FormCreate(TObject *Sender);
+	void __fastcall ComboBox1Change(TObject *Sender);
+	void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
 
 private:  // User declarations
-    void __fastcall Timer1FileDropTimeout(TObject *Sender);
+	void __fastcall Timer1FileDropTimeout(TObject *Sender);
     void __fastcall Timer1RxTimeout(TObject *Sender);
-    void __fastcall Timer1GpTimeout(TObject *Sender);
+	void __fastcall Timer1GpTimeout(TObject *Sender);
 
     bool __fastcall IsGpTimeout(void);
     void __fastcall StopGpTimer(void);
@@ -231,7 +231,7 @@ private:  // User declarations
     bool __fastcall StrCmpCaseInsens(char* sA, char* sB, int len);
     __int32 __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
 
-    void __fastcall encode_sample_info(int samp, PSTOR* ps);
+	void __fastcall encode_sample_info(int samp, PSTOR* ps);
     void __fastcall decode_sample_info(PSTOR* ps);
 
     void __fastcall encode_parmsDB(Byte c, Byte* dest);
@@ -265,7 +265,7 @@ private:  // User declarations
     void __fastcall cxmit(int samp, int mode, bool bDelay);
     void __fastcall comws(int count, Byte* ptr, bool bDelay);
 
-    int __fastcall get_samp_data(PSTOR * ps, int handle);
+	int __fastcall get_samp_data(PSTOR * ps, int handle);
     int __fastcall get_comm_samp_data(__int16* bufptr, int bytes_per_word,
                  int samples_per_block, int bits_per_word, int blockct);
     int __fastcall get_comm_samp_parms(int samp);
