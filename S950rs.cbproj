@@ -1,12 +1,12 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
-        <ProjectGuid>{BE51E810-DB2C-46E9-BF1F-0564A1197FC0}</ProjectGuid>
+        <ProjectGuid>{E99CFC5A-45B4-4971-AB28-347B417A3E25}</ProjectGuid>
         <ProjectVersion>18.2</ProjectVersion>
         <FrameworkType>VCL</FrameworkType>
         <AppType>Application</AppType>
-        <MainSource>S950.cpp</MainSource>
+        <MainSource>S950rs.cpp</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Debug</Config>
+        <Config Condition="'$(Config)'==''">Release</Config>
         <Platform Condition="'$(Platform)'==''">Win32</Platform>
         <TargetedPlatforms>1</TargetedPlatforms>
     </PropertyGroup>
@@ -41,7 +41,20 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
+        <IncludePath>Midi\;$(IncludePath)</IncludePath>
+        <ILINK_LibraryPath>Midi\;$(ILINK_LibraryPath)</ILINK_LibraryPath>
+        <Custom_Styles>&quot;Sapphire Kamri|VCLSTYLE|$(BDSCOMMONDIR)\Styles\SapphireKamri.vsf&quot;</Custom_Styles>
+        <AllPackageLibs>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</AllPackageLibs>
+        <UWP_CppLogo150>$(BDS)\bin\Artwork\Windows\UWP\cppreg_UwpDefault_150.png</UWP_CppLogo150>
+        <_TCHARMapping>wchar_t</_TCHARMapping>
+        <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
+        <ProjectType>CppVCLApplication</ProjectType>
+        <Multithreaded>true</Multithreaded>
+        <Icon_MainIcon>$(BDS)\bin\cbuilder_PROJECTICON.ico</Icon_MainIcon>
+        <SanitizedProjectName>S950rs</SanitizedProjectName>
+        <UWP_CppLogo44>$(BDS)\bin\Artwork\Windows\UWP\cppreg_UwpDefault_44.png</UWP_CppLogo44>
         <DCC_CBuilderOutput>JPHNE</DCC_CBuilderOutput>
+        <DynamicRTL>true</DynamicRTL>
         <UsePackages>true</UsePackages>
         <IntermediateOutputDir>.\$(Platform)\$(Config)</IntermediateOutputDir>
         <FinalOutputDir>.\$(Platform)\$(Config)</FinalOutputDir>
@@ -49,32 +62,17 @@
         <BCC_OptimizeForSpeed>true</BCC_OptimizeForSpeed>
         <BCC_ExtendedErrorInfo>true</BCC_ExtendedErrorInfo>
         <ILINK_TranslatedLibraryPath>$(BDSLIB)\$(PLATFORM)\release\$(LANGDIR);$(ILINK_TranslatedLibraryPath)</ILINK_TranslatedLibraryPath>
-        <ProjectType>CppVCLApplication</ProjectType>
-        <PackageImports>inet;$(PackageImports)</PackageImports>
-        <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
-        <AllPackageLibs>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</AllPackageLibs>
-        <_TCHARMapping>wchar_t</_TCHARMapping>
-        <Multithreaded>true</Multithreaded>
-        <Icon_MainIcon>$(BDS)\bin\cbuilder_PROJECTICON.ico</Icon_MainIcon>
-        <UWP_CppLogo44>$(BDS)\bin\Artwork\Windows\UWP\cppreg_UwpDefault_44.png</UWP_CppLogo44>
-        <UWP_CppLogo150>$(BDS)\bin\Artwork\Windows\UWP\cppreg_UwpDefault_150.png</UWP_CppLogo150>
-        <IncludePath>S950\;$(IncludePath)</IncludePath>
-        <ILINK_LibraryPath>S950\;$(ILINK_LibraryPath)</ILINK_LibraryPath>
-        <SanitizedProjectName>S950</SanitizedProjectName>
         <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.38.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.38.0.0;Comments=</VerInfo_Keys>
-        <Custom_Styles>&quot;Sapphire Kamri|VCLSTYLE|$(BDSCOMMONDIR)\Styles\SapphireKamri.vsf&quot;</Custom_Styles>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=1.79.0.0;InternalName=;LegalCopyright=2017;LegalTrademarks=;OriginalFilename=S950debug.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.79.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=</VerInfo_Keys>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
-        <PackageImports>appanalytics;bcbsmp;bindcomp;bindcompfmx;bindcompvcl;bindengine;CustomIPTransport;dbrtl;dsnap;EssentialsCR;fmx;fmxase;fmxdae;fmxobj;IndyCore;IndyProtocols;IndySystem;RadiantShapesFmx;RadiantShapesFmx_Design;RaizeComponentsVcl;RaizeComponentsVclDb;rtl;svn;SysToolsCR;SysToolsDBCR;tethering;vcl;vclactnband;vcldb;vcldsnap;vclie;vclimg;VclSmp;vcltouch;vclwinx;vclx;xmlrtl;$(PackageImports)</PackageImports>
         <IncludePath>$(BDSINCLUDE)\windows\vcl;$(IncludePath)</IncludePath>
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
-        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
-        <DynamicRTL>false</DynamicRTL>
-        <VerInfo_MinorVer>38</VerInfo_MinorVer>
-        <UsePackages>false</UsePackages>
-        <Icon_MainIcon>Colorize.ico</Icon_MainIcon>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=1.80.0.0;InternalName=;LegalCopyright=2017;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.80.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann</VerInfo_Keys>
+        <PackageImports>appanalytics;bcbsmp;bindcomp;bindcompfmx;bindcompvcl;bindengine;dbrtl;dsnap;fmx;fmxase;fmxdae;fmxobj;IndyCore;IndyProtocols;IndySystem;rtl;svn;SysToolsCR;SysToolsDBCR;tethering;vcl;vclactnband;vcldb;vcldsnap;vclimg;VclSmp;vcltouch;vclwinx;vclx;xmlrtl;$(PackageImports)</PackageImports>
+        <VerInfo_MinorVer>80</VerInfo_MinorVer>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
         <BCC_OptimizeForSpeed>false</BCC_OptimizeForSpeed>
@@ -99,33 +97,53 @@
         <ILINK_TranslatedLibraryPath>$(BDSLIB)\$(PLATFORM)\debug\$(LANGDIR);$(ILINK_TranslatedLibraryPath)</ILINK_TranslatedLibraryPath>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win32)'!=''">
-        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
-        <AppEnableHighDPI>true</AppEnableHighDPI>
-        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_MinorVer>39</VerInfo_MinorVer>
-        <LinkPackageStatics>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</LinkPackageStatics>
+        <DCC_Namespace>Midi;$(DCC_Namespace)</DCC_Namespace>
+        <DynamicRTL>false</DynamicRTL>
+        <UsePackages>false</UsePackages>
+        <VerInfo_MinorVer>83</VerInfo_MinorVer>
+        <VerInfo_PreRelease>true</VerInfo_PreRelease>
+        <VerInfo_Debug>true</VerInfo_Debug>
+        <VerInfo_Private>true</VerInfo_Private>
         <Icon_MainIcon>Colorize.ico</Icon_MainIcon>
-        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.39.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.39.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <LinkPackageStatics>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</LinkPackageStatics>
+        <AppEnableHighDPI>true</AppEnableHighDPI>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=1.83.0.0;InternalName=;LegalCopyright=2017;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.83.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann</VerInfo_Keys>
+        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
+        <VerInfo_Special>true</VerInfo_Special>
+        <ILINK_LinkwithSQLite>false</ILINK_LinkwithSQLite>
+        <DynamicRTL>false</DynamicRTL>
+        <UsePackages>false</UsePackages>
+        <VerInfo_MinorVer>3</VerInfo_MinorVer>
+        <ILINK_LinkwithSQL>false</ILINK_LinkwithSQL>
+        <VerInfo_MajorVer>4</VerInfo_MajorVer>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <VerInfo_PreRelease>true</VerInfo_PreRelease>
+        <ILINK_LinkwithIntebaseTogo>false</ILINK_LinkwithIntebaseTogo>
+        <ILINK_LinkwithMidas>false</ILINK_LinkwithMidas>
+        <ILINK_LinkwithIndy>false</ILINK_LinkwithIndy>
+        <ILINK_LinkwithRegEx>false</ILINK_LinkwithRegEx>
+        <ILINK_LinkwithZLib>false</ILINK_LinkwithZLib>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=4.3.0.0;InternalName=;LegalCopyright=2017;LegalTrademarks=;OriginalFilename=S950.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=4.3.0.0;Comments=Author: Scott Swift;PrivateBuild=;SpecialBuild=</VerInfo_Keys>
         <Defines>NDEBUG;$(Defines)</Defines>
         <TASM_Debugging>None</TASM_Debugging>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
-        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
-        <AppEnableHighDPI>true</AppEnableHighDPI>
-        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_MinorVer>38</VerInfo_MinorVer>
+        <ILINK_MapWithMangledNames>true</ILINK_MapWithMangledNames>
+        <OutputExt>exe</OutputExt>
         <LinkPackageStatics>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</LinkPackageStatics>
+        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
+        <VerInfo_MajorVer>1</VerInfo_MajorVer>
+        <AppEnableHighDPI>true</AppEnableHighDPI>
+        <VerInfo_MinorVer>83</VerInfo_MinorVer>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=1.83.0.0;InternalName=;LegalCopyright=2017;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.83.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=;SpecialBuild=</VerInfo_Keys>
         <Icon_MainIcon>Colorize.ico</Icon_MainIcon>
     </PropertyGroup>
     <ItemGroup>
-        <RcItem Include="Colorize.ico">
-            <ResourceType>ICON</ResourceType>
-            <ResourceId>Icon_1</ResourceId>
-        </RcItem>
         <CppCompile Include="MainForm.cpp">
-            <Form>FormS900</Form>
+            <Form>FormMain</Form>
             <FormType>dfm</FormType>
             <DependentOn>MainForm.h</DependentOn>
             <BuildOrder>2</BuildOrder>
@@ -134,7 +152,11 @@
             <DependentOn>RegHelper.h</DependentOn>
             <BuildOrder>3</BuildOrder>
         </CppCompile>
-        <CppCompile Include="S950.cpp">
+        <PCHCompile Include="S950PCH.h">
+            <BuildOrder>1</BuildOrder>
+            <PCH>true</PCH>
+        </PCHCompile>
+        <CppCompile Include="S950rs.cpp">
             <BuildOrder>0</BuildOrder>
         </CppCompile>
         <FormResources Include="MainForm.dfm"/>
@@ -155,15 +177,16 @@
         <Borland.ProjectType>CppVCLApplication</Borland.ProjectType>
         <BorlandProject>
             <CPlusPlusBuilder.Personality>
+                <Source>
+                    <Source Name="MainSource">S950rs.cpp</Source>
+                </Source>
                 <ProjectProperties>
                     <ProjectProperties Name="AutoShowDeps">False</ProjectProperties>
                     <ProjectProperties Name="ManagePaths">True</ProjectProperties>
                     <ProjectProperties Name="VerifyPackages">True</ProjectProperties>
                     <ProjectProperties Name="IndexFiles">False</ProjectProperties>
                 </ProjectProperties>
-                <Source>
-                    <Source Name="MainSource">S950.cpp</Source>
-                </Source>
+                <Excluded_Packages/>
             </CPlusPlusBuilder.Personality>
             <Platforms>
                 <Platform value="Win32">True</Platform>

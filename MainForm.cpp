@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//Software written by Scott Swift 2016 - This program is distributed under the
+//Software written by Scott Swift 2017 - This program is distributed under the
 //terms of the GNU General Public License.
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
@@ -8,44 +8,52 @@
 
 #include "MainForm.h"
 #include "RegHelper.h"
-#include "stdio.h"
+//#include <Clipbrd.hpp>
+#include <stdio.h>
+#include <math.h>
 //---------------------------------------------------------------------------
 #pragma link "AdPort"
 #pragma link "OoMisc"
 #pragma resource "*.dfm"
-TFormS900 *FormS900;
+TFormMain *FormMain;
 //---------------------------------------------------------------------------
-__fastcall TFormS900::TFormS900(TComponent* Owner)
-        : TForm(Owner)
+__fastcall TFormMain::TFormMain(TComponent* Owner)
+    : TForm(Owner)
 {
 #if (AKI_FILE_HEADER_SIZE != 72)
     printm("\r\nWARNING: sizeof(PSTOR) != 72\r\n"
-             "TO DEVELOPER: sizeof(PSTOR) MUST be " + String(72) + " bytes\r\n"
-             "to maintain compatibility with old .AKI files!");
+        "TO DEVELOPER: sizeof(PSTOR) MUST be " + String(72) + " bytes\r\n"
+        " to maintain compatibility with old .AKI files!");
 #endif
-#if (sizeof(S900CAT) != 12)
-    printm("\r\nWARNING: sizeof(S900CAT) != 12\r\n"
-             "TO DEVELOPER: sizeof(S900CAT) MUST be " + String(12) + " bytes!");
+#if (sizeof(S950CAT) != 12)
+    printm("\r\nWARNING: sizeof(S950CAT) != 12\r\n"
+        "TO DEVELOPER: sizeof(S950CAT) MUST be " + String(12) + " bytes!");
 #endif
-	// use the following # for PSTOR_STRUCT_SIZ in MainForm.h!
+#if TESTING
+    printm("\r\nWARNING: TEST VERSION!!!!");
+#endif
+    // use the following # for PSTOR_STRUCT_SIZ in MainForm.h!
     //printm("sizeof(PSTOR):" + String(sizeof(PSTOR)));
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::FormCreate(TObject *Sender)
+void __fastcall TFormMain::FormCreate(TObject *Sender)
 {
-	Timer1->OnTimer = NULL;
-	Timer1->Enabled = false;
+    Timer1->OnTimer = NULL;
+    Timer1->Enabled = false;
 
-    m_byteCount = 0;
+    m_rxByteCount = 0;
+    m_rxTimeout = false;
+    m_txTimeout = false;
+    m_gpTimeout = false;
+    m_sysBusy = false;
     m_numSampEntries = 0;
     m_numProgEntries = 0;
     m_DragDropFilePath = "";
-    m_rxTimeout = false;
-    m_gpTimeout = false;
-    m_systemBusy = false;
+    m_inBufferFull = false;
+    m_abort = false;
 
     // read settings from registry HKEY_CURRENT_USER
-    // \\Software\\Discrete-Time Systems\\AkaiS900
+    // \\Software\\Discrete-Time Systems\\AkaiS950
     TRegHelper* pReg = NULL;
 
     try
@@ -59,56 +67,53 @@ void __fastcall TFormS900::FormCreate(TObject *Sender)
                 // tell user how to delete reg key if this is first use...
                 if (pReg->ReadSetting(S9_REGKEY_VERSION).IsEmpty())
                 {
-                    pReg->WriteSetting(S9_REGKEY_VERSION, VERSION_STR);
+                    pReg->WriteSetting(S9_REGKEY_VERSION, String(VERSION_STR));
 
-                    // cmd reg delete "HKCU\Software\Discrete-Time Systems\AkaiS900" /f
+                    // cmd reg delete "HKCU\Software\Discrete-Time Systems\AkaiS950" /f
                     printm("This app stores its settings in the windows registry.\r\n"
-                      "To delete settings, go to Start => Run and type \"cmd\"\r\n"
-                      "In the window type the line below and press enter:\r\n\r\n"
-                      "reg delete \"HKCU\\Software\\Discrete-Time Systems\\AkaiS900\" /f\r\n"
-                      "(or: Start => Run, \"regedit\" and search for \"AkaiS900\")\r\n");
+                        "To delete settings, go to Start => Run and type \"cmd\"\r\n"
+                        "In the window type the line below and press enter:\r\n\r\n"
+                        "reg delete \"HKCU\\Software\\Discrete-Time Systems\\AkaiS950\" /f\r\n"
+                        "(or: Start => Run, \"regedit\" and search for \"AkaiS950\")\r\n");
                 }
 
-				pReg->ReadSetting(S9_REGKEY_BAUD, m_baud, 38400);
+                pReg->ReadSetting(S9_REGKEY_BAUD, m_baud, DEF_RS232_BAUD_RATE);
                 pReg->ReadSetting(S9_REGKEY_USE_RIGHT_CHAN, m_use_right_chan, true);
                 pReg->ReadSetting(S9_REGKEY_AUTO_RENAME, m_auto_rename, true);
                 pReg->ReadSetting(S9_REGKEY_FORCE_HWFLOW, m_force_hwflow, false);
-
-                // we tried this and the S950 rejects 16-bit bits-per-word in the
-                // sample-header... sadly
-//                pReg->ReadSetting(S9_REGKEY_TARGET_S950, m_target_S950, false);
-                m_target_S950 = false;
-//                pReg->ReadSetting(S9_REGKEY_USE_SMOOTH_QUANTIZATION, m_use_smooth_quantization, false);
-                m_use_smooth_quantization = false;
             }
             else
             {
                 ShowMessage("Unable to read settings from the registry!");
-                m_baud = 38400;
+                m_baud = DEF_RS232_BAUD_RATE;
                 m_use_right_chan = true;
                 m_auto_rename = true;
                 m_force_hwflow = false;
-                m_target_S950 = false;
-                m_use_smooth_quantization = false;
             }
         }
-        catch(...)
+        catch (...)
         {
             ShowMessage("Unable to read settings from the registry!");
-            m_baud = 38400;
+            m_baud = DEF_RS232_BAUD_RATE;
             m_use_right_chan = true;
             m_auto_rename = true;
             m_force_hwflow = false;
-            m_target_S950 = false;
-            m_use_smooth_quantization = false;
         }
+
+        ComboBoxRs232->Enabled = true;
+
+        m_data_size = DATA_PACKET_SIZE;
+        m_data_size += DATA_PACKET_OVERHEAD;
+        m_hedr_size = HEDRSIZ;
+        m_ack_size = ACKSIZ;
 
         printm(VERSION_STR);
         printm("Click \"Menu\" and select \"Help\"...");
     }
     __finally
     {
-        try { if (pReg != NULL) delete pReg; } catch(...) {}
+        try { if (pReg != NULL) delete pReg; }
+        catch (...) {}
     }
 
     // in the ApdComPort1 component, set:
@@ -122,20 +127,24 @@ void __fastcall TFormS900::FormCreate(TObject *Sender)
     MenuUseRightChanForStereoSamples->Checked = m_use_right_chan;
     MenuAutomaticallyRenameSample->Checked = m_auto_rename;
     MenuUseHWFlowControlBelow50000Baud->Checked = m_force_hwflow;
-//    MenuTargetS950->Checked = m_target_S950;
-//    MenuUseSmoothQuantization->Checked = m_use_smooth_quantization;
+    SetMenuItems();
 
-    ComboBox1->Text = String(m_baud);
+    ComboBoxRs232->Text = String(m_baud);
     SetComPort(m_baud);
 
     //enable drag&drop files
     ::DragAcceptFiles(this->Handle, true);
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::FormClose(TObject *Sender, TCloseAction &Action)
+void __fastcall TFormMain::FormShow(TObject *Sender)
+{
+    Memo1->SetFocus();
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::FormClose(TObject *Sender, TCloseAction &Action)
 {
     // save settings to registry HKEY_CURRENT_USER
-    // \\Software\\Discrete-Time Systems\\AkaiS900
+    // \\Software\\Discrete-Time Systems\\AkaiS950
     TRegHelper* pReg = NULL;
 
     try
@@ -148,49 +157,47 @@ void __fastcall TFormS900::FormClose(TObject *Sender, TCloseAction &Action)
             pReg->WriteSetting(S9_REGKEY_USE_RIGHT_CHAN, m_use_right_chan);
             pReg->WriteSetting(S9_REGKEY_AUTO_RENAME, m_auto_rename);
             pReg->WriteSetting(S9_REGKEY_FORCE_HWFLOW, m_force_hwflow);
-//            pReg->WriteSetting(S9_REGKEY_TARGET_S950, m_target_S950);
-//            pReg->WriteSetting(S9_REGKEY_USE_SMOOTH_QUANTIZATION, m_use_smooth_quantization);
         }
     }
     __finally
     {
-        try { if (pReg != NULL) delete pReg; } catch(...) {}
+        try { if (pReg != NULL) delete pReg; }
+        catch (...) {}
     }
 }
 //---------------------------------------------------------------------------
 // Get sample routines
 //---------------------------------------------------------------------------
 // all you need to call to receive a sample into a file...
-// returns 0 if success.
-int __fastcall TFormS900::GetSample(int samp, String fileName)
+// returns 0 if success. Pass in the index from sampler's catalog
+int __fastcall TFormMain::GetSample(int samp, String fileName)
 {
-    int iFileHandle = 0;
+    int iFileHandle;
+
+    if (!FileExists(fileName))
+        iFileHandle = FileCreate(fileName);
+    else
+        iFileHandle = FileOpen(fileName, fmShareDenyNone | fmOpenReadWrite);
+
+    if (iFileHandle == 0)
+    {
+        printm("error opening file, bad handle!");
+        return 4;
+    }
+
+    UInt32 my_magic = MAGIC_NUM_AKI;
+    PSTOR ps = { 0 };
 
     try
-	{
-        if (!FileExists(fileName))
-            iFileHandle = FileCreate(fileName);
-        else
-            iFileHandle = FileOpen(fileName, fmShareDenyNone | fmOpenReadWrite);
-
-        if (iFileHandle == 0)
-        {
-            printm("error opening file, bad handle!");
-            return 4;
-        }
-
-        unsigned __int32 my_magic = MAGIC_NUM_AKI;
-        PSTOR ps = {0};
-
-        exmit(0, SECRE, false); // request common reception enable
-
-        // first interrogate S900 to get sample parameters...
+    {
+        // request common reception enable (no delay)
+        if (!exmit(0, SECRE, false))
+            return 1; // tx timeout
 
         // populate global samp_parms array
         if (get_comm_samp_parms(samp))
             return 1; // could not get sample parms
 
-        // populate global samp_hedr array
         if (get_comm_samp_hedr(samp))
             return 2; // could not get header data
 
@@ -201,16 +208,19 @@ int __fastcall TFormS900::GetSample(int samp, String fileName)
 
         // write the magic number and header...
         FileWrite(iFileHandle, (char*)&my_magic, UINT32SIZE);
-        FileWrite(iFileHandle, (char*)&ps, AKI_FILE_HEADER_SIZE); // write the full 72 byte struct
+        // write the full 72 byte struct
+        FileWrite(iFileHandle, (char*)&ps, AKI_FILE_HEADER_SIZE);
 
+        // For midi, the in and out buffers must both be open at this point!
         if (get_samp_data(&ps, iFileHandle))
             return 3; // could not get sample data
     }
     __finally
     {
-        exmit(0,SECRD, true); // request common reception disable
+        // request common reception disable (after 25ms delay)
+        exmit(0, SECRD, true);
 
-        if (iFileHandle)
+        if (iFileHandle != 0)
             FileClose(iFileHandle);
     }
 
@@ -219,13 +229,13 @@ int __fastcall TFormS900::GetSample(int samp, String fileName)
 }
 //---------------------------------------------------------------------------
 // puts samp_parms[] and samp_hedr[] arrays info into PSTOR struct (ps)
-void __fastcall TFormS900::decode_sample_info(PSTOR* ps)
+void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
 {
     // FROM AKAI EXCLUSIVE SAMPLE PARAMETERS... (do this before decoding header)
 
     // clear spare-byte fields
-    for(int ii = 0; ii < PSTOR_SPARE_COUNT; ii++)
-      ps->spares[ii] = (Byte)0;
+    for (int ii = 0; ii < PSTOR_SPARE_COUNT; ii++)
+        ps->spares[ii] = (Byte)0;
     ps->spareint1 = 0;
     ps->spareint2 = (Byte)0;
     ps->sparechar1 = (Byte)0;
@@ -279,9 +289,9 @@ void __fastcall TFormS900::decode_sample_info(PSTOR* ps)
 
     ps->flags = 0;
     if (xfade)
-      ps->flags |= (Byte)1;
+        ps->flags |= (Byte)1;
     if (reversed)
-      ps->flags |= (Byte)2;
+        ps->flags |= (Byte)2;
     //if (???)
     //  ps->flags |= (Byte)4;
     //if (???)
@@ -300,7 +310,8 @@ void __fastcall TFormS900::decode_sample_info(PSTOR* ps)
     // FROM SAMPLE HEADER...
 
     // bits per sample-word (S900 transmits 12 but can accept 8-14)
-    ps->bits_per_word = (unsigned __int16)samp_hedr[5]; // 4
+    // S950 can accept 16 but not serially, only from S1000 disk????
+    ps->bits_per_word = (UInt16)samp_hedr[5]; // 4
 
     // sampling period in nS 15259-500000
     ps->period = decode_hedrTB(&samp_hedr[6]); // 3
@@ -313,8 +324,8 @@ void __fastcall TFormS900::decode_sample_info(PSTOR* ps)
     // loop start point (non-looping mode if >= endidx-5)
     // int loopstart = decode_hedrTB((Byte*)&samp_hedr[12]); // 3
 
-    // loop end point (S900/S950 takes this as end point of the sample)
-	// int loopend = decode_hedrTB((Byte*)&samp_hedr[15]); // 3
+    // loop end point (S950/S900 takes this as end point of the sample)
+    // int loopend = decode_hedrTB((Byte*)&samp_hedr[15]); // 3
 
     // ps->startidx = loopstart;
     // ps->endidx = loopend;
@@ -328,14 +339,40 @@ void __fastcall TFormS900::decode_sample_info(PSTOR* ps)
     //    ps->looping = (samp_hedr[18] & (Byte)0x01) : 'A' : 'L';
 }
 //---------------------------------------------------------------------------
+// get a sample's header info into the global TempArray
+int __fastcall TFormMain::get_comm_samp_hedr(int samp)
+{
+    // request sample dump (after 25ms delay)
+    int mode = RSD;
+    if (!cxmit(samp, mode, true))
+        return 1; // rx timeout
+
+    // wait for data
+    if (receive(m_hedr_size))
+    {
+        printm("timeout receiving sample header!");
+        return 1;
+    }
+
+    // copy first 19 bytes of TempArray into samp_hedr buffer
+    memcpy(samp_hedr, TempArray, m_hedr_size);
+
+    return 0; // 0=OK, 1=com error
+}
+//---------------------------------------------------------------------------
 // returns 0=OK, 1=writerror, 2=com error, 4=bad chksm, 8=wrong # words, 16=bad # bits per sample
 // receive sample data blocks and write them to a file, print a progress display
 // all functions here print their own error messages ao you can just
 // look for a return value of 0 for success.
-int __fastcall TFormS900::get_samp_data(PSTOR* ps, int handle)
+int __fastcall TFormMain::get_samp_data(PSTOR* ps, int handle)
 {
-    // always 120 byte packets, S900 is max 60 2-byte words in 14-bits
-    // and S950 is max 40 3-byte words in 16-bits
+    // always 120 byte packets (plus block-count and checksum), S900 is
+    // max 60 2-byte words in 14-bits and S950 is max 40 3-byte words in 16-bits
+    // (but the S950 seems NOT to be able to receive 16-bit samples as it
+    // turns out though the manual says it can process 16-bits from disk???)
+    // (The S900/S950 protocol was designed to be compliant with the Prophet 2000
+    // which is supposed to handle 16-bit sample packets as 40 3-byte words or
+    // 20 4-byte words... (only the lower 7-bits of each byte is usable))
     //
     // we recieve any # bits per word and properly format it as 40 or 60
     // 16-bit 2's compliment sample-words in rbuf
@@ -344,41 +381,52 @@ int __fastcall TFormS900::get_samp_data(PSTOR* ps, int handle)
 
     try
     {
-        unsigned int count = 0;
+        unsigned count = 0;
         int writct, retstat;
         String dots = "";
         int blockct = 0;
 
         int bits_per_word = ps->bits_per_word;
 
-        int bytes_per_word = bits_per_word/7;
+        int bytes_per_word = bits_per_word / 7;
         if (bits_per_word % 7)
             bytes_per_word++;
 
         if (DATA_PACKET_SIZE % bytes_per_word)
         {
             printm("can't fit expected samples into 120 byte packets: " +
-                                                String(bits_per_word));
+                                                        String(bits_per_word));
             status = 16; // bad bits-per-sample
             return status;
         }
 
-		// should be 40 (16-bit samples) or 60 (8-14 bit samples)
-        int words_per_block = DATA_PACKET_SIZE/bytes_per_word;
+        // will be 2 words (120/60 for 8-14 bit samples) for S900/S950, [but we
+        // could also handle 3 words (120/40 15-21 bit samples) or
+        // 4 words (120/20 22-28 bit samples)]
+        int words_per_block = DATA_PACKET_SIZE / bytes_per_word;
 
-        unsigned int total_words = ps->totalct;
+        unsigned total_words = ps->totalct;
 
         rbuf = new __int16[words_per_block];
 
-        for(;;)
-        {
-            chandshake(ACKS);
+        printm("bits per sample-word: " + String(bits_per_word));
+        printm("bytes per sample-word: " + String(bytes_per_word));
+        printm("sample-words per data-block: " + String(words_per_block));
 
+        for (;;)
+        {
+            if (!chandshake(ACKS, blockct))
+                break;
+
+            // if NOT using midi we have to send the last ACK (above) to tell
+            // the machine to send the EEX (which we just ignore)
             if (count >= ps->totalct)
                 break;
 
+            // (midi out and in must be opened before calling this!)
+            // (blockct passed is only used for displaying messages...)
             if ((retstat = get_comm_samp_data(rbuf, bytes_per_word,
-                    words_per_block, bits_per_word, blockct+1)) != 0)
+                        words_per_block, bits_per_word, blockct)) != 0)
             {
                 if (retstat == 1)
                     status = 2; // comm error
@@ -406,17 +454,18 @@ int __fastcall TFormS900::get_samp_data(PSTOR* ps, int handle)
             }
 
             count += words_per_block;
-            writct = words_per_block * UINT16SIZE;
+            writct = words_per_block * UINT16SIZE; // size in rbuf always 16-bits!
 
             // write only up to totalct words...
             if (count > total_words)
-                writct -= (int)(count-total_words) * UINT16SIZE;
+                writct -= (int)(count - total_words) * UINT16SIZE;
 
-			// write to file
+            // write to file
             if (FileWrite(handle, rbuf, writct) < 0)
             {
                 chandshake(ASD); // abort dump
-                printm("error writing sample data to file! (block=" + String(blockct+1) + ")");
+                printm("error writing sample data to file! (block=" +
+                                                   String(blockct) + ")");
                 status = 1;
                 break;
             }
@@ -427,9 +476,10 @@ int __fastcall TFormS900::get_samp_data(PSTOR* ps, int handle)
         if (count < total_words)
         {
             if (count == 0)
-              printm("no sample data received!");
+                printm("no sample data received!");
             else
-              printm("expected " + String(total_words) + " bytes, but received " + String(count) + "!");
+                printm("expected " + String(total_words) +
+                        " bytes, but received " + String(count) + "!");
 
             status |= 8; // wrong number of words received
         }
@@ -437,7 +487,7 @@ int __fastcall TFormS900::get_samp_data(PSTOR* ps, int handle)
     __finally
     {
         if (rbuf)
-            delete [] rbuf;
+            delete[] rbuf;
     }
 
     return status;
@@ -445,31 +495,38 @@ int __fastcall TFormS900::get_samp_data(PSTOR* ps, int handle)
 //---------------------------------------------------------------------------
 // returns: 0=OK, 1=receive error, 2=bad checksum
 // receive 8-16-bit sample data into 16-bit words
-// converts a block of raw sample data to gets a sample's raw data into bufptr and validates the checksum
+// converts a block of raw sample-data from the machine in 7-bit midi-format,
+// and moves it from TempArray into bufptr; also validates the checksum.
 //
 // # words per 120 byte block is generally 60 8-14 bit samples
-// or 40 15-16 bit samples...
-int __fastcall TFormS900::get_comm_samp_data(__int16* bufptr,
-  int bytes_per_word, int words_per_block, int bits_per_word, int blockct)
+// or 40 15-21 bit samples... could be 20 22-28 bit samples
+//
+// (midi out and in must both be open before calling this!)
+int __fastcall TFormMain::get_comm_samp_data(__int16* dest,
+    int bytes_per_word, int words_per_block, int bits_per_word, int blockct)
 {
+    int bc = blockct+1; // display 1 greater...
+
     try
     {
-        int errorCode = receive(DATA_PACKET_SIZE+2);
-
         // receive data sample data block from serial port
         // and store in tempBuf
-        if (errorCode < 0)
+        if (receive(m_data_size))
         {
-            FormS900->printm("did not receive expected " + String(DATA_PACKET_SIZE+2) +
-					" byte data-block! (block=" + String(blockct) + ")");
-            FormS900->printm("(receiver error code is: " + String(errorCode) + ")");
+            FormMain->printm("did not receive expected " +
+                        String(m_data_size) +
+                " byte data-block! (block=" + String(bc) + ")");
+            FormMain->printm("(receiver error code is: " +
+                                        String(m_rxByteCount) + ")");
             return 1;
         }
 
-        Byte* cp = TempArray+1;
+        Byte *cp;
         Byte checksum = 0;
 
-        __int16 baseline = (__int16)(1 << (bits_per_word-1));
+        cp = TempArray + 1;
+
+        __int16 baseline = (__int16)(1 << (bits_per_word - 1));
 
         // process tempBuf into a data buffer and validate checksum
         // (NOTE: tricky little algorithm I came up with that handles
@@ -500,27 +557,27 @@ int __fastcall TFormS900::get_comm_samp_data(__int16* bufptr,
 
             for (int jj = 1; jj <= bytes_per_word; jj++)
             {
-                int shift_count = bits_per_word - (jj*7);
+                int shift_count = bits_per_word - (jj * 7);
 
-                unsigned __int16 val = (unsigned __int16)*cp;
+                UInt16 val = (UInt16)*cp;
                 checksum ^= *cp++;
 
-                unsigned __int16 or_val;
+                UInt16 or_val;
                 if (shift_count >= 0)
-                    or_val = (unsigned __int16)(val << shift_count);
+                    or_val = (UInt16)(val << shift_count);
                 else
-                    or_val = (unsigned __int16)(val >> -shift_count);
+                    or_val = (UInt16)(val >> -shift_count);
 
                 tempint |= or_val;
             }
 
             tempint -= baseline; // convert to two's compliment
-            *bufptr++ = tempint;
+            *dest++ = tempint;
         }
 
         if (checksum != *cp)
         {
-            printm("bad checksum for data-block! (block=" + String(blockct) + ")");
+            printm("bad checksum! (block=" + String(bc) + ")");
             return 2; // bad checksum
         }
 
@@ -532,168 +589,155 @@ int __fastcall TFormS900::get_comm_samp_data(__int16* bufptr,
     }
 }
 //---------------------------------------------------------------------------
-// get a sample's header info into the global TempArray
-int __fastcall TFormS900::get_comm_samp_hedr(int samp)
-{
-    // request sample dump
-    cxmit(samp, RSD, true);
-
-    // see if chars waiting from serial port...
-    if (receive(HEDRSIZ))
-    {
-        printm("timeout receiving sample header!");
-        return 1;
-    }
-
-    // copy into buf
-    memcpy(samp_hedr, TempArray, HEDRSIZ);
-
-    return 0; // 0=OK, 1=com error
-}
-//---------------------------------------------------------------------------
 // returns: 0=OK, 1=receive error, 2=wrong bytes, 3=bad checksum
 // gets a sample's sysex extended parameters and puts them in the
 // global TempArray... also validates the checksum
-int __fastcall TFormS900::get_comm_samp_parms(int samp)
+int __fastcall TFormMain::get_comm_samp_parms(int samp)
 {
-    // request sample parms
-    exmit(samp, RSPRM, true);
-
-	// receive complete SYSEX message from serial port..., put into TempArray
-    if (receive(0))
+    try
     {
-        printm("timeout receiving sample parameters!");
+        // request sample parms (after 25ms delay)
+        // (NOTE: this will open both in/out ports as needed!)
+        if (!exmit(samp, RSPRM, true))
+            return 1; // tx timeout
+
+        // receive complete SYSEX message from serial port..., put into TempArray
+        if (receive(0))
+        {
+            printm("timeout receiving sample parameters!");
+            return 1;
+        }
+
+        if (m_rxByteCount != PARMSIZ)
+        {
+            printm("received wrong bytecount for sample parameters: " + String(m_rxByteCount));
+            return 2;
+        }
+
+        Byte* cp = TempArray + 7; // point past header to sample-name
+        Byte checksum = 0;
+
+        // checksum of buffer minus 7-byte header and checksum and EEX
+        for (int ii = 0; ii < PARMSIZ - 9; ii++)
+            checksum ^= *cp++;
+
+        if (checksum != *cp)
+        {
+            printm("bad checksum for sample parameters!");
+            return 3; // bad checksum
+        }
+
+        // copy TempArray into samp_parms
+        memcpy(samp_parms, TempArray, PARMSIZ);
+    }
+    catch(...)
+    {
+        printm("exception in get_comm_samp_parms()!");
         return 1;
     }
-
-    if (m_byteCount != PARMSIZ)
-    {
-        printm("received wrong bytecount for sample parameters: " + String(m_byteCount));
-        return 2;
-    }
-
-    Byte* cp = TempArray+7; // point past header to sample-name
-    Byte checksum = 0;
-
-    // checksum of buffer minus 7-byte header and checksum and EEX
-    for (int ii = 0 ; ii < PARMSIZ-9 ; ii++)
-        checksum ^= *cp++;
-
-    if (checksum != *cp)
-    {
-        printm("bad checksum for sample parameters!");
-        return 3; // bad checksum
-    }
-
-    // copy TempArray into samp_parms
-    memcpy(samp_parms, TempArray, PARMSIZ);
 
     return 0;
 }
 //---------------------------------------------------------------------------
-Byte __fastcall TFormS900::decode_parmsDB(Byte* source)
+Byte __fastcall TFormMain::decode_parmsDB(Byte* source)
 {
     Byte c = *source++;
     c |= (Byte)(*source << 7);
-  	return c;
+    return c;
 }
 //---------------------------------------------------------------------------
 // make sure sizeof dest buffer >= numchars+1!
-void __fastcall TFormS900::decode_parmsDB(Byte* dest, Byte* source, int numchars)
+void __fastcall TFormMain::decode_parmsDB(Byte* dest, Byte* source, int numchars)
 {
-    for (int ii = 0 ; ii < numchars ; ii++ )
+    for (int ii = 0; ii < numchars; ii++)
     {
         *dest = *source++;
         *dest |= (Byte)(*source++ << 7);
         dest++;
     }
 
-	if (numchars > 1)
+    if (numchars > 1)
         *dest = '\0';
 }
 //---------------------------------------------------------------------------
 // decode a 32-bit value in 8-bytes into an __int32
-unsigned __int32 __fastcall TFormS900::decode_parmsDD(Byte* tp)
+UInt32 __fastcall TFormMain::decode_parmsDD(Byte* tp)
 {
-    unsigned __int32 acc;
+    UInt32 acc;
 
     tp += 6;
 
     acc = 0;
-    acc |= *tp | (*(tp+1) << 7);
+    acc |= *tp | (*(tp + 1) << 7);
 
     for (int ii = 0; ii < 3; ii++)
     {
         acc <<= 8;
         tp -= 2;
-        acc |= *tp | (*(tp+1) << 7);
+        acc |= *tp | (*(tp + 1) << 7);
     }
 
     return acc;
 }
 //---------------------------------------------------------------------------
 // decode a 16-bit value in 4-bytes into an __int32
-unsigned __int32 __fastcall TFormS900::decode_parmsDW(Byte* tp)
+UInt32 __fastcall TFormMain::decode_parmsDW(Byte* tp)
 {
-    unsigned __int32 acc;
+    UInt32 acc;
 
     tp += 2;
 
     acc = 0;
-    acc |= *tp | (*(tp+1) << 7);
+    acc |= *tp | (*(tp + 1) << 7);
 
     acc <<= 8;
     tp -= 2;
-    acc |= *tp | (*(tp+1) << 7);
+    acc |= *tp | (*(tp + 1) << 7);
 
     return acc;
 }
 //---------------------------------------------------------------------------
 // decode a 21-bit value in 3-bytes into an __int32
-unsigned __int32 __fastcall TFormS900::decode_hedrTB(Byte* tp)
+UInt32 __fastcall TFormMain::decode_hedrTB(Byte* tp)
 {
-  	unsigned __int32 acc;
+    UInt32 acc;
 
     tp += 2;
 
-    acc = (unsigned int)*tp--;
-	acc = (acc << 7) | (unsigned int)*tp--;
-    acc = (acc << 7) | (unsigned int)*tp;
+    acc = (UInt32)*tp--;
+    acc = (acc << 7) | (UInt32)*tp--;
+    acc = (acc << 7) | (UInt32)*tp;
 
     return acc;
 }
 //---------------------------------------------------------------------------
 // Send sample routines
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::PutSample(String sFilePath)
+bool __fastcall TFormMain::PutSample(String sFilePath)
 {
-    if (m_systemBusy) return;
+    ListBox1->Clear();
+    Memo1->Clear();
 
+    int iFileLength;
+    int iBytesRead;
+    int sampIndex;
+    PSTOR ps = { 0 };
+    Byte newname[MAX_NAME_S900 + 1];
+
+    // vars released in __finally block
     Byte *fileBuf = NULL;
+    Byte *tbuf = NULL;
     int iFileHandle = 0;
 
     try
     {
-        m_systemBusy = true;
-
-        ListBox1->Clear();
-        Memo1->Clear();
-        ApdComPort1->FlushInBuffer();
-        ApdComPort1->FlushOutBuffer();
-
-        int iFileLength;
-        int iBytesRead;
-        int sampIndex;
-        PSTOR ps = {0};
-        int blockct;
-        char newname[MAX_NAME_S900+1];
-
+        //printm("allocated " + String(iFileLength+1) + " bytes...");
         try
         {
             if (sFilePath.IsEmpty() || !FileExists(sFilePath))
             {
-              printm("file does not exist!");
-              return;
+                printm("file does not exist!");
+                return false;
             }
 
             // Load file
@@ -704,41 +748,40 @@ void __fastcall TFormS900::PutSample(String sFilePath)
 
             if (iFileHandle == 0)
             {
-              printm("unable to open file, handle is 0!");
-              return;
-			}
+                printm("unable to open file, handle is 0!");
+                return false;
+            }
 
             // get file length
-            iFileLength = FileSeek(iFileHandle,0,2);
-            FileSeek(iFileHandle,0,0); // back to start
+            iFileLength = FileSeek(iFileHandle, 0, 2);
+            FileSeek(iFileHandle, 0, 0); // back to start
 
             if (iFileLength == 0)
             {
-              FileClose(iFileHandle);
-              printm("unable to open file, length is 0!");
-              return;
+                FileClose(iFileHandle);
+                printm("unable to open file, length is 0!");
+                return false;
             }
 
-            fileBuf = new Byte[iFileLength+1];
+            fileBuf = new Byte[iFileLength + 1];
 
             if (fileBuf == NULL)
             {
-              FileClose(iFileHandle);
-              printm("unable to allocate " + String(iFileLength+1) + " bytes of memory!");
-              return;
+                FileClose(iFileHandle);
+                printm("unable to allocate " + String(iFileLength + 1) +
+                                                         " bytes of memory!");
+                return false;
             }
-
-        //printm("allocated " + String(iFileLength+1) + " bytes...");
 
             try
             {
-              iBytesRead = FileRead(iFileHandle, fileBuf, iFileLength);
-              //printm("read " + String(iBytesRead) + " bytes...");
+                iBytesRead = FileRead(iFileHandle, fileBuf, iFileLength);
+                //printm("read " + String(iBytesRead) + " bytes...");
             }
-            catch(...)
+            catch (...)
             {
-              printm("unable to read file into buffer...");
-              return;
+                printm("unable to read file into buffer...");
+                return false;
             }
 
             // finished with the file...
@@ -748,72 +791,104 @@ void __fastcall TFormS900::PutSample(String sFilePath)
             // copy up to the first 10 chars of file-name without extension
             // into newname and pad the rest with spaces, terminate
             String sName = ExtractFileName(sFilePath);
+
+            String Ext = ExtractFileExt(sName).LowerCase();
+
+            if (Ext.IsEmpty() || (Ext != ".aki" && Ext != ".wav"))
+            {
+                ShowMessage("File \"" + sName + "\" must have a\n.aki or .wav file-extension!");
+                return false;
+            }
+
+            // Form a max 10 char sample name from the file's name
             int lenName = sName.Length();
             bool bStop = false;
             for (int ii = 1; ii <= MAX_NAME_S900; ii++)
             {
-              if (!bStop && (ii > lenName || sName[ii] == '.'))
-                  bStop = true;
+                if (!bStop && (ii > lenName || sName[ii] == '.'))
+                    bStop = true;
 
-			  if (bStop)
-                newname[ii-1] = ' ';
-              else
-                newname[ii-1] = sName[ii];
+                if (bStop)
+                    newname[ii - 1] = ' ';
+                else
+                    newname[ii - 1] = sName[ii];
             }
             // terminate it
             newname[MAX_NAME_S900] = '\0';
 
-            printm("serial baud-rate: " + String(ApdComPort1->Baud));
+            printm("rs232 baud-rate: " + String(m_baud));
 
-            int machine_max_bits_per_word = m_target_S950 ?
-                        S950_BITS_PER_WORD : S900_BITS_PER_WORD;
+            int machine_max_bits_per_word = S900_BITS_PER_WORD;
 
-            int bytes_per_word = machine_max_bits_per_word/7;
+            int bytes_per_word = machine_max_bits_per_word / 7;
 
             if (machine_max_bits_per_word % 7)
                 bytes_per_word++;
 
-            // bytes_per_word needs to be be 120/2 = 60 for the S900...
-            // or for the S950 it should be 120/2 = 60 or for
-            // 16-bit samples, 120/3 = 40. there should be no remainder
+            // # sample-words is 120/2 = 60 for 8-14 bit samples,
+            // 120/3 = 40 for 15-21 bit samples and 120/4 = 20
+            // for 22-28 bit samples. there should be no remainder!
             if (DATA_PACKET_SIZE % bytes_per_word)
             {
                 printm("bytes_per_word of " + String(bytes_per_word) +
-                     " does not fit evenly into 120 byte packet!");
-                return;
+                    " does not fit evenly into 120 byte packet!");
+                return false;
             }
 
-            int words_per_block = DATA_PACKET_SIZE/bytes_per_word;
+            int words_per_block = DATA_PACKET_SIZE / bytes_per_word;
+
+            // transmit buffer (allow for checksum and block number, 122 bytes)
+            // (127 bytes if sample-dump standard mode)
+            tbuf = new Byte[m_data_size];
+
+            // preload the data packet buffer with sample-dump-standard
+            // constants if SDS was selected from menu...
+            // For SDS, the checksum is the running XOR of all the data after
+            // the SYSEX byte, up to but not including the checksum itself.
+            // F0 7E cc 02 kk <120 bytes> mm F7
+            Byte initial_checksum = 0;
+
+            Byte *ptbuf; // transmit buffer pointer
+            Byte checksum;
+            int blockct;
 
             bool bSendAborted = false; // flag set if we receive a not-acknowledge on any data-packet
 
-            if (ExtractFileExt(sName).LowerCase() != ".aki") // Not an AKI file? (try WAV...)
+            m_abort = false; // user can press ESC a key to quit
+
+            if (Ext.IsEmpty() || (Ext != ".aki" && Ext != ".wav"))
+            {
+                ShowMessage("File \"" + sName + "\" must have a\n.aki or .wav file-extension!");
+                return false;
+            }
+
+            if (Ext != ".aki") // Not an AKI file? (try WAV...)
             {
                 if (iBytesRead < 45)
                 {
-                  printm("bad file (1)");
-                  return;
+                    printm("bad file (1)");
+                    return false;
                 }
 
                 if (!StrCmpCaseInsens((char*)&fileBuf[0], "RIFF", 4))
                 {
-                  printm("bad file (2) [no \'RIFF\' preamble!]");
-                  return;
+                    printm("bad file (2) [no \'RIFF\' preamble!]");
+                    return false;
                 }
 
                 int file_size = *(__int32*)&fileBuf[4];
-                if (file_size+8 != iBytesRead)
+                if (file_size + 8 != iBytesRead)
                 {
-				  printm("bad file (3), (file_size = " +
-                   String(file_size+8) + ", iBytesRead = " +
-                      String(iBytesRead) + ")!");
-                  return;
+                    printm("bad file (3), (file_size = " +
+                        String(file_size + 8) + ", iBytesRead = " +
+                        String(iBytesRead) + ")!");
+                    return false;
                 }
 
                 if (!StrCmpCaseInsens((char*)&fileBuf[8], "WAVE", 4))
                 {
-                  printm("bad file (4) [no \'WAVE\' preamble!]");
-                  return;
+                    printm("bad file (4) [no \'WAVE\' preamble!]");
+                    return false;
                 }
 
                 // Search file for "fmt " block
@@ -822,28 +897,28 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 __int32 headerSize = FindSubsection(headerPtr, "fmt ", iBytesRead);
                 if (headerSize < 0)
                 {
-                  printm("bad file (4) [no \'fmt \' sub-section!]");
-                  return;
+                    printm("bad file (4) [no \'fmt \' sub-section!]");
+                    return false;
                 }
 
                 // Length of the format data in bytes is a four-byte int at
                 // offset 16. It should be at least 16 bytes of sample-info...
                 if (headerSize < 16)
                 {
-                  printm("bad file (6) [\'fmt \' sub-section is < 16 bytes!]");
-                  return;
+                    printm("bad file (6) [\'fmt \' sub-section is < 16 bytes!]");
+                    return false;
                 }
 
                 // Search file for "data" block
                 // (Left-channel data typically begins after the header
                 // at 12 + 4 + 4 + 16 + 4 + 4 - BUT - could be anywhere...)
-                Byte* dp = fileBuf;
-                // NOTE: the FindSubsection will return dp by reference!
-                __int32 dataLength = FindSubsection(dp, "data", iBytesRead);
+                Byte* dataPtr = fileBuf;
+                // NOTE: the FindSubsection will return dataPtr by reference!
+                __int32 dataLength = FindSubsection(dataPtr, "data", iBytesRead);
                 if (dataLength < 0)
                 {
-                  printm("bad file (4) [no \'data\' sub-section!]");
-                  return;
+                    printm("bad file (4) [no \'data\' sub-section!]");
+                    return false;
                 }
 
                 // NOTE: Metadata tags will appear at the end of the file,
@@ -853,14 +928,14 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 // Bytes of data following "data"
                 ///*** Data must end on an even byte boundary!!! (explains
                 // why the file may appear 1 byte over-size for 8-bit mono)
-				printm("data-section length (in bytes): " + String(dataLength));
+                printm("data-section length (in bytes): " + String(dataLength));
 
                 int AudioFormat = *(__int16*)(&headerPtr[0]);
                 if (AudioFormat != 1) // we can't handle compressed WAV-files
                 {
-                  printm("cannot read this WAV file-type " +
-                                    String(AudioFormat) + "!");
-                  return;
+                    printm("cannot read this WAV file-type " +
+                                                String(AudioFormat) + "!");
+                    return false;
                 }
 
                 int NumChannels = *(__int16*)(&headerPtr[2]);
@@ -877,32 +952,31 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 printm("bits per sample: " + String(BitsPerWord));
                 if (BitsPerWord < 8 || BitsPerWord > 64)
                 {
-                  printm("bits per sample out of range: " +
-                                       String(BitsPerWord));
-                  return;
+                    printm("bits per sample out of range: " + String(BitsPerWord));
+                    return false;
                 }
 
-                int BytesPerWord = BitsPerWord/8;
+                int BytesPerWord = BitsPerWord / 8;
                 if (BitsPerWord % 8) // remaining bits?
-                  BytesPerWord++; // round up
+                    BytesPerWord++; // round up
 
                 if (BytesPerWord > 8)
                 {
-                  printm("error: can't handle samples over 64-bits!");
-                  return;
+                    printm("error: can't handle samples over 64-bits!");
+                    return false;
                 }
 
                 if (NumChannels * BytesPerWord != BytesPerFrame)
                 {
-                  printm("error: (NumChannels * BytesPerWord != BytesPerFrame)");
-                  return;
+                    printm("error: (NumChannels * BytesPerWord != BytesPerFrame)");
+                    return false;
                 }
 
                 // there should be no "remainder" bytes...
                 if (dataLength % (NumChannels * BytesPerWord))
                 {
-                  printm("error: incomplete data-block!");
-				  return;
+                    printm("error: incomplete data-block!");
+                    return false;
                 }
 
                 printm("bytes per sample: " + String(BytesPerWord));
@@ -910,45 +984,42 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 int TotalFrames = dataLength / (NumChannels * BytesPerWord);
                 printm("number of frames: " + String(TotalFrames));
 
-                // this is printed in the output parameters...
-                //printm("sample name: " + String(newname).TrimRight());
-
                 // make sure we have a file-length that accomodates the expected data-length!
-                if (dp+dataLength > fileBuf+iBytesRead)
+                if (dataPtr + dataLength > fileBuf + iBytesRead)
                 {
-                  printm("error: [dp+dataLength > fileBuf+iBytesRead!]");
-                  return;
+                    printm("error: [dataPtr+dataLength > fileBuf+iBytesRead!]");
+                    return false;
                 }
 
-                // Need to populate a PSTOR structure for S900
+                // Need to populate a PSTOR structure for S950
                 ps.loopstart = 0; // first replay point for looping (4 bytes)
-                ps.endpoint = TotalFrames-1; // end of play index (4 bytes)
+                ps.endpoint = TotalFrames - 1; // end of play index (4 bytes)
                 ps.looplen = ps.endpoint; // loop length (4 bytes)
 
-                unsigned __int32 tempfreq = SampleRate;
+                UInt32 tempfreq = SampleRate;
                 if (tempfreq > 49999)
-                  tempfreq = 49999;
-                ps.freq = (unsigned __int32)tempfreq; // sample freq. in Hz (4 bytes)
+                    tempfreq = 49999;
+                ps.freq = (UInt32)tempfreq; // sample freq. in Hz (4 bytes)
 
                 ps.pitch = 960; // pitch - units = 1/16 semitone (4 bytes) (middle C)
                 ps.totalct = TotalFrames; // total number of words in sample (4 bytes)
-                ps.period = 1.0e9/(double)ps.freq; // sample period in nanoseconds (8 bytes)
+                ps.period = 1.0e9 / (double)ps.freq; // sample period in nanoseconds (8 bytes)
 
                 // 8-14 bits S900 or 8-16-bits S950
                 // (this will be the bits-per-word of the sample residing on the machine)
                 // (DO THIS BEFORE SETTING shift_count!)
                 ps.bits_per_word =
-                  (unsigned __int16)((BitsPerWord > machine_max_bits_per_word) ?
-                                machine_max_bits_per_word : BitsPerWord);
+                    (UInt16)((BitsPerWord > machine_max_bits_per_word) ?
+                        machine_max_bits_per_word : BitsPerWord);
 
                 // positive result is the amount of right shift needed (if any)
                 // to down-convert the wav's # bits to the desired # bits
                 // (example: Wave-file's BitsPerWord is 16 and ps.bits_per_word
                 // max is 14 bits for S900, result is "need to right-shift 2")
                 // (DO THIS AFTER LIMITING ps.bits_per_word TO machine_max_bits_per_word!)
-                int shift_count = BitsPerWord-ps.bits_per_word;
+                int shift_count = BitsPerWord - ps.bits_per_word;
 
-                strncpy(ps.name, newname, MAX_NAME_S900); // ASCII sample name (10 bytes)
+                memmove(ps.name, newname, MAX_NAME_S900); // ASCII sample name (10 bytes)
                 ps.name[MAX_NAME_S900] = '\0';
                 trimright(ps.name);
 
@@ -964,190 +1035,324 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 ps.loopmode = 'O'; // (1 byte) (one-shot)
 
                 // find the sample's index on the target machine
+#if !TESTING
                 if ((sampIndex = FindIndex(ps.name)) < 0)
-                    return;
-
+                    return false;
+#else
+                if (m_use_sample_dump_standard)
+                {
+                    // Show dialog to obtain a sample number...
+                    if (FormChoose->ShowModal() == mrCancel)
+                        return;
+                    sampIndex = FormChoose->SampleIndex;
+                }
+                else
+                    sampIndex = 0;
+#endif
                 // encode samp_hedr and samp_parms arrays
                 encode_sample_info(sampIndex, &ps);
 
                 print_ps_info(&ps);
 
-                // request common reception enable
-                exmit(0, SECRE, true);
-
-                // transmit sample header info
-                comws(HEDRSIZ, samp_hedr, true);
-
-                // wait for acknowledge
-                if (get_ack(0))
-                    return;
-
-                int FrameCounter = 0; // We already processed the header
-
-                blockct = 0;
-
-                // if Stereo and User checked "send right channel"
-                // point to first right-channel sample-datum
+               // if Stereo and User checked "send right channel"
+               // point to first right-channel sample-datum
                 if (NumChannels > 1 && m_use_right_chan)
-                    dp += BytesPerWord;
+                    dataPtr += BytesPerWord;
 
-                // 1/2 the full numeric range for the # bits per sample
-                unsigned __int64 wav_baseline = (1 << (BitsPerWord-1));
+                __int64 wav_baseline = (1 << (BitsPerWord - 1));
+                __int64 target_baseline = (1 << (ps.bits_per_word - 1));
+                __int64 ob_target_max = (1 << ps.bits_per_word) - 1;
+                __int64 signed_target_max = target_baseline - 1;
+                __int64 signed_target_min = -signed_target_max;
 
-                // catch an overflow if we are rounding acc up (see below)
-                unsigned __int64 max_val = (1 << ps.bits_per_word)-1;
+                __int64 my_max = signed_target_min;
+                __int64 my_min = signed_target_max;
+
+                // the largest magnitude (pos or neg) point in this wav
+                // (needed to compute a scale-factor to map the wav to
+                // the target # bits)
+                unsigned __int64 maxAbsAcc = 0;
 
                 // init progress display
                 int divisor = (ps.totalct <= 19200) ? 8 : 32;
                 String dots;
 
-                // for each frame in WAV-file (one-sample of 1-8 bytes...)
-                for(;;)
+                bool bUseScaling = (BytesPerWord < 2) ? false : true;
+                int passes = bUseScaling ? 2 : 1;
+
+                // Make two passes... first to get max absolute value of the original
+                // WAV sample-point to compute a scaling factor to normalize to 14-bits.
+                while (passes > 0)
                 {
-                    // End of file?
-                    if (FrameCounter >= TotalFrames)
-                        break;
+                    blockct = 0;
 
-                    // read and encode block of 60 frames...
-
-                    // Strategy: encode WAV samples of 8-64 bits
-                    // as unsigned 14 (or 16-bit) (two-byte S900 "SW" format)
-                    // S900 is 12-bits but can receive 14-bits.
-                    // 8-bit wav-format is already un-signed, but
-                    // over 8-bits we need to convert from signed to
-                    // unsigned.  All values need to be converted into
-                    // a 14-bit form for S900...
-
-                    // For an S950, the data are encoded into 3 bytes per
-                    // sample - 40 samples per 120 byte block.
-                    // For an S900, the data are encoded into 2 bytes per
-                    // sample - 60 samples per 120 byte block.
-
-                    Byte checksum = 0; // clear checksum
-
-                    // send the block #
-                    Byte temp = (Byte)(blockct & 0x7f);
-                    comws(1, &temp, false); // no delay
-
-                    register __int64 acc; // sample accumulator
-
-                    for (int ii = 0; ii < words_per_block; ii++)
+                    // when passes == 1, that's the "really send the sample" pass...
+                    // (as opposed to merely  finding the max for the scale-factor)
+                    if (passes == 1)
                     {
-                        if (FrameCounter >= TotalFrames)
-                            acc = 0L;
-                        else
+                        if (bUseScaling)
                         {
-                            // one-byte wave samples are un-signed by default
-                            if (BytesPerWord < 2) // one byte?
-                                acc = *dp;
-                            else // between 2-7 bytes per sample (signed)
+                            double scale_factor = (double)signed_target_max / (double)maxAbsAcc;
+                            printm("\r\nscale factor (targ max/file max): " +
+                                String(signed_target_max) + "/" + String(maxAbsAcc) + " = " +
+                                AnsiString::Format("%.3f\r\n", ARRAYOFCONST((scale_factor))));
+                        }
+
+                        // request common reception enable (after 25ms delay)
+                        if (!exmit(0, SECRE, true))
+                            return false; // tx timeout
+
+                        DelayGpTimer(25);
+
+                        // transmit sample header info
+                        if (!comws(m_hedr_size, samp_hedr, false))
+                            return false;
+
+                        // wait for acknowledge
+                        // (for midi - the data sent is initially buffered by
+                        // between 229 and 247 bytes so we CANNOT get
+                        // synchronized ack-packets! [Unless it is SDS])
+                        if (get_ack(0))
+                            return false;
+                    }
+                    else
+                        printm("computing largest absolute sample value (wait...)");
+
+                    int FrameCounter = 0;
+                    Byte* dp = dataPtr;
+
+                    // for each frame in WAV-file (one-sample of 1-8 bytes...)
+                    for (;;)
+                    {
+                        // End of file?
+                        if (FrameCounter >= TotalFrames)
+                            break;
+
+                        // read and encode block of 20, 30 or 60 frames (samples)...
+
+                        // Strategy: encode WAV samples of 8-64 bits
+                        // as unsigned 14 (or 16-bit) (two-byte S950 "SW" format)
+                        // S900 is 12-bits but can receive 14-bits.
+                        // 8-bit wav-format is already un-signed, but
+                        // over 8-bits we need to convert from signed to
+                        // unsigned.  All values need to be converted into
+                        // a 14-bit form for S950...
+
+                        // For both S900 and S950, the data are encoded into
+                        // 2 bytes per sample - 60 samples per 120 byte block.
+
+                        // (For the Prophet 2000 data are encoded into 3 bytes per
+                        // sample - 40 samples per 120 byte block. And this format
+                        // also handles 30 samples encoded 4-bytes * 30 = 120,
+                        // but that capability is unrealized for the S900/S950)
+
+                        checksum = initial_checksum; // init checksum
+
+                        if (passes == 1)
+                        {
+                            // reset transmit buffer pointer
+                            tbuf[0] = (Byte)(blockct & 0x7f); // queue the block #
+                            ptbuf = &tbuf[1];
+                        }
+
+                        register __int64 acc; // sample accumulator (must be signed!)
+
+                        for (int ii = 0; ii < words_per_block; ii++)
+                        {
+                            if (FrameCounter >= TotalFrames)
+                                acc = 0;
+                            else
                             {
-                                // Allowed BitsPerWord => 9-56
-                                // Stored as MSB then LSB in "dp" buffer.
-                                // Left-justified...
-                                //
-                                // From the WAV file:
-                                //
-                                // example (16-bits):
-								// byte *dp    : D15 D14 D13 D12 D11 D10 D09 D08
-                                // byte *(dp+1): D07 D06 D05 D04 D03 D02 D01 D00
-                                //
-                                // example (9-bits):
-                                // byte *dp    : D08 D07 D06 D05 D04 D03 D02 D01
-                                // byte *(dp+1): D00  0   0   0   0   0   0   0
-
-                                // init 64-bit acc with -1 (all 1) if msb of
-                                // most-signifigant byte is 1 (negative value)
-                                if (dp[BytesPerWord-1] & 0x80)
-                                    acc = -1; // set all 1s
-                                else
-                                    acc = 0;
-
-                                // load accumulator with 8-64 bit sample
-                                // (Microsoft WAV sample-data are in Intel little-endian
-                                // byte-order. left-channel sample appears first for a
-                                // stereo WAV file, then the right-channel.)
-                                for (int ii = BytesPerWord-1; ii >= 0; ii--)
+                                // one-byte wave samples are un-signed by default
+                                if (BytesPerWord < 2) // one byte?
                                 {
-                                    acc <<= 8; // zero-out new space and shift previous
-                                    acc |= dp[ii];
+                                    acc = *dp;
+
+                                    if (passes == 2)
+                                        if (acc > maxAbsAcc)
+                                            maxAbsAcc = acc;
+                                }
+                                else // between 2-7 bytes per sample (signed)
+                                {
+                                    // Allowed BitsPerWord => 9-56
+                                    // Stored as MSB then LSB in "dp" buffer.
+                                    // Left-justified...
+                                    //
+                                    // From the WAV file:
+                                    //
+                                    // example (16-bits):
+                                    // byte *dp    : D15 D14 D13 D12 D11 D10 D09 D08
+                                    // byte *(dp+1): D07 D06 D05 D04 D03 D02 D01 D00
+                                    //
+                                    // example (9-bits):
+                                    // byte *dp    : D08 D07 D06 D05 D04 D03 D02 D01
+                                    // byte *(dp+1): D00  0   0   0   0   0   0   0
+
+                                    // init 64-bit acc with -1 (all 1) if msb of
+                                    // most-signifigant byte is 1 (negative value)
+                                    if (dp[BytesPerWord - 1] & 0x80)
+                                        acc = -1; // set all 1s
+                                    else
+                                        acc = 0;
+
+                                    // load accumulator with 8-64 bit sample
+                                    // (Microsoft WAV sample-data are in Intel little-endian
+                                    // byte-order. left-channel sample appears first for a
+                                    // stereo WAV file, then the right-channel.)
+                                    for (int ii = BytesPerWord - 1; ii >= 0; ii--)
+                                    {
+                                        acc <<= 8; // zero-out new space and shift previous
+                                        acc |= dp[ii];
+                                    }
+
+                                    // right-justify so we can add baseline
+                                    // (the bits in a wav are left-justified
+                                    // so we must scoot them to the right!)
+                                    //
+                                    // NOTE: since acc is signed, the sign-bit
+                                    // is preserved during the right-shift!
+                                    acc >>= (8 * BytesPerWord) - BitsPerWord;
+
+                                    if (passes == 2)
+                                    {
+                                        // find our max +/- sample value
+                                        if (acc < 0)
+                                        {
+                                            if (-acc > maxAbsAcc)
+                                                maxAbsAcc = -acc;
+                                        }
+                                        else
+                                        {
+                                            if (acc > maxAbsAcc)
+                                                maxAbsAcc = acc;
+                                        }
+                                    }
+                                    else // here, we have computed a scale_factor!
+                                    {
+                                        if (bUseScaling)
+                                        {
+                                            acc *= signed_target_max;
+                                            double rem = fmod((double)acc, (double)maxAbsAcc);
+                                            acc = (double)acc / (double)maxAbsAcc;
+
+                                            if (rem >= 0.5)
+                                                acc++;
+                                            else if (rem <= -0.5)
+                                                acc--;
+
+                                            // convert from 2's compliment to offset-binary
+                                            acc += signed_target_max;
+
+                                            if (acc > my_max)
+                                                my_max = acc;
+                                            if (acc < my_min)
+                                                my_min = acc;
+                                        }
+                                        else
+                                        {
+                                            // convert from 2's compliment to offset-binary:
+                                            acc += wav_baseline;
+
+                                            // convert down to 14 or 16-bits if over...
+                                            if (shift_count > 0)
+                                            {
+                                                // shift msb of discarded bits to lsb of val
+                                                acc >>= shift_count - 1;
+
+                                                bool bRoundUp = acc & 1; // need to round up?
+
+                                                                         // discard msb of discarded bits...
+                                                acc >>= 1;
+
+                                                if (bRoundUp && acc != ob_target_max)
+                                                    acc++;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // save sample in 122-byte tbuf
+                            if (passes == 1)
+                                queue((UInt16)acc, ptbuf, bytes_per_word,
+                                    ps.bits_per_word, checksum);
+
+                            dp += BytesPerFrame; // Next frame
+                            FrameCounter++;
+                        }
+
+                        // user can press ESC to quit
+                        Application->ProcessMessages();
+
+                        if (m_abort)
+                        {
+                            printm("user aborted transmit!");
+                            return false;
+                        }
+
+                        if (passes == 1)
+                        {
+                            *ptbuf++ = checksum; // queue checksum
+
+                            if (ptbuf - tbuf != m_data_size)
+                                printm("detected tbuf overrun (should never happen!)");
+
+                            // write the data block (no delay)
+                            if (!comws(m_data_size, tbuf, false))
+                                return false;
+
+                            // do the ..... progress indicator
+                            if (blockct % divisor == 0)
+                            {
+                                dots += ".";
+                                printm(dots);
+                            }
+
+                            // wait for acknowledge
+                            if (get_ack(blockct))
+                            {
+                                // sample send failed!
+                                unsigned countSent = blockct*words_per_block;
+                                printm("sent " + String(countSent) + " of " +
+                                    String(ps.totalct) + " sample words!");
+
+                                // limits
+                                if (countSent < ps.totalct)
+                                {
+                                    ps.totalct = countSent;
+                                    ps.endpoint = ps.totalct - 1;
+                                    ps.looplen = ps.endpoint;
+                                    ps.loopstart = 0;
+
+                                    // re-encode modified values
+                                    encode_sample_info(sampIndex, &ps);
+                                    printm("sample length was truncated!");
                                 }
 
-                                // right-justify so we can add baseline
-                                acc >>= (8*BytesPerWord)-BitsPerWord;
-
-                                // convert from 2's compliment to offset-binary:
-                                // store N + (1<<(BitsPerWord-1)) in a 64-bit
-                                // int.
-                                acc += wav_baseline;
-
-                                // convert down to 14 or 16-bits if over...
-                                if (shift_count > 0)
-                                {
-                                    // shift msb of discarded bits to lsb of val
-                                    acc >>= shift_count-1;
-
-                                    bool bRoundUp = acc & 1; // need to round up?
-
-                                    // discard msb of discarded bits...
-                                    acc >>= 1;
-
-                                    if (bRoundUp && acc != max_val)
-                                        acc++;
-                                }
+                                bSendAborted = true;
+                                break;
                             }
                         }
 
-						// Send sample
-                        xmit((unsigned __int16)acc, bytes_per_word,
-                                                 ps.bits_per_word, checksum);
-
-                        dp += BytesPerFrame; // Next frame
-                        FrameCounter++;
+                        blockct++;
                     }
 
-                    comws(1, &checksum, false); // send checksum (no delay)
+                    // print max and min if computing scale-factor and we have
+                    // applied it in this, second (and last) pass - just before
+                    // we exit...
+                    if (bUseScaling && passes == 1)
+                        printm("target_max: " + String(ob_target_max) +
+                                    ", scaled-max: " + String(my_max) +
+                                    ", scaled-min: " + String(my_min));
 
-                    // do the ..... progress indicator
-                    if (blockct % divisor == 0)
-                    {
-                        dots += ".";
-                        FormS900->printm(dots);
-                    }
+                    passes--;
 
-                    // wait for acknowledge
-                    if (get_ack(blockct+1) != 0)
-                    {
-                        // sample send failed!
-
-                        unsigned int countSent = blockct*words_per_block;
-                        printm("sent " + String(countSent) + " of " +
-                                          String(ps.totalct) + " sample words!");
-
-                        // limits
-                        if (countSent < ps.totalct)
-                        {
-                            ps.totalct = countSent;
-                            ps.endpoint = ps.totalct-1;
-                            ps.looplen = ps.endpoint;
-                            ps.loopstart = 0;
-
-                            // re-encode modified values
-                            encode_sample_info(sampIndex, &ps);
-                            printm("sample length was truncated!");
-                        }
-
-                        bSendAborted = true;
-                        break;
-                    }
-
-                    blockct++;
-                }
+                } // end while
             }
             else // .AKI file (my custom format)
             {
                 // File format: (little-endian storage format, LSB then MSB)
-				// 1) 4 byte unsigned int, magic number to identify type of file
+                // 1) 4 byte unsigned, magic number to identify type of file
                 // 2) 72 byte PSTOR struct with sample's info
                 // 3) At offset 20 into PSTOR is the 4-byte number of sample-words
                 // 4) X sample words in 16-bit 2's compliment little endian format
@@ -1156,74 +1361,81 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 // min size is one 60-byte block of data plus the magic-number and
                 // PSTOR (program info) array
 
-				if (iBytesRead < (int)(DATA_PACKET_SIZE +
-									AKI_FILE_HEADER_SIZE + UINT32SIZE))
+                if (iBytesRead < (int)(DATA_PACKET_SIZE +
+                                        AKI_FILE_HEADER_SIZE + UINT32SIZE))
                 {
-                  printm("file is corrupt");
-                  return;
+                    printm("file is corrupt");
+                    return false;
                 }
 
                 printm("Read " + String(iBytesRead) + " bytes");
 
-                unsigned __int32 my_magic;
+                UInt32 my_magic;
 
                 memcpy(&my_magic, &fileBuf[0], UINT32SIZE);
-                //    printm("magic = " + String(my_magic));
 
+                //printm("aki-file magic #: " + String(my_magic));
                 if (my_magic != MAGIC_NUM_AKI)
                 {
-                  printm("File is not the right kind!");
-                  return;
+                    printm("File is not the right kind!");
+                    return false;
                 }
 
                 // load ps (the sample-header info) from fileBuffer
-                memcpy(&ps, &fileBuf[0+UINT32SIZE], AKI_FILE_HEADER_SIZE);
+                memcpy(&ps, &fileBuf[0 + UINT32SIZE], AKI_FILE_HEADER_SIZE);
                 ps.name[MAX_NAME_S900] = '\0';
                 trimright(ps.name);
-
-                // encode new sample name if any entered
-                //    char name[11] = "TEMPNAME00";
-                //    sprintf(ps.name, "%.*s", MAX_NAME_S900, name);
-
-                // find the sample's index on the target machine
-                if ((sampIndex = FindIndex(ps.name)) < 0)
-                    return;
 
                 // get the +/- shift_count before we limit ps.bits_per_word (below)
                 // (should either be 16-16 = 0, 14-14 = 0, 14-16 = -2 or 16-14 = +2
                 // the only case we care about is +2 because we will have to
                 // down-convert by right-shifting 2 to target an S900 with
                 // a 16-bit sample saved from an S950)
-                int shift_count = ps.bits_per_word-machine_max_bits_per_word;
+                int shift_count = ps.bits_per_word - machine_max_bits_per_word;
 
                 // 2 bytes 14-bits S900 or 3 bytes 16-bits S950
-				// If the .aki file has 16-bit samples and we are sending to
+                // If the .aki file has 16-bit samples and we are sending to
                 // an S900, we need to lower the PSTOR bits_per_word to 14!
                 if (ps.bits_per_word > machine_max_bits_per_word)
                 {
-                    ps.bits_per_word = (unsigned __int16)machine_max_bits_per_word;
+                    ps.bits_per_word = (UInt16)machine_max_bits_per_word;
                     printm("reduced bits per word in .aki file to fit the S900 (14-bits max)!");
                     printm("(if you are sending to the S950 select \"Target S950\" in the menu!)");
                 }
+
+                // find the sample's index on the target machine
+#if !TESTING
+                if ((sampIndex = FindIndex(ps.name)) < 0)
+                    return false;
+#else
+                sampIndex = 0;
+#endif
 
                 // encode samp_hedr and samp_parms arrays
                 encode_sample_info(sampIndex, &ps);
 
                 print_ps_info(&ps);
 
-                // request common reception enable
-                exmit(0, SECRE, true);
+                // request common reception enable (after 25ms delay)
+                if (!exmit(0, SECRE, true))
+                    return false; // tx timeout
+
+                DelayGpTimer(25);
 
                 // transmit sample header info
-                comws(HEDRSIZ, samp_hedr, true);
+                if (!comws(m_hedr_size, samp_hedr, false))
+                    return false;
 
                 // wait for acknowledge
+                // (for midi - the data sent is initially buffered by
+                // between 229 and 247 bytes so we CANNOT get
+                // synchronized ack-packets!)
                 if (get_ack(0))
-                    return;
+                    return false;
 
-                __int16 baseline = (__int16)(1 << (ps.bits_per_word-1));
+                __int16 baseline = (__int16)(1 << (ps.bits_per_word - 1));
 
-                unsigned __int16 max_val = (unsigned __int16)((1 << ps.bits_per_word)-1);
+                UInt16 max_val = (UInt16)((1 << ps.bits_per_word) - 1);
 
                 __int16 *ptr = (__int16*)&fileBuf[AKI_FILE_HEADER_SIZE + UINT32SIZE];
                 int ReadCounter = AKI_FILE_HEADER_SIZE + UINT32SIZE; // We already processed the header
@@ -1234,19 +1446,19 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 int divisor = (ps.totalct <= 19200) ? 8 : 32;
                 String dots;
 
-                for(;;)
+                for (;;)
                 {
                     // End of file?
                     if (ReadCounter >= iBytesRead)
                         break;
 
-                    // send block #
-                    Byte temp = (Byte)(blockct & 0x7f);
-                    comws(1, &temp, false); // no delay
+                    checksum = initial_checksum; // init checksum
 
-                    Byte checksum = 0;
+                    // reset transmit buffer pointer
+                    tbuf[0] = (Byte)(blockct & 0x7f); // queue the block #
+                    ptbuf = &tbuf[1];
 
-					// Send data and checksum (send 0 if at end-of-file to pad
+                    // Send data and checksum (send 0 if at end-of-file to pad
                     // out the data packet to 120 bytes!)
                     for (int ii = 0; ii < words_per_block; ii++)
                     {
@@ -1265,7 +1477,7 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                         if (shift_count > 0)
                         {
                             // shift msb of discarded bits to lsb of val
-                            val >>= shift_count-1;
+                            val >>= shift_count - 1;
 
                             bool bRoundUp = val & 1; // need to round up?
 
@@ -1277,10 +1489,26 @@ void __fastcall TFormS900::PutSample(String sFilePath)
 
                         }
 
-                        xmit(val, bytes_per_word, ps.bits_per_word, checksum);
+                        queue(val, ptbuf, bytes_per_word, ps.bits_per_word, checksum);
                     }
 
-                    comws(1, &checksum, false); // send checksum (no delay)
+                    // user can press ESC to quit
+                    Application->ProcessMessages();
+
+                    if (m_abort)
+                    {
+                        printm("user aborted transmit!");
+                        return false;
+                    }
+
+                    *ptbuf++ = checksum; // queue checksum
+
+                    if (ptbuf - tbuf != m_data_size)
+                        printm("detected tbuf overrun (should never happen!)");
+
+                    // write the data block (no delay)
+                    if (!comws(m_data_size, tbuf, false))
+                        return false;
 
                     // do the ..... progress indicator
                     if (blockct % divisor == 0)
@@ -1290,24 +1518,23 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                     }
 
                     // wait for acknowledge
-                    if (get_ack(blockct+1) != 0)
+                    if (get_ack(blockct))
                     {
                         // sample send failed!
-
-                        unsigned int countSent = blockct*words_per_block;
-						printm("sent " + String(countSent) + " of " +
-                                         String(ps.totalct) + " sample words!");
+                        unsigned countSent = blockct*words_per_block;
+                        printm("sent " + String(countSent) + " of " +
+                            String(ps.totalct) + " sample words!");
 
                         // limits
                         if (countSent < ps.totalct)
                         {
                             ps.totalct = countSent;
-                            if (ps.endpoint > ps.totalct-1)
-                                ps.endpoint = ps.totalct-1;
+                            if (ps.endpoint > ps.totalct - 1)
+                                ps.endpoint = ps.totalct - 1;
                             if (ps.looplen > ps.endpoint)
                                 ps.looplen = ps.endpoint;
-                            if (ps.loopstart > ps.endpoint-ps.looplen)
-                                ps.loopstart = ps.endpoint-ps.looplen;
+                            if (ps.loopstart > ps.endpoint - ps.looplen)
+                                ps.loopstart = ps.endpoint - ps.looplen;
 
                             // re-encode modified values
                             encode_sample_info(sampIndex, &ps);
@@ -1322,18 +1549,23 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 }
             }
 
+            // write the EEX (no delay)
             Byte temp = EEX;
-            comws(1, &temp, false); // no delay
+            if (!comws(1, &temp, false))
+                return false;
 
-            exmit(0, SECRD, true); // request common reception disable
-
-            if (m_auto_rename)
+#if !TESTING
+            // do renaming unless NAK packet was received while in midi Tx
+            // (in that case we have no way of knowing exactly which packet
+            // failed so we can't change samp_parms correctly... oh well...)
+            if (m_auto_rename && !bSendAborted)
             {
                 // look up new sample in catalog, when you write a new sample it
                 // shows up as "00", "01", "02"
 
-                char locstr[3];
+                Byte locstr[3];
                 sprintf(locstr, "%02d", sampIndex);
+
                 sampIndex = findidx(locstr);
 
                 // returns the 0-based sample index if a match is found
@@ -1342,58 +1574,78 @@ void __fastcall TFormS900::PutSample(String sFilePath)
                 // -3 = samples on machine, but no match
                 if (sampIndex == -1)
                 {
-                    printm("catalog search error for: \"" + String(locstr) + "\"");
-                    return; // catalog error
-				}
+                    printm("catalog search error for: \"" + String((char*)locstr) + "\"");
+                    return false; // catalog error
+                }
 
                 if (sampIndex == -2)
                     sampIndex = 0; // we will be the only sample...
 
                 if (sampIndex < 0)
                 {
-                    printm("index string \"" + String(locstr) + "\" not found!");
-                    return;
+                    printm("index string \"" + String((char*)locstr) + "\" not found!");
+                    return false;
                 }
 
-                send_samp_parms(sampIndex);
+                send_samp_parms(sampIndex); // write samp_parms to midi or com port
 
                 if (!bSendAborted)
-                    printm("sample written ok! (index=" + String(sampIndex)+ ")");
+                    printm("sample written ok! (index=" + String(sampIndex) + ")");
             }
             else
             {
                 if (!bSendAborted)
                     printm("sample written ok!");
             }
+#else
+            if (!bSendAborted)
+                printm("sample written ok!");
+#endif
         }
-        catch(...)
+        catch (...)
         {
-            printm("can't load file: \"" + sFilePath + "\"");
+            printm("unable to process file: \"" + sFilePath + "\"");
+            return false;
         }
     }
     __finally
     {
-        if (fileBuf != NULL)
-            delete [] fileBuf;
+        // request common reception disable (after 25ms delay)
+        exmit(0, SECRD, true);
 
-        if (iFileHandle)
+        if (fileBuf)
+            delete[] fileBuf;
+
+        if (tbuf)
+            delete[] tbuf;
+
+        if (iFileHandle != 0)
             FileClose(iFileHandle);
-
-        m_systemBusy = false;
     }
+
+    return true;
 }
+//---------------------------------------------------------------------------
+// prev = dcRemoval(signal, prev.w, 0.9);
+//double __fastcall TFormMain::dcRemoval(double input, double &prevHistory, double alpha)
+//{
+//    double newHistory = input + alpha*prevHistory;
+//    double output = newHistory - prevHistory;
+//    prevHistory = newHistory; // return by-reference
+//    return output;
+//}
 //---------------------------------------------------------------------------
 // tricky algorithm I came up with (the inverse of the one in RxSamp.cpp)
 // builds and sends only the required number of 7-bit bytes representing one
-// sample-word to the S900 or S950 - S.S.
+// sample-word to the S900/S950 - S.S.
 //
-// checksum in/out is by-reference
-void __fastcall TFormS900::xmit(unsigned __int16 val, int bytes_per_word,
-                               int bits_per_word, Byte &checksum)
+// checksum in/out is by-reference as is the ptbuf pointer
+void __fastcall TFormMain::queue(UInt16 val, Byte* &ptbuf,
+                 int bytes_per_word, int bits_per_word, Byte &checksum)
 {
     for (int ii = 1; ii <= bytes_per_word; ii++)
     {
-		int shift_count = bits_per_word - (ii*7);
+        int shift_count = bits_per_word - (ii * 7);
 
         Byte out_val;
 
@@ -1404,13 +1656,14 @@ void __fastcall TFormS900::xmit(unsigned __int16 val, int bytes_per_word,
 
         out_val &= 0x7f; // mask msb to 0
 
+        // update reference in/out vars
         checksum ^= out_val;
-        comws(1, &out_val, false); // no delay
+        *ptbuf++ = out_val;
     }
 }
 //---------------------------------------------------------------------------
 // puts PSTOR struct (ps) info into samp_parms[] and samp_hedr[] arrays
-void __fastcall TFormS900::encode_sample_info(int samp, PSTOR* ps)
+void __fastcall TFormMain::encode_sample_info(UInt16 samp, PSTOR* ps)
 {
     //
     // SAMPLE PARAMETERS 129 bytes (do this before encoding header)
@@ -1421,12 +1674,12 @@ void __fastcall TFormS900::encode_sample_info(int samp, PSTOR* ps)
     samp_parms[2] = 0; // midi chan
     samp_parms[3] = SPRM;
     samp_parms[4] = S900_ID;
-    samp_parms[5] = (Byte)(samp);
-    samp_parms[6] = 0; // reserved
+    samp_parms[5] = (Byte)(samp & 0x7f);
+    samp_parms[6] = (Byte)((samp>>7) & 0x7f); // reserved
 
     // copy ASCII sample name, pad with blanks and terminate
-    char locstr[MAX_NAME_S900+1];
-    strncpy((char*)locstr, (char*)ps->name, MAX_NAME_S900);
+    Byte locstr[MAX_NAME_S900 + 1];
+    memmove(locstr, ps->name, MAX_NAME_S900);
     int size = strlen(locstr);
     while (size < MAX_NAME_S900)
         locstr[size++] = ' ';
@@ -1434,38 +1687,38 @@ void __fastcall TFormS900::encode_sample_info(int samp, PSTOR* ps)
 
     encode_parmsDB((Byte*)locstr, &samp_parms[7], MAX_NAME_S900); // 20
 
-    // clear unused bytes
-    // 27-34  DD Undefined
-    // 35-38  DW Undefined
+                                                                           // clear unused bytes
+                                                                           // 27-34  DD Undefined
+                                                                           // 35-38  DW Undefined
     for (int ii = 27; ii <= 38; ii++)
         samp_parms[ii] = 0;
 
     // number of sample words
     encode_parmsDD(ps->totalct, &samp_parms[39]); // 8
 
-    // sampling frequency
+                                                  // sampling frequency
     encode_parmsDW(ps->freq, &samp_parms[47]); // 4
 
-    // pitch
+                                               // pitch
     encode_parmsDW(ps->pitch, &samp_parms[51]); // 4
 
-    // loudness offset
+                                                // loudness offset
     encode_parmsDW(ps->loudnessoffset, &samp_parms[55]); // 4
 
-    // replay mode 'A', 'L' or 'O' (alternating, looping or one-shot)
-    // (samp_hedr[18] also has sample's loop mode: 0=looping, 1=alternating
-    // or one-shot if loop-length < 5)
+                                                         // replay mode 'A', 'L' or 'O' (alternating, looping or one-shot)
+                                                         // (samp_hedr[18] also has sample's loop mode: 0=looping, 1=alternating
+                                                         // or one-shot if loop-length < 5)
     encode_parmsDB(ps->loopmode, &samp_parms[59]); // 2
 
     encode_parmsDB(0, &samp_parms[61]); // reserved 2
 
-    // end point relative to start of sample
+                                        // end point relative to start of sample
     encode_parmsDD(ps->endpoint, &samp_parms[63]); // 8
 
-    // loop start point
+                                                   // loop start point
     encode_parmsDD(ps->loopstart, &samp_parms[71]); // 8
 
-    // limit loop length (needed below when setting samp_hedr[15])
+                                                    // limit loop length (needed below when setting samp_hedr[15])
     if (ps->looplen > ps->endpoint)
         ps->looplen = ps->endpoint;
 
@@ -1474,7 +1727,7 @@ void __fastcall TFormS900::encode_sample_info(int samp, PSTOR* ps)
 
     encode_parmsDW(0, &samp_parms[87]); // reserved 4
 
-    // 91,92 DB type of sample 0=normal, 255=velocity crossfade
+                                        // 91,92 DB type of sample 0=normal, 255=velocity crossfade
     Byte c_temp = (Byte)((ps->flags & (Byte)1) ? 255 : 0);
     encode_parmsDB(c_temp, &samp_parms[91]);
 
@@ -1491,65 +1744,72 @@ void __fastcall TFormS900::encode_sample_info(int samp, PSTOR* ps)
     // and the value is put in index 127
     compute_checksum(7, 127);
 
-	samp_parms[128] = EEX;
+    samp_parms[128] = EEX;
 
     //
-    // SAMPLE HEADER, 19 bytes
+    // SAMPLE HEADER, 19 bytes (21 bytes for sample-dump-standard (SDS))
     //
 
-    // encode excl,syscomid,sampdump
-    samp_hedr[0] = (Byte)0xf0;
-    samp_hedr[1] = (Byte)0x7e;
-    samp_hedr[2] = (Byte)0x01;
-    samp_hedr[3] = (Byte)samp;
-    samp_hedr[4] = 0; // MSB samp idx always 0 for S900
+    // encode excl, syscomid, sampdump
+    samp_hedr[0] = BEX;
+    samp_hedr[1] = SYSTEM_COMMON_NONREALTIME_ID;
+    int idx = 2;
+    samp_hedr[idx++] = SD;
+    samp_hedr[idx++] = (Byte)(samp & 0x7f);
+    samp_hedr[idx++] = (Byte)((samp>>7) & 0x7f); // MSB samp idx always 0 for S900
 
     // bits per word
-    samp_hedr[5] = (Byte)ps->bits_per_word;
+    samp_hedr[idx++] = (Byte)ps->bits_per_word;
 
     // sampling period
-    encode_hedrTB(ps->period, &samp_hedr[6]); // 3
+    encode_hedrTB(ps->period, &samp_hedr[idx]); // 3
+    idx += 3;
 
     // number of sample words
-    encode_hedrTB(ps->totalct, &samp_hedr[9]); // 3
+    encode_hedrTB(ps->totalct, &samp_hedr[idx]); // 3
+    idx += 3;
 
     // loop start point
-    encode_hedrTB(ps->endpoint-ps->looplen, &samp_hedr[12]); // 3
+    encode_hedrTB(ps->endpoint - ps->looplen, &samp_hedr[idx]); // 3
+    idx += 3;
 
-    // loop end, S900 takes this as the end point
-    encode_hedrTB(ps->endpoint, &samp_hedr[15]); // 3
+    // loop end, S950 takes this as the end point
+    encode_hedrTB(ps->endpoint, &samp_hedr[idx]); // 3
+    idx += 3;
 
     // use ps->looping mode 'A', 'L' or 'O' (alternating, looping or one-shot)
     // to set samp_hedr[18], loop mode: 0=looping, 1=alternating
-    samp_hedr[18] = (Byte)((ps->loopmode == 'A') ? 1 : 0);
+    samp_hedr[idx] = (Byte)((ps->loopmode == 'A') ? 1 : 0);
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::send_samp_parms(unsigned int index)
+void __fastcall TFormMain::send_samp_parms(unsigned index)
 {
-    // transmit sample parameters
     samp_parms[5] = (Byte)(index);
-    comws(PARMSIZ, samp_parms, true);
+
+    // transmit sample parameters (after 25ms delay)
+    if (!comws(PARMSIZ, samp_parms, true))
+        return;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::encode_parmsDB(Byte c, Byte* dest)
+void __fastcall TFormMain::encode_parmsDB(Byte c, Byte* dest)
 {
     *dest++ = (c & (Byte)0x7f);
     *dest = (Byte)((c & (Byte)0x80) ? 1 : 0);
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::encode_parmsDB(Byte* source, Byte* dest, int numchars)
+void __fastcall TFormMain::encode_parmsDB(Byte* source, Byte* dest, int numchars)
 {
-    for (int ii = 0 ; ii < numchars ; ii++)
-	{
+    for (int ii = 0; ii < numchars; ii++)
+    {
         *dest++ = (*source & (Byte)0x7f);
         *dest++ = (Byte)((*source & (Byte)0x80) ? 1 : 0);
         source++;
     }
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::encode_parmsDD(unsigned __int32 value, Byte* tp)
+void __fastcall TFormMain::encode_parmsDD(UInt32 value, Byte* tp)
 {
-    for (int ii = 0 ; ii < 4 ; ii++)
+    for (int ii = 0; ii < 4; ii++)
     {
         *tp++ = (Byte)(value & 0x7f);
         value >>= 7;
@@ -1558,18 +1818,18 @@ void __fastcall TFormS900::encode_parmsDD(unsigned __int32 value, Byte* tp)
     }
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::encode_parmsDW(unsigned __int32 value, Byte* tp)
+void __fastcall TFormMain::encode_parmsDW(UInt32 value, Byte* tp)
 {
-    for (int ii = 0 ; ii < 2 ; ii++)
+    for (int ii = 0; ii < 2; ii++)
     {
-      *tp++ = (Byte)(value & 0x7f);
-      value >>= 7;
-      *tp++ = (Byte)(value & 1);
-      value >>= 1;
+        *tp++ = (Byte)(value & 0x7f);
+        value >>= 7;
+        *tp++ = (Byte)(value & 1);
+        value >>= 1;
     }
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::encode_hedrTB(unsigned __int32 value, Byte* tp)
+void __fastcall TFormMain::encode_hedrTB(UInt32 value, Byte* tp)
 {
     *tp++ = (Byte)(value & 0x7f);
     value >>= 7;
@@ -1578,7 +1838,7 @@ void __fastcall TFormS900::encode_hedrTB(unsigned __int32 value, Byte* tp)
     *tp = (Byte)(value & 0x7f);
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::compute_checksum(int min_index, int max_index)
+void __fastcall TFormMain::compute_checksum(int min_index, int max_index)
 {
     Byte checksum;
     int ii;
@@ -1589,37 +1849,33 @@ void __fastcall TFormS900::compute_checksum(int min_index, int max_index)
     for (ii = min_index; ii < max_index; ii++)
         checksum ^= samp_parms[ii];
 
-	samp_parms[max_index] = checksum; // offset 126 is checksum
+    samp_parms[max_index] = checksum; // offset 126 is checksum
 }
 //---------------------------------------------------------------------------
 // Catalog routines
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::catalog(bool print)
+bool __fastcall TFormMain::catalog(bool print)
 {
     // 7 hedr bytes + chksum byte + EEX = 9...
-    if (m_byteCount < 9 || TempArray[3] != DCAT)
-    {
-        printm("check cable, is sampler on and configured\r\n"
-          "for RS232, 38400 baud?");
-        return;
-    }
+    if (m_rxByteCount < 9 || TempArray[3] != DCAT)
+        return false;
 
-    int entries = (m_byteCount-9)/sizeof(S900CAT);
+    int entries = (m_rxByteCount - 9) / sizeof(S950CAT);
 
     if (!entries)
     {
-        printm("No Samples or programs in S900");
-        return;
+        printm("No Samples or programs in S950");
+        return true;
     }
 
-    S900CAT * tempptr = (S900CAT *)&TempArray[7]; // Skip header
-    CAT * permsampptr = (CAT *)&PermSampArray[0];
-    CAT * permprogptr = (CAT *)&PermProgArray[0];
+    S950CAT *tempptr = (S950CAT *)&TempArray[7]; // Skip header
+    CAT *permsampptr = PermSampArray;
+    CAT *permprogptr = PermProgArray;
 
     m_numSampEntries = 0;
     m_numProgEntries = 0;
 
-    for (int ii = 0 ; ii < entries ; ii++)
+    for (int ii = 0; ii < entries; ii++)
     {
         if (tempptr->type == 'S')
         {
@@ -1628,7 +1884,7 @@ void __fastcall TFormS900::catalog(bool print)
                 sprintf(permsampptr->name, "%.*s", MAX_NAME_S900, tempptr->name);
                 trimright(permsampptr->name);
 
-                permsampptr->sampidx = tempptr->sampidx;
+                permsampptr->index = tempptr->index;
 
                 m_numSampEntries++; // increment counter
                 permsampptr++; // next structure
@@ -1638,10 +1894,10 @@ void __fastcall TFormS900::catalog(bool print)
         {
             if (m_numProgEntries < MAX_PROGS)
             {
-				sprintf(permprogptr->name, "%.*s", MAX_NAME_S900, tempptr->name);
+                sprintf(permprogptr->name, "%.*s", MAX_NAME_S900, tempptr->name);
                 trimright(permprogptr->name);
 
-                permprogptr->sampidx = tempptr->sampidx;
+                permprogptr->index = tempptr->index;
 
                 m_numProgEntries++; // increment counter
                 permprogptr++; // next structure
@@ -1651,279 +1907,157 @@ void __fastcall TFormS900::catalog(bool print)
         tempptr++; // next structure
     }
 
-
     if (print)
     {
-        permsampptr = (CAT *)&PermSampArray[0];
-        permprogptr = (CAT *)&PermProgArray[0];
-
         printm("Programs:");
 
-        for (int ii = 0 ; ii < m_numProgEntries ; ii++)
-        {
-            printm(String(permprogptr->sampidx) + ":\"" + String(permprogptr->name) + "\"");
-            permprogptr++;
-        }
+        for (int ii = 0; ii < m_numProgEntries; ii++)
+            printm(String(PermProgArray[ii].index) + ":\"" +
+                String(PermProgArray[ii].name) + "\"");
 
         printm("Samples:");
 
-        for (int ii = 0 ; ii < m_numSampEntries ; ii++)
-        {
-            printm(String(permsampptr->sampidx) + ":\"" + String(permsampptr->name) + "\"");
-            permsampptr++;
-        }
+        for (int ii = 0; ii < m_numSampEntries; ii++)
+            printm(String(PermSampArray[ii].index) + ":\"" +
+                String(PermSampArray[ii].name) + "\"");
     }
+
+    return true;
 }
 //---------------------------------------------------------------------------
 // Receive data routines
 //---------------------------------------------------------------------------
-int __fastcall TFormS900::receive(int count)
-// set count to 0 to receive a complete message
-// set to "count" to receive a partial message.
+int __fastcall TFormMain::receive(int count, bool displayHex)
+// set count 0 to receive a complete message (EEX required)
+// set count -1 to receive a partial message of unknown size
+// set "count" to return either when a specific # bytes is received
+//  or when EEX is received
+//
+// returns 0 if success, 1 if failure, 2 if buffer overrun
 {
-  Byte tempc;
-  bool have_bex = false;
+    Byte tempc;
+    bool have_bex = false;
 
-  this->m_byteCount = 0;
-  this->m_rxTimeout = false;
+    m_rxByteCount = 0;
 
-  Timer1->Interval = ACKINITIALTIMEOUT; // 4 seconds
-  Timer1->OnTimer = Timer1RxTimeout; // set handler
-  Timer1->Enabled = true; // start timeout timer
+    m_rxTimeout = false;
+    m_abort = false;
+    m_inBufferFull = false;
 
-  try
-  {
-    for(;;)
+    Timer1->Enabled = false; // stop timer (just in-case!)
+    Timer1->Interval = RXTIMEOUT; // 3.1 seconds
+    Timer1->OnTimer = Timer1RxTimeout; // set handler
+    Timer1->Enabled = true; // start timeout timer
+
+    try
     {
-      if (ApdComPort1->CharReady())
-      {
-        // keep ressetting timer to hold off timeout
+        for (;;)
+        {
+            if (m_abort)
+            {
+                printm("receive aborted by user!");
+                break;
+            }
+
+            if (ApdComPort1->CharReady())
+            {
+                if (m_rxByteCount >= TEMPARRAYSIZ) // at buffer capacity... error
+                {
+                    m_inBufferFull = true;
+                    return 2;
+                }
+
+                // keep ressetting timer to hold off timeout
+                Timer1->Enabled = false; // stop timer (must do!)
+                Timer1->Interval = RXTIMEOUT; // 3.1 seconds
+                Timer1->Enabled = true;
+
+                tempc = ApdComPort1->GetChar();
+
+                if (!have_bex)
+                {
+                    if (tempc == BEX || count != 0)
+                    {
+                        have_bex = true;
+                        TempArray[m_rxByteCount++] = tempc;
+                    }
+                }
+                else
+                {
+                    TempArray[m_rxByteCount++] = tempc;
+
+                    if (tempc == EEX ||
+                            (count > 0 && m_rxByteCount >= (UInt32)count))
+                        return 0;
+                }
+            }
+            else
+            {
+                Application->ProcessMessages(); // need this to detect the timeout
+
+                if (m_rxTimeout)
+                {
+                    // return whatever we have if count == -1
+                    if (count == -1 && m_rxByteCount > 0)
+                        return 0;
+
+                    break;
+                }
+            }
+        }
+    }
+    __finally
+    {
         Timer1->Enabled = false;
-        Timer1->Interval = ACKTIMEOUT;
-        Timer1->Enabled = true;
-
-        tempc = ApdComPort1->GetChar();
-
-        if (!have_bex)
-        {
-          if (tempc == BEX || count != 0)
-          {
-            have_bex = true;
-            TempArray[m_byteCount++] = tempc;
-          }
-        }
-        else
-        {
-          TempArray[m_byteCount++] = tempc;
-
-          if (count)
-          {
-            if (m_byteCount >= count)
-              return 0;
-          }
-          else if (tempc == EEX)
-            return 0;
-
-          if (m_byteCount >= (int)TEMPCATBUFSIZ) // at buffer capacity... error
-            return 2;
-        }
-      }
-      else
-      {
-        if(m_rxTimeout)
-          break;
-
-        Application->ProcessMessages(); // need this to detect the timeout
-      }
-    }
-  }
-  __finally
-  {
-    Timer1->Enabled = false;
-    Timer1->OnTimer = NULL; // clear handler
-  }
-
-  return 1; // timeout
-}
-//---------------------------------------------------------------------------
-// returns 0 if acknowledge received ok
-int __fastcall TFormS900::get_ack(int blockct)
-{
-    if (receive(0))
-    {
-        printm("timeout receiving acknowledge (ACK)! (block=" + String(blockct) + ")");
-        return 1;
+        Timer1->OnTimer = NULL; // clear handler
     }
 
-    if (m_byteCount == ACKSIZ)
-    {
-        Byte c = TempArray[m_byteCount-2];
-
-        if (c == ACKS)
-            return 0; // ok!
-
-        if (c == NAKS)
-        {
-            printm("packet \"not-acknowledge\" (NAK) received! memory full? (block=" + String(blockct) + ")");
-            return 2;
-        }
-
-        if (c == ASD)
-        {
-            printm("packet \"abort sample dump\" (ASD) received! memory full? (block=" + String(blockct) + ")");
-            return 3;
-        }
-
-        printm("bad acknowledge, unknown code! (block=" + String(blockct) + ", code=" + String((int)(unsigned int)c) + ")");
-        return 4;
-    }
-
-    printm("bad acknowledge, wrong size! (block=" + String(blockct) + ", size=" + String(m_byteCount) + ")");
-    return 5;
+    return 1; // timeout
 }
 //---------------------------------------------------------------------------
 // Misc methods
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::exmit(int samp, int mode, bool bDelay)
-{
-
-    Byte midistr[8];
-
-    midistr[0] = BEX;
-    midistr[1] = AKAI_ID;
-    midistr[2] = 0;
-    midistr[3] = (Byte)mode;
-    midistr[4] = S900_ID;
-    midistr[5] = (Byte)samp;
-    midistr[6] = 0;
-    midistr[7] = EEX;
-
-    comws(8, midistr, bDelay);
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::cxmit(int samp, int mode, bool bDelay)
-{
-    Byte midistr[6];
-
-    midistr[0] = BEX;
-    midistr[1] = COMMON_ID;
-    midistr[2] = (Byte)mode;
-    midistr[3] = (Byte)samp;
-    midistr[4] = 0;
-    midistr[5] = EEX;
-
-    comws(6, midistr, bDelay);
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::chandshake(int mode)
-{
-    Byte midistr[4];
-
-    midistr[0] = BEX;
-    midistr[1] = COMMON_ID;
-    midistr[2] = (Byte)mode;
-    midistr[3] = EEX;
-
-    comws(4, midistr, false); // no delay
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::comws(int count, Byte* ptr, bool bDelay)
-{
-    // this delay is necessary to give the older-technology S900/S950 time
-    // to digest any previous commands such as sending a program, a sample
-    // data-block, request sysex on, catalog, etc. Without it, all programs
-    // may not get assimilated by the target-machine (for certain!)
-    if (bDelay)
-		DelayGpTimer(25); // add some space between transmits
-
-    for (int ii = 0 ; ii < count ; ii++)
-    {
-        while (ApdComPort1->OutBuffFree < 1);
-        ApdComPort1->PutChar(*ptr++);
-    }
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::printm(String message)
+void __fastcall TFormMain::printm(String message)
 {
     Memo1->Lines->Add(message);
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::print_ps_info(PSTOR* ps)
+void __fastcall TFormMain::print_ps_info(PSTOR* ps)
 {
-    FormS900->printm("");
-    FormS900->printm("Output Parameters:");
-    FormS900->printm("sample length (in words): " + String(ps->totalct));
-    FormS900->printm("end point: " + String(ps->endpoint));
-    FormS900->printm("frequency (hertz): " + String(ps->freq));
-    FormS900->printm("pitch: " + String(ps->pitch));
-    FormS900->printm("period (nanoseconds): " + String((unsigned int)ps->period));
-    FormS900->printm("bits per word: " + String(ps->bits_per_word));
-    FormS900->printm("loop start point: " + String(ps->loopstart));
-    FormS900->printm("loop length: " + String(ps->looplen));
+    printm("");
+    printm("Output Parameters:");
+    printm("sample length (in words): " + String(ps->totalct));
+    printm("end point: " + String(ps->endpoint));
+    printm("frequency (hertz): " + String(ps->freq));
+    printm("pitch: " + String(ps->pitch));
+    printm("period (nanoseconds): " + String((UInt32)ps->period));
+    printm("bits per word: " + String(ps->bits_per_word));
+    printm("loop start point: " + String(ps->loopstart));
+    printm("loop length: " + String(ps->looplen));
 
     if (ps->flags & (Byte)1)
-      FormS900->printm("velocity crossfade: on");
+        printm("velocity crossfade: on");
     else
-      FormS900->printm("velocity crossfade: off");
+        printm("velocity crossfade: off");
 
     if (ps->flags & (Byte)2)
-      FormS900->printm("reverse waveform: yes");
+        printm("reverse waveform: yes");
     else
-      FormS900->printm("reverse waveform: no");
+        printm("reverse waveform: no");
 
     if (ps->loopmode == 'O')
-      FormS900->printm("looping mode: one-shot");
+        printm("looping mode: one-shot");
     else if (ps->loopmode == 'L')
-      FormS900->printm("looping mode: looping");
+        printm("looping mode: looping");
     else if (ps->loopmode == 'A')
-      FormS900->printm("looping mode: alternating");
+        printm("looping mode: alternating");
     else
-      FormS900->printm("looping mode: unknown");
+        printm("looping mode: unknown");
 
-    FormS900->printm("sample name: \"" + String(ps->name) + "\""); // show any spaces
+    printm("sample name: \"" + String(ps->name) + "\""); // show any spaces
 }
 //---------------------------------------------------------------------------
-int __fastcall TFormS900::findidx(char* sampName)
-// returns the 0-based sample index if a match is found
-// -1 = error
-// -2 = no samples on machine
-// -3 = samples on machine, but no match
-//
-// ignores spaces to right of name in comparison
-{
-    // Request S900 Catalog
-    exmit(0, RCAT, true);
-
-    if (receive(0))
-        return -1;
-
-    // sets m_numSampEntries...
-    // NOTE: the program/sample names are all right-trimmed by catalog().
-    catalog(false); // populate sample and program structs (no printout)
-
-    if (m_numSampEntries == 0)
-        return -2; // no samples on machine
-
-    CAT* catptr = (CAT*)PermSampArray;
-
-    // make a right-trimmed copy of name
-    char newName[MAX_NAME_S900+1];
-    strncpy(newName, sampName, MAX_NAME_S900);
-    newName[MAX_NAME_S900] = '\0';
-    trimright(newName);
-
-    for (int ii = 0 ; ii < m_numSampEntries ; ii++)
-    {
-        if (strncmp(catptr->name, newName, MAX_NAME_S900) == 0) // names match?
-            return catptr->sampidx;
-
-        catptr++;
-    }
-
-    return -3;
-}
-//---------------------------------------------------------------------------
-int __fastcall TFormS900::FindIndex(char* pName)
+int __fastcall TFormMain::FindIndex(Byte* pName)
 {
     // now we need to set "samp index"
     int sampIndex = findidx(pName);
@@ -1932,13 +2066,13 @@ int __fastcall TFormS900::FindIndex(char* pName)
     // -1 = error
     // -2 = no samples on machine
     // -3 = samples on machine, but no match
-	if (sampIndex == -1)
+    if (sampIndex == -1)
     {
-        printm("catalog search error for: \"" + String(pName).TrimRight() + "\"");
-        printm("check RS232 connection and/or baud-rate: " + String(ApdComPort1->Baud));
+        printm("catalog search error for: \"" + String((char*)pName).TrimRight() + "\"");
+        printm("check RS232 connection and/or baud-rate: " + String(m_baud));
     }
     else if (sampIndex >= 0) // sample we are about to write is already on machine
-        printm("found sample \"" + String(pName).TrimRight() + "\" at index " + String(sampIndex));
+        printm("found sample \"" + String((char*)pName).TrimRight() + "\" at index " + String(sampIndex));
     else if (sampIndex == -3) // samples on machine, but not the one we are about to write
         sampIndex = m_numSampEntries;
     else // no samples on machine
@@ -1947,19 +2081,77 @@ int __fastcall TFormS900::FindIndex(char* pName)
     return sampIndex;
 }
 //---------------------------------------------------------------------------
-String __fastcall TFormS900::GetFileName(void)
+int __fastcall TFormMain::findidx(Byte* sampName)
+// returns the 0-based sample index if a match is found
+// -1 = error
+// -2 = no samples on machine
+// -3 = samples on machine, but no match
+//
+// ignores spaces to right of name in comparison
+{
+    try
+    {
+        // Request S950 Catalog (after 25ms delay)
+        if (!exmit(0, RCAT, true))
+            return -1; // tx timeout
+
+        if (receive(0))
+            return -1; // rx timeout
+
+        // sets m_numSampEntries...
+        // NOTE: the program/sample names are all right-trimmed by catalog().
+        if (!catalog(false)) // populate sample and program structs (no printout)
+            return -1;
+
+        if (m_numSampEntries == 0)
+            return -2; // no samples on machine
+
+        // make a right-trimmed copy of name
+        Byte newName[MAX_NAME_S900 + 1];
+        memmove(newName, sampName, MAX_NAME_S900);
+        newName[MAX_NAME_S900] = '\0';
+        trimright(newName);
+
+        for (int ii = 0; ii < m_numSampEntries; ii++)
+            if (bytewisecompare(PermSampArray[ii].name, newName, MAX_NAME_S900)) // names match?
+                return PermSampArray[ii].index; // found match!
+    }
+    catch(...)
+    {
+        return -1; // exception
+    }
+
+    return -3; // samples on machine, but no match
+}
+//---------------------------------------------------------------------------
+// return true if match
+bool __fastcall TFormMain::bytewisecompare(Byte* buf1, Byte* buf2, int maxLen)
+{
+    for (int ii = 0; ii < maxLen; ii++)
+    {
+        if (buf1[ii] != buf2[ii])
+            return false; // not the same!
+
+        if (buf1[ii] == 0)
+            break;
+    }
+
+    return true; // byte-wise compare the same!
+}
+//---------------------------------------------------------------------------
+String __fastcall TFormMain::GetFileName(void)
 {
     OpenDialog1->Title = "Send .wav or .aki file to S900/S950";
     OpenDialog1->DefaultExt = "aki";
     OpenDialog1->Filter = "Aki files (*.aki)|*.aki|" "Wav files (*.wav)|*.wav|"
-                 "All files (*.*)|*.*";
+        "All files (*.*)|*.*";
     OpenDialog1->FilterIndex = 3; // start the dialog showing all files
     OpenDialog1->Options.Clear();
     OpenDialog1->Options << ofHideReadOnly
         << ofPathMustExist << ofFileMustExist << ofEnableSizing;
 
     if (!OpenDialog1->Execute())
-      return ""; // Cancel
+        return ""; // Cancel
 
     String sFileName = OpenDialog1->FileName;
 
@@ -1977,45 +2169,43 @@ String __fastcall TFormS900::GetFileName(void)
 // as a reference: fileBuffer
 //
 // On entry, set fileBuffer to the start of the file-buffer
-__int32 __fastcall TFormS900::FindSubsection(Byte* &fileBuffer,
-                                          char* chunkName, UINT fileLength)
+__int32 __fastcall TFormMain::FindSubsection(Byte* &fileBuffer, char* chunkName, UINT fileLength)
 {
-  try
-  {
-    // bypass the first 12-bytes "RIFFnnnnWAVE" at the file's beginning...
-    Byte* chunkPtr = fileBuffer+12;
-
-    Byte* pMax = fileBuffer+fileLength;
-
-    int chunkLength;
-
-    // Search file for named chunk
-    for(;;)
+    try
     {
-      // Chunks are 4-bytes ANSI followed by a 4-byte length, lsb-to-msb
-      if (chunkPtr+8 >= pMax)
-        return -2;
+        // bypass the first 12-bytes "RIFFnnnnWAVE" at the file's beginning...
+        Byte* chunkPtr = fileBuffer + 12;
 
-      chunkLength = *(__int32*)(chunkPtr+4);
+        Byte* pMax = fileBuffer + fileLength;
 
-      // look for the 4-byte chunk-name
-      if (StrCmpCaseInsens((char*)chunkPtr, (char*)chunkName, 4))
-      {
-        fileBuffer = chunkPtr+8; // return pointer to data, by reference
-        return chunkLength;
-      }
+        int chunkLength;
 
-      chunkPtr += chunkLength+8;
+        // Search file for named chunk
+        for (;;)
+        {
+            // Chunks are 4-bytes ANSI followed by a 4-byte length, lsb-to-msb
+            if (chunkPtr + 8 >= pMax)
+                return -2;
+
+            chunkLength = *(__int32*)(chunkPtr + 4);
+
+            // look for the 4-byte chunk-name
+            if (StrCmpCaseInsens((char*)chunkPtr, (char*)chunkName, 4))
+            {
+                fileBuffer = chunkPtr + 8; // return pointer to data, by reference
+                return chunkLength;
+            }
+
+            chunkPtr += chunkLength + 8;
+        }
     }
-  }
-  catch(...)
-  {
-    return -1;
-  }
+    catch (...)
+    {
+        return -1;
+    }
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuPutSampleClick(
-      TObject *Sender)
+void __fastcall TFormMain::MenuPutSampleClick(TObject *Sender)
 {
     String filePath = GetFileName();
 
@@ -2025,53 +2215,50 @@ void __fastcall TFormS900::MenuPutSampleClick(
     m_DragDropFilePath = "";
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuGetCatalogClick(TObject *Sender)
+void __fastcall TFormMain::MenuGetCatalogClick(TObject *Sender)
 {
-    if (m_systemBusy) return;
+    ListBox1->Clear();
+    Memo1->Clear();
 
     try
-	{
-        m_systemBusy = true;
-
-        ListBox1->Clear();
-        Memo1->Clear();
-        ApdComPort1->FlushInBuffer();
-        ApdComPort1->FlushOutBuffer();
-
-        // Request S900 Catalog
-        exmit(0, RCAT, false);
+    {
+        // Request S950 Catalog (no delay)
+        if (!exmit(0, RCAT, false))
+            return;
 
         if (receive(0))
         {
             printm("timeout receiving catalog!");
             return;
         }
-
-        catalog(true);
     }
     __finally
     {
-        m_systemBusy = false;
     }
+
+    if (!catalog(true))
+    {
+        printm("incorrect catalog received!");
+        return;
+    }
+
+    return;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuGetSampleClick(TObject *Sender)
+// This fills the list-box (at the far left) with sample-names, you then
+// click a name to receive that particular sample from the Akai.
+void __fastcall TFormMain::MenuGetSampleClick(TObject *Sender)
 {
-    if (m_systemBusy) return;
+    ListBox1->Clear();
+    Memo1->Clear();
 
     try
     {
-        m_systemBusy = true;
-
         try
         {
-            ListBox1->Clear();
-            Memo1->Clear();
-            ApdComPort1->FlushInBuffer();
-            ApdComPort1->FlushOutBuffer();
-
-            // Request S900 Catalog
-            exmit(0, RCAT, false);
+            // Request S950 Catalog (no delay)
+            if (!exmit(0, RCAT, false))
+                return;
 
             if (receive(0))
             {
@@ -2079,7 +2266,11 @@ void __fastcall TFormS900::MenuGetSampleClick(TObject *Sender)
                 return;
             }
 
-			catalog(false); // sets m_numSampEntries
+            if (!catalog(false)) // sets m_numSampEntries
+            {
+                printm("incorrect catalog received!");
+                return;
+            }
 
             if (!m_numSampEntries)
             {
@@ -2087,129 +2278,132 @@ void __fastcall TFormS900::MenuGetSampleClick(TObject *Sender)
                 return;
             }
 
-            CAT *catp = (CAT *)PermSampArray;
-
-            for (int ii = 0 ; ii < m_numSampEntries ; ii++, catp++)
-                ListBox1->Items->Add(catp->name);
+            // (we save the actual sample index in the object-field...)
+            for (int ii = 0; ii < m_numSampEntries; ii++)
+                ListBox1->Items->AddObject(PermSampArray[ii].name,
+                                        (TObject*)PermSampArray[ii].index);
 
             printm("\r\n<--- ***Click a sample at the left to receive\r\n"
-                               "and save it to a .AKI file***");
+                "and save it to a .AKI file***");
         }
-        catch(...)
+        catch (...)
         {
             ShowMessage("Can't get catalog");
         }
     }
     __finally
     {
-        m_systemBusy = false;
     }
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::ListBox1Click(TObject *Sender)
+void __fastcall TFormMain::ListBox1Click(TObject *Sender)
 {
-    if (m_systemBusy) return;
+    String sFile = ListBox1->Items->Strings[ListBox1->ItemIndex];
+    if (DoSaveDialog(sFile)) // get new, complete file-path back in sFile...
+    {
+        ListBox1->Repaint();
 
+        // we stored the actual index from the catalog in the object-field
+        int index = (int)ListBox1->Items->Objects[ListBox1->ItemIndex];
+
+        if (GetSample(index, sFile))
+            printm("not able to save sample!");
+        else
+            printm("sample saved as: \"" + sFile + "\"");
+    }
+}
+//---------------------------------------------------------------------------
+// pass in sName of a simple file-name like "MyFile1"
+// returns, by-reference, the full file-path
+bool __fastcall TFormMain::DoSaveDialog(String &sName)
+{
     try
     {
-        m_systemBusy = true;
+        SaveDialog1->Title = "Save a sample as .aki file...";
+        SaveDialog1->DefaultExt = "aki";
+        SaveDialog1->Filter = "Akai files (*.aki)|*.aki|"
+            "All files (*.*)|*.*";
+        SaveDialog1->FilterIndex = 2; // start the dialog showing all files
+        SaveDialog1->Options.Clear();
+        SaveDialog1->Options << ofHideReadOnly
+            << ofPathMustExist << ofOverwritePrompt << ofEnableSizing
+            << ofNoReadOnlyReturn;
 
-        try
+        // Use the sample-name in the list as the file-name
+        SaveDialog1->FileName = sName.TrimRight() + ".aki";
+
+        if (SaveDialog1->Execute())
         {
-            SaveDialog1->Title = "Save a sample as .aki file...";
-            SaveDialog1->DefaultExt = "aki";
-            SaveDialog1->Filter = "Akai files (*.aki)|*.aki|"
-                   "All files (*.*)|*.*";
-            SaveDialog1->FilterIndex = 2; // start the dialog showing all files
-            SaveDialog1->Options.Clear();
-            SaveDialog1->Options << ofHideReadOnly
-             << ofPathMustExist << ofOverwritePrompt << ofEnableSizing
-                << ofNoReadOnlyReturn;
+            // Assign the full file name to reference var sName!)
+            sName = SaveDialog1->FileName;
 
-            // Use the sample-name in the list as the file-name
-            SaveDialog1->FileName = ExtractFilePath(SaveDialog1->FileName) +
-									ListBox1->Items->Strings[ListBox1->ItemIndex];
-
-            SaveDialog1->FileName.TrimRight();
-
-            if (SaveDialog1->Execute())
-            {
-                ListBox1->Repaint();
-                ApdComPort1->FlushInBuffer();
-                ApdComPort1->FlushOutBuffer();
-
-                if (GetSample(ListBox1->ItemIndex, SaveDialog1->FileName))
-                    printm("not able to save sample!");
-                else
-                    printm("sample saved as: \"" + SaveDialog1->FileName + "\"");
-            }
-        }
-        catch(...)
-        {
-            printm("error, can't save file: \"" + SaveDialog1->FileName + "\"");
+            return true;
         }
     }
-    __finally
+    catch (...)
     {
-        m_systemBusy = false;
+        printm("error, can't save file: \"" + SaveDialog1->FileName + "\"");
     }
+    sName = "";
+    return false;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::Help1Click(TObject *Sender)
+void __fastcall TFormMain::MenuHelpClick(TObject *Sender)
 {
+    String hText = "Connect a cable between the S950's (or S900) RS232\r\n"
+        "PORT and COM1 (or other port) on your computer. This is an\r\n"
+        "ordinary DB25-male to DB9-female null-modem cable. If your\r\n"
+        "computer has no connector, you will need a USB-to-RS232\r\n"
+        "adaptor.\r\n\r\n"
+        "On the S950/S900 push the MIDI button.\r\n"
+        "Push the DOWN button and scroll to menu 5.\r\n"
+        "Push the RIGHT button and select \"2\" control by RS232.\r\n"
+        "Push the RIGHT button again and enter \"3840\".\r\n"
+        "This will set the machine to 38400 baud.\r\n\r\n"
+        "To test, select \"Get list of samples and programs\" from\r\n"
+        "the menu. A box may appear asking for the com port. Select\r\n"
+        "a port and click OK. You should see the samples and programs\r\n"
+        "listed in this window.";
     Memo1->Lines->Clear();
-    printm("Connect a cable between the S900's (or S950) RS232\r\n"
-      "PORT and COM1 (or other port) on your computer. This is an ordinary\r\n"
-      "DB25-male to DB9-female null-modem cable. If your computer has no\r\n"
-      "connector, you will need a USB-to-RS232 adaptor.\r\n\r\n"
-      "On the S900/S950 push the MIDI button.\r\n"
-      "Push the DOWN button and scroll to menu 5.\r\n"
-      "Push the RIGHT button and select \"2\" control by RS232.\r\n"
-      "Push the RIGHT button again and enter \"3840\".\r\n"
-      "This will set the machine to 38400 baud.\r\n\r\n"
-	  "To test, select \"Get list of samples and programs\" from the menu...\r\n"
-	  "A box may appear asking for the com port. Select a port and click OK.\r\n"
-	  "You should see the samples and programs listed in this window.\r\n"
-	  "      - Cheers, Scott Swift dxzl@live.com");
+    Memo1->Lines->Add(hText + " - Cheers, Scott Swift dxzl@live.com");
+//    ShowMessage(hText + " - Cheers, Scott Swift dxzl@live.com");
+//    Clipboard()->AsText = hText;
 }
 //---------------------------------------------------------------------------
-//void __fastcall TFormS900::MenuTargetS950Click(
-//      TObject *Sender)
-//{
-//  MenuTargetS950->Checked = !MenuTargetS950->Checked;
-//  m_target_S950 = MenuTargetS950->Checked;
-//}
-//---------------------------------------------------------------------------
-//void __fastcall TFormS900::MenuUseSmoothQuantizationClick(
-//      TObject *Sender)
-//{
-//  MenuUseSmoothQuantization->Checked = !MenuUseSmoothQuantization->Checked;
-//  m_use_smooth_quantization = MenuUseSmoothQuantization->Checked;
-//}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuUseRightChanForStereoSamplesClick(TObject *Sender)
+void __fastcall TFormMain::SetMenuItems(void)
 {
-  MenuUseRightChanForStereoSamples->Checked = !MenuUseRightChanForStereoSamples->Checked;
-  m_use_right_chan = MenuUseRightChanForStereoSamples->Checked;
+    m_data_size = DATA_PACKET_SIZE + DATA_PACKET_OVERHEAD;
+    m_hedr_size = HEDRSIZ;
+    MenuGetCatalog->Enabled = true;
+    MenuGetPrograms->Enabled = true;
+    MenuPutPrograms->Enabled = true;
+    MenuAutomaticallyRenameSample->Enabled = true;
+    ListBox1->Enabled = true;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuAutomaticallyRenameSampleClick(
-      TObject *Sender)
+void __fastcall TFormMain::MenuUseRightChanForStereoSamplesClick(TObject *Sender)
 {
-  MenuAutomaticallyRenameSample->Checked = !MenuAutomaticallyRenameSample->Checked;
-  m_auto_rename = MenuAutomaticallyRenameSample->Checked;
+    MenuUseRightChanForStereoSamples->Checked = !MenuUseRightChanForStereoSamples->Checked;
+    m_use_right_chan = MenuUseRightChanForStereoSamples->Checked;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::MenuUseHWFlowControlBelow50000BaudClick(
-      TObject *Sender)
+void __fastcall TFormMain::MenuAutomaticallyRenameSampleClick(
+    TObject *Sender)
 {
-  MenuUseHWFlowControlBelow50000Baud->Checked =
-                          !MenuUseHWFlowControlBelow50000Baud->Checked;
-  m_force_hwflow = MenuUseHWFlowControlBelow50000Baud->Checked;
+    MenuAutomaticallyRenameSample->Checked = !MenuAutomaticallyRenameSample->Checked;
+    m_auto_rename = MenuAutomaticallyRenameSample->Checked;
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::MenuUseHWFlowControlBelow50000BaudClick(
+    TObject *Sender)
+{
+    MenuUseHWFlowControlBelow50000Baud->Checked =
+        !MenuUseHWFlowControlBelow50000Baud->Checked;
+    m_force_hwflow = MenuUseHWFlowControlBelow50000Baud->Checked;
 
-  // reset port if below 50000
-  if (m_baud < 50000)
-      SetComPort(m_baud);
+    // reset port if below 50000
+    if (m_baud < 50000)
+        SetComPort(m_baud);
 }
 //---------------------------------------------------------------------------
 // custom .prg file-format:
@@ -2225,71 +2419,58 @@ void __fastcall TFormS900::MenuUseHWFlowControlBelow50000BaudClick(
 // (the number of keygroups in a program is a DB at header index 53, 54)
 //
 // this file's size in bytes          4 byte __int32
-void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
+void __fastcall TFormMain::MenuGetProgramsClick(TObject *Sender)
 {
-    if (m_systemBusy) return;
+    ListBox1->Clear();
+    Memo1->Clear();
 
-    int iFileHandle = 0;
-    Byte* buf = NULL;
+    SaveDialog1->Title = "Save all programs to .pgm file...";
+    SaveDialog1->DefaultExt = "pgm";
+    SaveDialog1->Filter = "Programs (*.pgm)|*.pgm|"
+        "All files (*.*)|*.*";
+    SaveDialog1->FilterIndex = 2; // start the dialog showing all files
+    SaveDialog1->Options.Clear();
+    SaveDialog1->Options << ofHideReadOnly
+        << ofPathMustExist << ofOverwritePrompt << ofEnableSizing
+        << ofNoReadOnlyReturn;
+
+    SaveDialog1->FileName = "akai_progs.prg";
+
+    if (!SaveDialog1->Execute())
+        return;
+
+    GetPrograms(SaveDialog1->FileName.TrimRight());
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::GetPrograms(String sFilePath)
+{
+    int iFileHandle;
+
+    if (FileExists(sFilePath) == 0)
+        iFileHandle = FileCreate(sFilePath);
+    else
+        iFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenReadWrite);
+
+    if (iFileHandle == 0)
+    {
+        printm("can't open file to write: \"" + sFilePath + "\"");
+        return;
+    }
+
     bool bError = false;
+    m_numProgEntries = 0; // need this in __finally
 
     try
     {
-        m_systemBusy = true;
-
-        ListBox1->Clear();
-        Memo1->Clear();
-        ApdComPort1->FlushInBuffer();
-        ApdComPort1->FlushOutBuffer();
-
-        SaveDialog1->Title = "Save all programs to .pgm file...";
-        SaveDialog1->DefaultExt = "pgm";
-        SaveDialog1->Filter = "Programs (*.pgm)|*.pgm|"
-                   "All files (*.*)|*.*";
-        SaveDialog1->FilterIndex = 2; // start the dialog showing all files
-        SaveDialog1->Options.Clear();
-        SaveDialog1->Options << ofHideReadOnly
-             << ofPathMustExist << ofOverwritePrompt << ofEnableSizing
-                << ofNoReadOnlyReturn;
-
-        // Use the sample-name in the list as the file-name
-        SaveDialog1->FileName = ExtractFilePath(SaveDialog1->FileName) + "akai_progs";
-
-        if (!SaveDialog1->Execute())
-            return;
-
-        SaveDialog1->FileName.TrimRight();
-
-        if (!FileExists(SaveDialog1->FileName))
-            iFileHandle = FileCreate(SaveDialog1->FileName);
-        else
-            iFileHandle = FileOpen(SaveDialog1->FileName, fmShareDenyNone | fmOpenReadWrite);
-
-        if (iFileHandle == 0)
-        {
-            printm("can't open file to write: \"" + SaveDialog1->FileName + "\"");
-            return;
-        }
-
-        m_numProgEntries = 0; // need this in __finally
-
         try
-		{
-            // allocate memory for largest program with up to 64 keygroups
+        {
+            // Request S950 Catalog (no delay)
+            if (!exmit(0, RCAT, false))
+                return;
+
+            // TEMPARRAYSIZ must be >= largest program with up to 64 keygroups
             // a single program has PRG_FILE_HEADER_SIZE + (X*PROGKEYGROUPSIZ) + 2 for
             // checksum and EEX bytes
-            buf = new Byte[PRG_FILE_HEADER_SIZE + (MAX_KEYGROUPS*PROGKEYGROUPSIZ) + 2];
-
-            if (buf == NULL)
-            {
-                printm("can't allocate buffer for program and keygroups!");
-                bError = true;
-                return;
-            }
-
-            // Request S900 Catalog
-            exmit(0, RCAT, false);
-
             if (receive(0))
             {
                 printm("timeout receiving catalog!");
@@ -2297,7 +2478,11 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
                 return;
             }
 
-            catalog(false); // sets m_numProgEntries
+            if (!catalog(false)) // sets m_numProgEntries
+            {
+                printm("incorrect catalog received!");
+                return;
+            }
 
             if (!m_numProgEntries)
             {
@@ -2306,13 +2491,14 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
                 return;
             }
 
-            printm("reading " + String(m_numProgEntries) + " programs from S900/S950...");
+            printm("reading " + String(m_numProgEntries) +
+                                            " programs from S950/S900...");
 
             __int32 totalBytesWritten = 0;
             __int32 bytesWritten;
 
             // write the magic number
-            unsigned __int32 my_magic = MAGIC_NUM_PRG; // uniquely identifies a .prg file
+            UInt32 my_magic = MAGIC_NUM_PRG; // uniquely identifies a .prg file
             totalBytesWritten += UINT32SIZE;
             bytesWritten = FileWrite(iFileHandle, &my_magic, UINT32SIZE);
 
@@ -2323,7 +2509,7 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
                 return;
             }
 
-			// write the number of programs
+            // write the number of programs
             totalBytesWritten += UINT32SIZE;
             bytesWritten = FileWrite(iFileHandle, &m_numProgEntries, UINT32SIZE);
 
@@ -2334,21 +2520,32 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
                 return;
             }
 
-            Byte* bufptr;
             String dots;
 
             // request each program and add it to file on the fly
             for (int ii = 0; ii < m_numProgEntries; ii++)
             {
-                Application->ProcessMessages();
+                int progIndex = PermProgArray[ii].index;
 
-                // request next program and its keygroups
-                exmit(ii, RPRGM, true);
+                // request next program and its keygroups (after 25ms delay)
+                // (clears m_rxByteCount before PutLong, if midi)
+                if (!exmit(progIndex, RPRGM, true))
+                    return;
 
-                // get program header from serial port into TempArray
-                if (receive(PRG_FILE_HEADER_SIZE))
+                // receive entire program into TempArray
+                if (receive(0))
                 {
-                    printm("timeout receiving programs header!");
+                    printm("timeout while receiving program!");
+                    bError = true;
+                    return;
+                }
+
+                // size of this program
+                __int32 progSize = m_rxByteCount;
+
+                if (progSize < PRG_FILE_HEADER_SIZE + PROGKEYGROUPSIZ + 2)
+                {
+                    printm("insufficient bytes received: " + String(progSize));
                     bError = true;
                     return;
                 }
@@ -2360,85 +2557,44 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
                     return;
                 }
 
-                // 1/12/2017 - here, we should get the same index we requested
-                // back, but S950 seems to send 0 back all the time, so force it!
-                if (TempArray[5] != ii)
+                if (TempArray[5] != progIndex)
                 {
-                    TempArray[5] = (Byte)ii;
-                    printm("(forced program index to: " + String(ii) + ")");
+                    TempArray[5] = progIndex;
+// this happens all the time - the machine always sends 0 for program #
+// so we just have to write-in a value that will work when we send this
+// file back to the machine...
+//                    printm("forcing offset 5 (program index) to be " +
+//                                        String(progIndex) + "\r\n" +
+//                    "(received index was " + String((int)TempArray[5]) + ")");
                 }
 
-                bufptr = buf; // back to beginning
-
-                // write header to buf
-                memcpy(bufptr, TempArray, PRG_FILE_HEADER_SIZE);
-				bufptr += PRG_FILE_HEADER_SIZE;
-
-                // get number of keygroups in one program (1-31)
-                int numKeygroups = decode_parmsDB(&TempArray[53]); // 53, 54
-
-                if (!numKeygroups)
+                if (TempArray[progSize-1] != EEX)
                 {
-                    printm("program " + String(ii) + " has no keygroups!");
-                    continue;
-                }
-
-                printm("program " + String(ii) + " has " +
-                                String(numKeygroups) + " keygroups");
-
-                // limit
-                if (numKeygroups > MAX_KEYGROUPS)
-                    numKeygroups = MAX_KEYGROUPS;
-
-                for (int jj = 0; jj < numKeygroups; jj++)
-                {
-                    // get keygroup from serial port into TempArray
-                    if (receive(PROGKEYGROUPSIZ))
-                    {
-                        printm("timeout receiving keygroup " + String(jj) +
-                                        " for program " + String(ii) + "!");
-                        bError = true;
-                        return;
-                    }
-
-                    // write keygroup to buf
-                    memcpy(bufptr, TempArray, PROGKEYGROUPSIZ);
-                    bufptr += PROGKEYGROUPSIZ;
-                }
-
-                // get checksum and EEX from serial port into TempArray
-                if (receive(2))
-                {
-                    printm("timeout receiving checksum and EEX!");
+                    printm("expected EEX, got: " + String((int)TempArray[progSize-1]));
                     bError = true;
                     return;
                 }
-
-                if (TempArray[1] != EEX)
-                {
-                    printm("expected EEX, got: " + String((int)TempArray[1]));
-                    bError = true;
-                    return;
-                }
-
-				// write checksum and EEX to buf
-                memcpy(bufptr, TempArray, 2);
-                bufptr += 2;
-
-                // size of this program
-                __int32 progSize = (int)(bufptr - buf);
 
                 // compute checksum
                 Byte checksum = 0;
-                for (int jj = 7;  jj < progSize-2; jj++)
-                    checksum ^= buf[jj];
+                for (int jj = 7; jj < progSize - 2; jj++)
+                    checksum ^= TempArray[jj];
 
-                if (buf[progSize-2] != checksum)
+                if (TempArray[progSize - 2] != checksum)
                 {
                     printm("bad checksum for program " + String(ii) + "!");
                     bError = true;
                     return;
                 }
+
+                // get number of keygroups in one program (1-31)
+                int numKeygroups = decode_parmsDB(&TempArray[53]); // 53, 54
+                if (numKeygroups == 1)
+                    printm("program " + String(ii) + " has " +
+                                    String(numKeygroups) + " keygroup...");
+                else
+                    printm("program " + String(ii) + " has " +
+                                    String(numKeygroups) + " keygroups...");
 
                 // write program-size (including BEX, checksum and EEX) to file.
                 // (this helps when we read a .prg file back, to seperate
@@ -2454,9 +2610,9 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
                     return;
                 }
 
-                // copy program in buf to file
+                // copy program in TempArray to file
                 totalBytesWritten += progSize;
-                bytesWritten = FileWrite(iFileHandle, buf, progSize);
+                bytesWritten = FileWrite(iFileHandle, TempArray, progSize);
 
                 if (bytesWritten != progSize)
                 {
@@ -2470,7 +2626,7 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
             }
 
             // lastly, write the file's total size
-			totalBytesWritten += UINT32SIZE;
+            totalBytesWritten += UINT32SIZE;
             bytesWritten = FileWrite(iFileHandle, &totalBytesWritten, UINT32SIZE);
 
             if (bytesWritten != UINT32SIZE)
@@ -2480,7 +2636,7 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
                 return;
             }
         }
-        catch(...)
+        catch (...)
         {
             printm("exception thrown while receiving programs!");
             bError = true;
@@ -2489,20 +2645,16 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
     __finally
     {
         if (iFileHandle)
-          FileClose(iFileHandle);
-
-        if (buf != NULL)
-          delete [] buf;
+            FileClose(iFileHandle);
 
         if (!bError)
             printm(String(m_numProgEntries) + " programs successfully saved!");
         else
         {
-            try { DeleteFile(SaveDialog1->FileName); } catch(...) {}
+            try { DeleteFile(sFilePath); }
+            catch (...) {}
             printm("unable to save programs...");
         }
-
-        m_systemBusy = false;
     }
 }
 //---------------------------------------------------------------------------
@@ -2519,56 +2671,54 @@ void __fastcall TFormS900::MenuGetProgramsClick(TObject *Sender)
 // (the number of keygroups in a program is a DB at header index 53, 54)
 //
 // this file's size in bytes          4 byte __int32
-void __fastcall TFormS900::MenuPutProgramsClick(TObject *Sender)
+void __fastcall TFormMain::MenuPutProgramsClick(TObject *Sender)
 {
-    if (m_systemBusy) return;
+    Memo1->Clear();
+
+    OpenDialog1->Title = "Send all programs (.prg file) to Akai...";
+    OpenDialog1->DefaultExt = "prg";
+    OpenDialog1->Filter = "Programs files (*.prg)|*.prg|"
+        "All files (*.*)|*.*";
+    OpenDialog1->FilterIndex = 2; // start the dialog showing all files
+    OpenDialog1->Options.Clear();
+    OpenDialog1->Options << ofHideReadOnly
+        << ofPathMustExist << ofFileMustExist << ofEnableSizing;
+
+    if (!OpenDialog1->Execute())
+        return; // Cancel
+
+    PutPrograms(OpenDialog1->FileName.TrimRight());
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::PutPrograms(String sFilePath)
+{
+    int iFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenRead);
+
+    if (iFileHandle == 0)
+    {
+        printm("can't open file to read: \"" + sFilePath + "\"");
+        return;
+    }
 
     bool bError = false;
     Byte* buf = NULL;
-    int iFileHandle = 0;
-    __int32 numProgs = 0; // need this in __finally
+    UInt32 numProgs = 0; // need this in __finally
 
     try
     {
-        m_systemBusy = true;
-
-        Memo1->Clear();
-
-        ApdComPort1->FlushInBuffer();
-        ApdComPort1->FlushOutBuffer();
-
-        OpenDialog1->Title = "Send all programs (.prg file) to Akai...";
-        OpenDialog1->DefaultExt = "prg";
-        OpenDialog1->Filter = "Programs files (*.prg)|*.prg|"
-                     "All files (*.*)|*.*";
-        OpenDialog1->FilterIndex = 2; // start the dialog showing all files
-        OpenDialog1->Options.Clear();
-        OpenDialog1->Options << ofHideReadOnly
-            << ofPathMustExist << ofFileMustExist << ofEnableSizing;
-
-        if (!OpenDialog1->Execute())
-            return; // Cancel
-
-        OpenDialog1->FileName.TrimRight();
-
-        iFileHandle = FileOpen(OpenDialog1->FileName, fmShareDenyNone | fmOpenRead);
-
-        if (iFileHandle == 0)
-        {
-            printm("can't open file to read: \"" + OpenDialog1->FileName + "\"");
-            return;
-        }
-
         try
         {
-            __int32 iFileLength = FileSeek(iFileHandle,0,2); // seek to end
+            // one way transfer, no incoming handshake
+            ApdComPort1->FlushOutBuffer();
+
+            UInt32 iFileLength = FileSeek(iFileHandle, 0, 2); // seek to end
 
             // seek/read the stored file-length (__int32 at end of the file)
-            FileSeek(iFileHandle, iFileLength-UINT32SIZE, 0);
-            __int32 storedFileLength;
-            int bytesRead = FileRead(iFileHandle, &storedFileLength, UINT32SIZE);
+            FileSeek(iFileHandle, (int)(iFileLength - UINT32SIZE), 0);
+            UInt32 storedFileLength;
+            UInt32 bytesRead = FileRead(iFileHandle, &storedFileLength, UINT32SIZE);
 
-			if (bytesRead != UINT32SIZE)
+            if (bytesRead != UINT32SIZE)
             {
                 printm("file is corrupt or not the right kind...");
                 bError = true;
@@ -2582,10 +2732,10 @@ void __fastcall TFormS900::MenuPutProgramsClick(TObject *Sender)
                 return;
             }
 
-            FileSeek(iFileHandle,0,0); // back to start
+            FileSeek(iFileHandle, 0, 0); // back to start
 
-            // read the magic number
-            unsigned __int32 my_magic; // uniquely identifies a .prg file
+                                         // read the magic number
+            UInt32 my_magic; // uniquely identifies a .prg file
             bytesRead = FileRead(iFileHandle, &my_magic, UINT32SIZE);
 
             if (bytesRead != UINT32SIZE)
@@ -2597,7 +2747,7 @@ void __fastcall TFormS900::MenuPutProgramsClick(TObject *Sender)
 
             if (my_magic != MAGIC_NUM_PRG)
             {
-                printm("file is not a .prg programs file for the S900/S950!");
+                printm("file is not a .prg programs file for the S950/S900!");
                 bError = true;
                 return;
             }
@@ -2617,14 +2767,14 @@ void __fastcall TFormS900::MenuPutProgramsClick(TObject *Sender)
                 printm("no programs in file!");
                 bError = true;
                 return;
-			}
+            }
 
-            printm("sending " + String(numProgs) + " programs to S900/S950...");
+            printm("sending " + String(numProgs) + " programs to S950/S900...");
 
             // allocate memory for largest program with up to 64 keygroups
             // a single program has PRG_FILE_HEADER_SIZE + (X*PROGKEYGROUPSIZ) + 2 for
             // checksum and EEX bytes
-            int bufSize = PRG_FILE_HEADER_SIZE + (MAX_KEYGROUPS*PROGKEYGROUPSIZ) + 2;
+            UInt32 bufSize = PRG_FILE_HEADER_SIZE + (MAX_KEYGROUPS*PROGKEYGROUPSIZ) + 2;
             buf = new Byte[bufSize];
 
             if (buf == NULL)
@@ -2636,15 +2786,15 @@ void __fastcall TFormS900::MenuPutProgramsClick(TObject *Sender)
 
             String dots; // progress display
 
-            // request each program and add it to file on the fly
-            for (int ii = 0; ii < numProgs; ii++)
+                         // request each program and add it to file on the fly
+            for (UInt32 ii = 0; ii < numProgs; ii++)
             {
                 Application->ProcessMessages();
 
                 // read program-size from file.
-                // a program in the file is already formatted for the S900 and
+                // a program in the file is already formatted for the S950 and
                 // includes the BEX, checksum and EEX.
-                __int32 progSize;
+                UInt32 progSize;
                 bytesRead = FileRead(iFileHandle, &progSize, UINT32SIZE);
 
                 if (bytesRead != UINT32SIZE)
@@ -2666,7 +2816,7 @@ void __fastcall TFormS900::MenuPutProgramsClick(TObject *Sender)
 
                 if (bytesRead != progSize)
                 {
-					printm("file is corrupt... (index=" + String(ii) + ")");
+                    printm("file is corrupt... (index=" + String(ii) + ")");
                     bError = true;
                     return;
                 }
@@ -2678,21 +2828,22 @@ void __fastcall TFormS900::MenuPutProgramsClick(TObject *Sender)
                     return;
                 }
 
-                if (buf[progSize-1] != EEX)
+                if (buf[progSize - 1] != EEX)
                 {
                     printm("buffer does not contain EEX! (index=" + String(ii) + ")");
                     bError = true;
                     return;
                 }
 
+                // Must delay or programs won't be transmitted!
+                DelayGpTimer(DELAY_BETWEEN_EACH_PROGRAM_TX);
+
                 // send program to Akai S950/S900
-                comws(progSize, buf, false);
+                if (!comws(progSize, buf, false))
+                    return;
 
                 dots += '.';
                 printm(dots);
-
-                // Must delay 100ms or programs won't be transmitted!
-                DelayGpTimer(DELAY_BETWEEN_PROGRAMS);
             }
         }
         catch(...)
@@ -2704,80 +2855,91 @@ void __fastcall TFormS900::MenuPutProgramsClick(TObject *Sender)
     __finally
     {
         if (iFileHandle)
-          FileClose(iFileHandle);
+            FileClose(iFileHandle);
 
         if (buf != NULL)
-          delete [] buf;
+            delete[] buf;
 
         if (!bError)
             printm(String(numProgs) + " programs successfully sent!");
         else
             printm("unable to write programs...");
-
-        m_systemBusy = false;
-	}
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::WMDropFile(TWMDropFiles &Msg)
-{
-  if (m_systemBusy) return;
-
-  try
-  {
-    //get dropped files count
-    int cnt = ::DragQueryFileW((HDROP)Msg.Drop, -1, NULL, 0);
-
-    if (cnt != 1)
-      return; // only one file!
-
-    wchar_t wBuf[MAX_PATH];
-
-    // Get first file-name
-    if (::DragQueryFileW((HDROP)Msg.Drop, 0, wBuf, MAX_PATH) > 0)
-    {
-      // Load and convert file as per the file-type (either plain or rich text)
-      WideString wFile(wBuf);
-
-      // don't process this drag-drop until previous one sets m_DragDropFilePath = ""
-      if (m_DragDropFilePath.IsEmpty() && !wFile.IsEmpty())
-      {
-          String sFile = String(wFile);
-          if (FileExists(sFile))
-          {
-            m_DragDropFilePath = sFile;
-            Timer1->Interval = 50;
-            Timer1->OnTimer = Timer1FileDropTimeout; // set handler
-            Timer1->Enabled = true; // fire event to send file
-          }
-      }
     }
-  }
-  catch(...){}
 }
 //---------------------------------------------------------------------------
-// Warning: To prevent recursive anomalies, need to do while(SystemBusy);
-// at the start of any event that uses DelayGpTimer!
-void __fastcall TFormS900::DelayGpTimer(int time)
+void __fastcall TFormMain::WMDropFile(TWMDropFiles &Msg)
 {
+    try
+    {
+        //get dropped files count
+        int cnt = ::DragQueryFileW((HDROP)Msg.Drop, -1, NULL, 0);
+
+        if (cnt != 1)
+            return; // only one file!
+
+        wchar_t wBuf[MAX_PATH];
+
+        // Get first file-name
+        if (::DragQueryFileW((HDROP)Msg.Drop, 0, wBuf, MAX_PATH) > 0)
+        {
+            // Load and convert file as per the file-type (either plain or rich text)
+            WideString wFile(wBuf);
+
+            // don't process this drag-drop until previous one sets m_DragDropFilePath = ""
+            if (m_DragDropFilePath.IsEmpty() && !wFile.IsEmpty())
+            {
+                String sFile = String(wFile);
+                if (FileExists(sFile))
+                {
+                    m_DragDropFilePath = sFile;
+                    Timer1->Enabled = false; // stop timer (just in-case!)
+                    Timer1->Interval = 50;
+                    Timer1->OnTimer = Timer1FileDropTimeout; // set handler
+                    Timer1->Enabled = true; // fire event to send file
+                }
+            }
+        }
+    }
+    catch (...) {}
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::Timer1FileDropTimeout(TObject *Sender)
+{
+    Timer1->Enabled = false;
+    if (!m_DragDropFilePath.IsEmpty())
+    {
+        String Ext = ExtractFileExt(m_DragDropFilePath).LowerCase();
+        if (Ext == ".prg")
+            PutPrograms(m_DragDropFilePath);
+        else
+            PutSample(m_DragDropFilePath);
+        m_DragDropFilePath = "";
+    }
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::DelayGpTimer(int time)
+{
+    m_sysBusy = true;
     StartGpTimer(time);
     while (!IsGpTimeout())
         Application->ProcessMessages();
     StopGpTimer();
+    m_sysBusy = false;
 }
 //---------------------------------------------------------------------------
-bool __fastcall TFormS900::IsGpTimeout(void)
+bool __fastcall TFormMain::IsGpTimeout(void)
 {
     return m_gpTimeout;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::StopGpTimer(void)
+void __fastcall TFormMain::StopGpTimer(void)
 {
     Timer1->Enabled = false;
     Timer1->OnTimer = NULL;
     m_gpTimeout = false;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::StartGpTimer(int time)
+void __fastcall TFormMain::StartGpTimer(int time)
 {
     Timer1->Enabled = false;
     Timer1->OnTimer = Timer1GpTimeout;
@@ -2786,39 +2948,37 @@ void __fastcall TFormS900::StartGpTimer(int time)
     m_gpTimeout = false;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::Timer1GpTimeout(TObject *Sender)
+void __fastcall TFormMain::Timer1GpTimeout(TObject *Sender)
 {
     // used for midi-diagnostic function
     Timer1->Enabled = false;
     m_gpTimeout = true;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::Timer1FileDropTimeout(TObject *Sender)
-{
-    Timer1->Enabled = false;
-
-    if (!m_DragDropFilePath.IsEmpty())
-    {
-        PutSample(m_DragDropFilePath);
-        m_DragDropFilePath = "";
-    }
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormS900::Timer1RxTimeout(TObject *Sender)
+void __fastcall TFormMain::Timer1RxTimeout(TObject *Sender)
 {
     Timer1->Enabled = false;
     m_rxTimeout = true;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::ComboBox1Change(TObject *Sender)
+void __fastcall TFormMain::Timer1TxTimeout(TObject *Sender)
 {
-// Added SetComPort() 10/9/16
-//  ApdComPort1->Baud = ComboBox1->Text.ToIntDef(38400);
-  SetComPort(ComboBox1->Text.ToIntDef(38400));
-//  Memo1->SetFocus();
+    Timer1->Enabled = false;
+    m_txTimeout = true;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::SetComPort(int baud)
+void __fastcall TFormMain::ComboBoxRs232Change(TObject *Sender)
+{
+    SetComPort(ComboBoxRs232->Text.ToIntDef(DEF_RS232_BAUD_RATE));
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::ComboBoxRs232Select(TObject *Sender)
+{
+    SetComPort(ComboBoxRs232->Text.ToIntDef(DEF_RS232_BAUD_RATE));
+    Memo1->SetFocus();
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::SetComPort(int baud)
 {
     // From Akai protocol: "Hardware handshake using CTS/RTS. Handshake need not
     // be used on rates below 50000 baud, in which case RTS should be tied high.”
@@ -2851,7 +3011,7 @@ void __fastcall TFormS900::SetComPort(int baud)
     m_baud = baud;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormS900::trimright(char* pStr)
+void __fastcall TFormMain::trimright(Byte* pStr)
 {
     int len = 0;
     for (; len < MAX_NAME_S900; len++)
@@ -2873,9 +3033,180 @@ void __fastcall TFormS900::trimright(char* pStr)
 }
 //---------------------------------------------------------------------------
 // returns TRUE if strings match. case-insensitive, no trimming
-bool __fastcall TFormS900::StrCmpCaseInsens(char* sA, char* sB, int len)
+// (Strings in the S900/S950 are in ASCII)
+bool __fastcall TFormMain::StrCmpCaseInsens(char* sA, char* sB, int len)
 {
-  return String(sA, len).LowerCase() == String(sB, len).LowerCase();
+    return AnsiString(sA, len).LowerCase() == AnsiString(sB, len).LowerCase();
+}
+//---------------------------------------------------------------------------
+// display data obtained via receive()
+void __fastcall TFormMain::display_hex(Byte buf[], int count)
+{
+    String sTemp;
+    for (int ii = 0; ii < count; ii++)
+    {
+        if ((ii % 16) == 0)
+        {
+            if (!sTemp.IsEmpty())
+            {
+                printm(sTemp);
+                sTemp = "";
+            }
+        }
+        sTemp += IntToHex((int)buf[ii], 2) + " ";
+    }
+    // print what remains...
+    if (!sTemp.IsEmpty())
+        printm(sTemp);
+}
+//---------------------------------------------------------------------------
+// chan defaults to 0 (midi channel 1)
+bool __fastcall TFormMain::exmit(int samp, int mode, bool bDelay)
+{
+    Byte midistr[8];
+
+    midistr[0] = BEX;
+    midistr[1] = AKAI_ID;
+    midistr[2] = 0; // midi channel
+    midistr[3] = (Byte)mode;
+    midistr[4] = S900_ID;
+    midistr[5] = (Byte)samp;
+    midistr[6] = 0;
+    midistr[7] = EEX;
+
+    return comws(8, midistr, bDelay);
+}
+//---------------------------------------------------------------------------
+// SDS: F0 7E cc 03 ss ss F7
+bool __fastcall TFormMain::cxmit(int samp, int mode, bool bDelay)
+{
+    Byte midistr[7];
+
+    midistr[0] = BEX;
+    midistr[1] = SYSTEM_COMMON_NONREALTIME_ID;
+    midistr[2] = (Byte)mode;
+    midistr[3] = (Byte)samp; // lsb samp
+    midistr[4] = (Byte)(samp >> 8); // msb samp
+    midistr[5] = EEX;
+
+    return comws(6, midistr, bDelay);
+}
+//---------------------------------------------------------------------------
+// SDS: F0 7E cc 7F pp F7
+// blockct is only used for sample-dump standard to ACK the block just received
+bool __fastcall TFormMain::chandshake(int mode, int blockct)
+{
+    Byte midistr[ACKSIZ];
+
+    midistr[0] = BEX;
+    midistr[1] = SYSTEM_COMMON_NONREALTIME_ID;
+    midistr[2] = (Byte)mode;
+    midistr[ACKSIZ-1] = EEX;
+
+    return comws(ACKSIZ, midistr, false); // no delay
+}
+//---------------------------------------------------------------------------
+// opens midi In/Out automatically or flushes RS232 In/Out buffers
+bool __fastcall TFormMain::comws(int count, Byte* ptr, bool bDelay)
+{
+    // this delay is necessary to give the older-technology S900/S950 time
+    // to digest any previous commands such as sending a program, a sample
+    // data-block, request sysex on, catalog, etc. Without it, all programs
+    // may not get assimilated by the target-machine (for certain!)
+    if (bDelay)
+        DelayGpTimer(25); // add 25ms between transmits
+
+    try
+    {
+        Timer1->Enabled = false; // stop timeout timer (should already be stopped)
+        Timer1->OnTimer = Timer1TxTimeout; // set handler
+        m_txTimeout = false;
+
+        ApdComPort1->FlushInBuffer();
+        ApdComPort1->FlushOutBuffer();
+
+        Timer1->Interval = TXRS232TIMEOUT; // 3.1 seconds
+        Timer1->Enabled = true; // start timeout timer
+
+        for (int ii = 0; ii < count; ii++)
+        {
+            while (ApdComPort1->OutBuffFree < 1)
+            {
+                Application->ProcessMessages();
+
+                if (m_txTimeout)
+                {
+                    printm("rs232 transmit timeout!");
+                    return false;
+                }
+            }
+
+            ApdComPort1->PutChar(*ptr++);
+
+            // reset timeout
+            Timer1->Enabled = false; // stop timer
+            m_txTimeout = false;
+            Timer1->Interval = TXRS232TIMEOUT; // 3.1 seconds
+            Timer1->Enabled = true; // start timeout timer
+        }
+    }
+    __finally
+    {
+        Timer1->Enabled = false;
+        Timer1->OnTimer = NULL; // clear handler
+        m_txTimeout = false;
+    }
+
+    return true;
+}
+//---------------------------------------------------------------------------
+// returns 0 if acknowledge received ok
+int __fastcall TFormMain::get_ack(int blockct)
+{
+    if (receive(0))
+    {
+        printm("timeout receiving acknowledge (ACK)! (block=" + String(blockct) + ")");
+        return 1;
+    }
+
+    if (m_rxByteCount == (unsigned int)m_ack_size)
+    {
+        int idx = 2; // point to the ACKS/NAKS/ASD
+        Byte c = TempArray[idx];
+
+        if (c == ACKS)
+            return 0; // ok!
+
+        if (c == NAKS)
+        {
+            printm("packet \"not-acknowledge\" (NAK) received! memory full? (block=" + String(blockct) + ")");
+            return 2;
+        }
+
+        if (c == ASD)
+        {
+            printm("packet \"abort sample dump\" (ASD) received! memory full? (block=" + String(blockct) + ")");
+            return 3;
+        }
+
+        if (c == PSD)
+        {
+            printm("packet \"pause sample dump\" (PSD) received! memory full? (block=" + String(blockct) + ")");
+            return 3;
+        }
+
+        printm("bad acknowledge, unknown code! (block=" + String(blockct) + ", code=" + String((UInt32)c) + ")");
+        return 4;
+    }
+
+    printm("bad acknowledge, wrong size! (block=" + String(blockct) + ", size=" + String(m_rxByteCount) + ")");
+    return 5;
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift)
+{
+    if (Key == VK_ESCAPE)
+        m_abort = true;
 }
 //---------------------------------------------------------------------------
 

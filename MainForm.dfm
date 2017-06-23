@@ -1,9 +1,10 @@
-object FormS900: TFormS900
+object FormMain: TFormMain
   Left = 0
   Top = 0
-  Caption = 'AKAI S900/S950 Sampler RS232 Communications'
-  ClientHeight = 126
-  ClientWidth = 501
+  ActiveControl = Memo1
+  Caption = 'Akai S900/S950 (rs232)'
+  ClientHeight = 251
+  ClientWidth = 499
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -45,30 +46,39 @@ object FormS900: TFormS900
     00FF800001FFC00001FFC00003FFC00007FFC0000FFFE0000FFFE0000FFFE000
     0FFFE0000FFFE00007FFF00003FFF00001FFF00000FFF000007FF800001FF800
     0007F8000003F8000003F8000003FFFFFFFFFFFFFFFF}
+  KeyPreview = True
   Menu = MainMenu1
   OldCreateOrder = False
   Position = poDesktopCenter
   OnClose = FormClose
   OnCreate = FormCreate
+  OnKeyDown = FormKeyDown
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
-  object Panel1: TPanel
+  object Panel2: TPanel
     Left = 0
     Top = 0
     Width = 137
-    Height = 126
+    Height = 251
     Align = alLeft
     TabOrder = 0
-    object ComboBox1: TComboBox
+    ExplicitHeight = 164
+    DesignSize = (
+      137
+      251)
+    object ComboBoxRs232: TComboBox
       Left = 1
-      Top = 1
-      Width = 135
+      Top = 2
+      Width = 132
       Height = 21
-      Align = alTop
-      DropDownCount = 11
+      Hint = 'Baud rate (if using RS232)'
+      Anchors = [akLeft, akTop, akRight]
+      ParentShowHint = False
+      ShowHint = True
       TabOrder = 0
-      Text = '38400'
-      OnChange = ComboBox1Change
+      OnChange = ComboBoxRs232Change
+      OnSelect = ComboBoxRs232Select
       Items.Strings = (
         '300'
         '600'
@@ -82,68 +92,83 @@ object FormS900: TFormS900
         '115200')
     end
     object ListBox1: TListBox
+      Tag = 1
       Left = 1
-      Top = 22
+      Top = 29
       Width = 135
-      Height = 103
-      Align = alClient
+      Height = 221
+      Anchors = [akLeft, akTop, akBottom]
       ItemHeight = 13
       TabOrder = 1
       OnClick = ListBox1Click
+      ExplicitHeight = 134
     end
   end
-  object Panel2: TPanel
+  object Panel1: TPanel
     Left = 137
     Top = 0
-    Width = 364
-    Height = 126
+    Width = 362
+    Height = 251
     Align = alClient
     TabOrder = 1
+    ExplicitHeight = 164
     object Memo1: TMemo
+      Tag = 2
       Left = 1
       Top = 1
-      Width = 362
-      Height = 124
+      Width = 360
+      Height = 249
       Align = alClient
       ReadOnly = True
+      ScrollBars = ssVertical
       TabOrder = 0
+      ExplicitHeight = 162
     end
   end
+  object ApdComPort1: TApdComPort
+    TraceName = 'APRO.TRC'
+    LogName = 'APRO.LOG'
+    Left = 288
+    Top = 16
+  end
+  object OpenDialog1: TOpenDialog
+    InitialDir = '%Desktop%'
+    Left = 416
+    Top = 16
+  end
+  object SaveDialog1: TSaveDialog
+    Left = 352
+    Top = 16
+  end
   object MainMenu1: TMainMenu
-    Left = 152
+    Left = 160
     Top = 16
     object S9001: TMenuItem
-      Caption = '&Menu'
-      Hint = 'Click to send samples!'
+      Caption = 'Menu'
       ShortCut = 16496
       object MenuGetCatalog: TMenuItem
         Caption = 'Get list of samples and programs'
-        Hint = 'Print list of samples in main window'
         ShortCut = 16497
         OnClick = MenuGetCatalogClick
       end
-      object N4: TMenuItem
+      object N1: TMenuItem
         Caption = '-'
       end
       object MenuGetSample: TMenuItem
         Caption = 'Save sample from machine to .aki file'
-        Hint = 
-          'Prints sample catalog in right-panel, then click a sample to  im' +
-          'port it'
         ShortCut = 16498
         OnClick = MenuGetSampleClick
       end
       object MenuPutSample: TMenuItem
         Caption = 'Send .wav/.aki sample file to machine'
-        Hint = 'Prompts for a file-name to sent to the sampler'
         ShortCut = 16499
         OnClick = MenuPutSampleClick
       end
-      object N3: TMenuItem
+      object N2: TMenuItem
         Caption = '-'
       end
       object MenuGetPrograms: TMenuItem
-        Caption = 'Save &programs from machine to .aki file'
+        Caption = 'Save &programs from machine to .prg file'
         ShortCut = 16500
         OnClick = MenuGetProgramsClick
       end
@@ -152,7 +177,7 @@ object FormS900: TFormS900
         ShortCut = 16501
         OnClick = MenuPutProgramsClick
       end
-      object N1: TMenuItem
+      object N3: TMenuItem
         Caption = '-'
       end
       object MenuUseRightChanForStereoSamples: TMenuItem
@@ -170,36 +195,19 @@ object FormS900: TFormS900
       object MenuUseHWFlowControlBelow50000Baud: TMenuItem
         Caption = 'Use hardware flow-control below 50,000 baud'
         ShortCut = 16504
-        OnClick = MenuUseHWFlowControlBelow50000BaudClick
+        OnClick = MenuUseRightChanForStereoSamplesClick
       end
-      object N2: TMenuItem
+      object N4: TMenuItem
         Caption = '-'
       end
-      object Help1: TMenuItem
+      object MenuHelp: TMenuItem
         Caption = '&Help'
-        ShortCut = 16507
-        OnClick = Help1Click
+        ShortCut = 112
+        OnClick = MenuHelpClick
       end
     end
   end
   object Timer1: TTimer
-    Interval = 3000
-    Left = 152
-    Top = 72
-  end
-  object OpenDialog1: TOpenDialog
-    Title = 'Send File To S-Series Sampler'
-    Left = 360
-    Top = 16
-  end
-  object SaveDialog1: TSaveDialog
-    Left = 296
-    Top = 16
-  end
-  object ApdComPort1: TApdComPort
-    Baud = 38400
-    TraceName = 'APRO.TRC'
-    LogName = 'APRO.LOG'
     Left = 224
     Top = 16
   end

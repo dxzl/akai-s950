@@ -1,9 +1,10 @@
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
-#include "MainForm.h"
+#include <vcl.h>
 #pragma hdrstop
 
 #include "RegHelper.h"
+#include "MainForm.h"
 
 //---------------------------------------------------------------------------
 //  constructor

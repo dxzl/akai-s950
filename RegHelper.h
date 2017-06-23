@@ -2,9 +2,13 @@
 #ifndef RegHelperH
 #define RegHelperH
 
-#include <Windows.h>
+#include <Vcl.h>
 #include <Registry.hpp>
-#include <Classes.hpp>
+#include <System.Classes.hpp>
+#include <Vcl.Controls.hpp>
+#include <Vcl.StdCtrls.hpp>
+#include <Vcl.Forms.hpp>
+#include <Vcl.ExtCtrls.hpp>
 //---------------------------------------------------------------------------
 class TRegHelper
 {
