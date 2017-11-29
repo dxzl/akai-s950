@@ -48,7 +48,6 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
     m_sysBusy = false;
     m_numSampEntries = 0;
     m_numProgEntries = 0;
-    m_DragDropFilePath = "";
     m_inBufferFull = false;
     m_abort = false;
 
@@ -70,11 +69,12 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
                     pReg->WriteSetting(S9_REGKEY_VERSION, String(VERSION_STR));
 
                     // cmd reg delete "HKCU\Software\Discrete-Time Systems\AkaiS950" /f
-                    printm("This app stores its settings in the windows registry.\r\n"
-                        "To delete settings, go to Start => Run and type \"cmd\"\r\n"
+                    printm("This app stores its settings in the windows registry. "
+                        "To delete settings, go to Start => Run and type \"cmd\". "
                         "In the window type the line below and press enter:\r\n\r\n"
                         "reg delete \"HKCU\\Software\\Discrete-Time Systems\\AkaiS950\" /f\r\n"
-                        "(or: Start => Run, \"regedit\" and search for \"AkaiS950\")\r\n");
+                        "(or: Start => Run, \"regedit\" and search for \"AkaiS950\")\r\n\r\n"
+                        "Author: Scott Swift, Test Engineer: Oliver Tann");
                 }
 
                 pReg->ReadSetting(S9_REGKEY_BAUD, m_baud, DEF_RS232_BAUD_RATE);
@@ -132,8 +132,20 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
     ComboBoxRs232->Text = String(m_baud);
     SetComPort(m_baud);
 
+    // create list for drag-dropped file-names
+    m_slFilePaths = new TStringList();
+
     //enable drag&drop files
     ::DragAcceptFiles(this->Handle, true);
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::FormDestroy(TObject *Sender)
+{
+    if (m_slFilePaths)
+    {
+      delete m_slFilePaths;
+      m_slFilePaths = NULL;
+    }
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormMain::FormShow(TObject *Sender)
@@ -852,7 +864,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             Byte checksum;
             int blockct;
 
-            bool bSendAborted = false; // flag set if we receive a not-acknowledge on any data-packet
+            // flag set if we receive a not-acknowledge on any data-packet
+            // after PACKET_RETRY_COUNT attempts
+            bool bSendAborted;
 
             m_abort = false; // user can press ESC a key to quit
 
@@ -1039,15 +1053,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                 if ((sampIndex = FindIndex(ps.name)) < 0)
                     return false;
 #else
-                if (m_use_sample_dump_standard)
-                {
-                    // Show dialog to obtain a sample number...
-                    if (FormChoose->ShowModal() == mrCancel)
-                        return;
-                    sampIndex = FormChoose->SampleIndex;
-                }
-                else
-                    sampIndex = 0;
+                sampIndex = 0;
 #endif
                 // encode samp_hedr and samp_parms arrays
                 encode_sample_info(sampIndex, &ps);
@@ -1076,7 +1082,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                 // init progress display
                 int divisor = (ps.totalct <= 19200) ? 8 : 32;
                 String dots;
-
+                
                 bool bUseScaling = (BytesPerWord < 2) ? false : true;
                 int passes = bUseScaling ? 2 : 1;
 
@@ -1095,7 +1101,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                             double scale_factor = (double)signed_target_max / (double)maxAbsAcc;
                             printm("\r\nscale factor (targ max/file max): " +
                                 String(signed_target_max) + "/" + String(maxAbsAcc) + " = " +
-                                AnsiString::Format("%.3f\r\n", ARRAYOFCONST((scale_factor))));
+                                          Format("%.3f\r\n", ARRAYOFCONST((scale_factor))));
                         }
 
                         // request common reception enable (after 25ms delay)
@@ -1180,13 +1186,18 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                                     //
                                     // From the WAV file:
                                     //
+                                    // example (24-bits):
+                                    // byte *(dp+2): D23 D22 D21 D20 D19 D18 D17 D16
+                                    // byte *(dp+1): D15 D14 D13 D12 D11 D10 D09 D08
+                                    // byte *dp    : D07 D06 D05 D04 D03 D02 D01 D00
+                                    //
                                     // example (16-bits):
-                                    // byte *dp    : D15 D14 D13 D12 D11 D10 D09 D08
-                                    // byte *(dp+1): D07 D06 D05 D04 D03 D02 D01 D00
+                                    // byte *(dp+1): D15 D14 D13 D12 D11 D10 D09 D08
+                                    // byte *dp    : D07 D06 D05 D04 D03 D02 D01 D00
                                     //
                                     // example (9-bits):
-                                    // byte *dp    : D08 D07 D06 D05 D04 D03 D02 D01
-                                    // byte *(dp+1): D00  0   0   0   0   0   0   0
+                                    // byte *(dp+1): D08 D07 D06 D05 D04 D03 D02 D01
+                                    // byte *dp    : D00  0   0   0   0   0   0   0
 
                                     // init 64-bit acc with -1 (all 1) if msb of
                                     // most-signifigant byte is 1 (negative value)
@@ -1297,19 +1308,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                             if (ptbuf - tbuf != m_data_size)
                                 printm("detected tbuf overrun (should never happen!)");
 
-                            // write the data block (no delay)
-                            if (!comws(m_data_size, tbuf, false))
-                                return false;
+                            bSendAborted = send_packet(tbuf, blockct);
 
-                            // do the ..... progress indicator
-                            if (blockct % divisor == 0)
-                            {
-                                dots += ".";
-                                printm(dots);
-                            }
-
-                            // wait for acknowledge
-                            if (get_ack(blockct))
+                            if (bSendAborted)
                             {
                                 // sample send failed!
                                 unsigned countSent = blockct*words_per_block;
@@ -1329,8 +1330,14 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                                     printm("sample length was truncated!");
                                 }
 
-                                bSendAborted = true;
-                                break;
+                                break; // break out of sample transmit loop
+                            }
+
+                            // do the ..... progress indicator
+                            if (blockct % divisor == 0)
+                            {
+                                dots += ".";
+                                printm(dots);
                             }
                         }
 
@@ -1506,19 +1513,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                     if (ptbuf - tbuf != m_data_size)
                         printm("detected tbuf overrun (should never happen!)");
 
-                    // write the data block (no delay)
-                    if (!comws(m_data_size, tbuf, false))
-                        return false;
+                    bSendAborted = send_packet(tbuf, blockct);
 
-                    // do the ..... progress indicator
-                    if (blockct % divisor == 0)
-                    {
-                        dots += ".";
-                        printm(dots);
-                    }
-
-                    // wait for acknowledge
-                    if (get_ack(blockct))
+                    if (bSendAborted)
                     {
                         // sample send failed!
                         unsigned countSent = blockct*words_per_block;
@@ -1529,20 +1526,23 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                         if (countSent < ps.totalct)
                         {
                             ps.totalct = countSent;
-                            if (ps.endpoint > ps.totalct - 1)
-                                ps.endpoint = ps.totalct - 1;
-                            if (ps.looplen > ps.endpoint)
-                                ps.looplen = ps.endpoint;
-                            if (ps.loopstart > ps.endpoint - ps.looplen)
-                                ps.loopstart = ps.endpoint - ps.looplen;
+                            ps.endpoint = ps.totalct - 1;
+                            ps.looplen = ps.endpoint;
+                            ps.loopstart = 0;
 
                             // re-encode modified values
                             encode_sample_info(sampIndex, &ps);
                             printm("sample length was truncated!");
                         }
 
-                        bSendAborted = true;
-                        break;
+                        break; // break out of sample transmit loop
+                    }
+
+                    // do the ..... progress indicator
+                    if (blockct % divisor == 0)
+                    {
+                        dots += ".";
+                        printm(dots);
                     }
 
                     blockct++;
@@ -1624,6 +1624,25 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
     }
 
     return true;
+}
+//---------------------------------------------------------------------------
+// return true if send fails
+bool __fastcall TFormMain::send_packet(Byte *tbuf, int blockct)
+{
+    for(int ii = 0; ii < PACKET_RETRY_COUNT; ii++)
+    {
+      // write the data block (no delay)
+      if (!comws(m_data_size, tbuf, false))
+          return true;
+
+      // wait for acknowledge
+      if (get_ack(blockct) == 0)
+        return false; // success
+
+      DelayGpTimer(25); // delay and try again
+    }
+
+    return true; // failed
 }
 //---------------------------------------------------------------------------
 // prev = dcRemoval(signal, prev.w, 0.9);
@@ -2139,23 +2158,29 @@ bool __fastcall TFormMain::bytewisecompare(Byte* buf1, Byte* buf2, int maxLen)
     return true; // byte-wise compare the same!
 }
 //---------------------------------------------------------------------------
-String __fastcall TFormMain::GetFileName(void)
+// Return count of files selected
+int __fastcall TFormMain::GetFileNames(void)
 {
-    OpenDialog1->Title = "Send .wav or .aki file to S900/S950";
+    OpenDialog1->Title = "Send .wav .aki .prg file(s) to S900/S950";
     OpenDialog1->DefaultExt = "aki";
     OpenDialog1->Filter = "Aki files (*.aki)|*.aki|" "Wav files (*.wav)|*.wav|"
-        "All files (*.*)|*.*";
-    OpenDialog1->FilterIndex = 3; // start the dialog showing all files
+                      "Prg file (*.prg)|*.prg|" "All files (*.*)|*.*";
+    OpenDialog1->FilterIndex = 4; // start the dialog showing all files
     OpenDialog1->Options.Clear();
-    OpenDialog1->Options << ofHideReadOnly
-        << ofPathMustExist << ofFileMustExist << ofEnableSizing;
+    OpenDialog1->Options << ofHideReadOnly << ofPathMustExist <<
+                  ofFileMustExist << ofEnableSizing << ofAllowMultiSelect;
 
     if (!OpenDialog1->Execute())
-        return ""; // Cancel
+        return 0; // Cancel
 
-    String sFileName = OpenDialog1->FileName;
+    int count = OpenDialog1->Files->Count;
 
-    return sFileName;
+    m_slFilePaths->Clear();
+
+    if (count)
+      m_slFilePaths->Assign(OpenDialog1->Files);
+
+    return count;
 }
 //---------------------------------------------------------------------------
 // Search file for named chunk
@@ -2207,12 +2232,11 @@ __int32 __fastcall TFormMain::FindSubsection(Byte* &fileBuffer, char* chunkName,
 //---------------------------------------------------------------------------
 void __fastcall TFormMain::MenuPutSampleClick(TObject *Sender)
 {
-    String filePath = GetFileName();
+    // put list of file-paths in m_slFilePaths
+    GetFileNames();
 
-    if (!filePath.IsEmpty())
-        PutSample(filePath);
-
-    m_DragDropFilePath = "";
+    // send them to machine
+    PutFiles();
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormMain::MenuGetCatalogClick(TObject *Sender)
@@ -2350,22 +2374,27 @@ bool __fastcall TFormMain::DoSaveDialog(String &sName)
 //---------------------------------------------------------------------------
 void __fastcall TFormMain::MenuHelpClick(TObject *Sender)
 {
-    String hText = "Connect a cable between the S950's (or S900) RS232\r\n"
-        "PORT and COM1 (or other port) on your computer. This is an\r\n"
-        "ordinary DB25-male to DB9-female null-modem cable. If your\r\n"
-        "computer has no connector, you will need a USB-to-RS232\r\n"
-        "adaptor.\r\n\r\n"
+    String hText =
+        "Connect a quality USB to RS232 cable from your computer to "
+        "the DB-25 female connector on the Akai S950/S900 sampler.\r\n\r\n"
+        "Select your desired baud rate (38400 is the default).\r\n"
         "On the S950/S900 push the MIDI button.\r\n"
         "Push the DOWN button and scroll to menu 5.\r\n"
         "Push the RIGHT button and select \"2\" control by RS232.\r\n"
         "Push the RIGHT button again and enter \"3840\".\r\n"
-        "This will set the machine to 38400 baud.\r\n\r\n"
-        "To test, select \"Get list of samples and programs\" from\r\n"
-        "the menu. A box may appear asking for the com port. Select\r\n"
-        "a port and click OK. You should see the samples and programs\r\n"
-        "listed in this window.";
+        "This will set the machine to 38400 baud\r\n"
+        "(\"5760\" will show 55555 and set 57600 baud).\r\n\r\n"
+        "To test, select \"Get list of samples and programs\" from "
+        "the menu. A box may appear asking for the com port. Select "
+        "a port (usually COM1) and click OK. You should see the samples "
+        "and programs listed in this window.\r\n\r\n"
+        "Author: Scott Swift dxzl@live.com\r\n"
+        "Testing: Oliver Tann optann@gmail.com\r\n\r\n"
+        "Happy sampling!";
+
+    Height = FORM_HEIGHT; // allow help to fit
     Memo1->Lines->Clear();
-    Memo1->Lines->Add(hText + " - Cheers, Scott Swift dxzl@live.com");
+    Memo1->Lines->Add(hText);
 //    ShowMessage(hText + " - Cheers, Scott Swift dxzl@live.com");
 //    Clipboard()->AsText = hText;
 }
@@ -2376,7 +2405,6 @@ void __fastcall TFormMain::SetMenuItems(void)
     m_hedr_size = HEDRSIZ;
     MenuGetCatalog->Enabled = true;
     MenuGetPrograms->Enabled = true;
-    MenuPutPrograms->Enabled = true;
     MenuAutomaticallyRenameSample->Enabled = true;
     ListBox1->Enabled = true;
 }
@@ -2671,25 +2699,6 @@ void __fastcall TFormMain::GetPrograms(String sFilePath)
 // (the number of keygroups in a program is a DB at header index 53, 54)
 //
 // this file's size in bytes          4 byte __int32
-void __fastcall TFormMain::MenuPutProgramsClick(TObject *Sender)
-{
-    Memo1->Clear();
-
-    OpenDialog1->Title = "Send all programs (.prg file) to Akai...";
-    OpenDialog1->DefaultExt = "prg";
-    OpenDialog1->Filter = "Programs files (*.prg)|*.prg|"
-        "All files (*.*)|*.*";
-    OpenDialog1->FilterIndex = 2; // start the dialog showing all files
-    OpenDialog1->Options.Clear();
-    OpenDialog1->Options << ofHideReadOnly
-        << ofPathMustExist << ofFileMustExist << ofEnableSizing;
-
-    if (!OpenDialog1->Execute())
-        return; // Cancel
-
-    PutPrograms(OpenDialog1->FileName.TrimRight());
-}
-//---------------------------------------------------------------------------
 void __fastcall TFormMain::PutPrograms(String sFilePath)
 {
     int iFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenRead);
@@ -2869,51 +2878,101 @@ void __fastcall TFormMain::PutPrograms(String sFilePath)
 //---------------------------------------------------------------------------
 void __fastcall TFormMain::WMDropFile(TWMDropFiles &Msg)
 {
+    // don't process these drag-drop files until previous ones are complete
+    if (!m_slFilePaths || m_slFilePaths->Count)
+      return;
+
+    wchar_t* wBuf = NULL;
+
     try
     {
         //get dropped files count
         int cnt = ::DragQueryFileW((HDROP)Msg.Drop, -1, NULL, 0);
 
-        if (cnt != 1)
-            return; // only one file!
+        wBuf = new wchar_t[MAX_PATH];
 
-        wchar_t wBuf[MAX_PATH];
-
-        // Get first file-name
-        if (::DragQueryFileW((HDROP)Msg.Drop, 0, wBuf, MAX_PATH) > 0)
+        for (int ii = 0; ii < cnt; ii++)
         {
-            // Load and convert file as per the file-type (either plain or rich text)
-            WideString wFile(wBuf);
+          // Get next file-name
+          if (::DragQueryFileW((HDROP)Msg.Drop, ii, wBuf, MAX_PATH) > 0)
+          {
+              // Load and convert file as per the file-type (either plain or rich text)
+              WideString wFile(wBuf);
 
-            // don't process this drag-drop until previous one sets m_DragDropFilePath = ""
-            if (m_DragDropFilePath.IsEmpty() && !wFile.IsEmpty())
-            {
-                String sFile = String(wFile);
-                if (FileExists(sFile))
-                {
-                    m_DragDropFilePath = sFile;
-                    Timer1->Enabled = false; // stop timer (just in-case!)
-                    Timer1->Interval = 50;
-                    Timer1->OnTimer = Timer1FileDropTimeout; // set handler
-                    Timer1->Enabled = true; // fire event to send file
-                }
-            }
+              // don't process this drag-drop until previous one sets m_DragDropFilePath = ""
+              if (!wFile.IsEmpty())
+              {
+                  String sFile = String(wFile); // convert to utf-8 internal string
+
+                  if (FileExists(sFile))
+                      m_slFilePaths->Add(sFile);
+              }
+          }
+        }
+
+        // kick off file processing...
+        if (m_slFilePaths && m_slFilePaths->Count)
+        {
+          Timer1->Enabled = false; // stop timer (just in-case!)
+          Timer1->Interval = 50;
+          Timer1->OnTimer = Timer1FileDropTimeout; // set handler
+          Timer1->Enabled = true; // fire event to send file
         }
     }
-    catch (...) {}
+    __finally
+    {
+      try { if (wBuf != NULL) delete [] wBuf; } catch(...) {}
+    }
 }
 //---------------------------------------------------------------------------
+// Process the files drag/dropped and saved in m_slFilePaths
 void __fastcall TFormMain::Timer1FileDropTimeout(TObject *Sender)
 {
     Timer1->Enabled = false;
-    if (!m_DragDropFilePath.IsEmpty())
+    PutFiles();
+}
+//---------------------------------------------------------------------------
+// send m_slFilePaths list of .prg or .aki or .wav files
+void __fastcall TFormMain::PutFiles(void)
+{
+    if (!m_slFilePaths || !m_slFilePaths->Count) return;
+
+    int count = m_slFilePaths->Count;
+
+    // flag to print warning if more than one programs file
+    int progFileCounter = 0;
+
+    String sPrgFilePath;
+
+    for (int ii = 0; ii < count; ii++)
     {
-        String Ext = ExtractFileExt(m_DragDropFilePath).LowerCase();
+        String sFile = m_slFilePaths->Strings[ii];
+        String Ext = ExtractFileExt(sFile).LowerCase();
+
         if (Ext == ".prg")
-            PutPrograms(m_DragDropFilePath);
+        {
+          sPrgFilePath = sFile;
+          progFileCounter++;
+        }
         else
-            PutSample(m_DragDropFilePath);
-        m_DragDropFilePath = "";
+        {
+          if (!PutSample(sFile))
+            break;
+        }
+    }
+
+    m_slFilePaths->Clear();
+
+    // save the .prg file for last
+    if (!sPrgFilePath.IsEmpty())
+    {
+      PutPrograms(sPrgFilePath);
+
+      if (progFileCounter > 1)
+        ShowMessage("Warning: You chose " + String(progFileCounter) +
+              " .prg files! Only one should be chosen...\n"
+              "Sent programs file \"" + sPrgFilePath + "\"\n"
+              "Each .prg file contains multiple Akai programs.");
     }
 }
 //---------------------------------------------------------------------------

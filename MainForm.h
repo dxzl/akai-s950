@@ -21,7 +21,9 @@
 #define TESTING false
 //---------------------------------------------------------------------------
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
-#define VERSION_STR "Version 1.83 June 19, 2017"
+// (set MainForm Height to 350 when help is clicked)
+#define FORM_HEIGHT 350
+#define VERSION_STR "Version 1.84, November 28, 2017"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS950"
@@ -80,6 +82,9 @@
 // S950 sample header storage
 #define HEDRSIZ 19  // starts with BEX but no EEX
 #define ACKSIZ 4
+
+// packet retry count
+#define PACKET_RETRY_COUNT 3
 
 #define UINT16SIZE ((int)sizeof(UInt16))
 #define UINT32SIZE ((int)sizeof(UInt32))
@@ -222,7 +227,6 @@ __published:  // IDE-managed Components
     TMenuItem *MenuPutSample;
     TMenuItem *N2;
     TMenuItem *MenuGetPrograms;
-    TMenuItem *MenuPutPrograms;
     TMenuItem *N3;
     TMenuItem *MenuUseRightChanForStereoSamples;
     TMenuItem *MenuAutomaticallyRenameSample;
@@ -236,7 +240,6 @@ __published:  // IDE-managed Components
     void __fastcall MenuGetSampleClick(TObject *Sender);
     void __fastcall MenuAutomaticallyRenameSampleClick(TObject *Sender);
     void __fastcall MenuGetProgramsClick(TObject *Sender);
-    void __fastcall MenuPutProgramsClick(TObject *Sender);
     void __fastcall MenuUseHWFlowControlBelow50000BaudClick(TObject *Sender);
     void __fastcall MenuUseRightChanForStereoSamplesClick(TObject *Sender);
 
@@ -248,6 +251,7 @@ __published:  // IDE-managed Components
     void __fastcall FormShow(TObject *Sender);
     void __fastcall FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift);
     void __fastcall ComboBoxRs232Select(TObject *Sender);
+  void __fastcall FormDestroy(TObject *Sender);
 
 private:  // User declarations
     void __fastcall Timer1FileDropTimeout(TObject *Sender);
@@ -263,12 +267,13 @@ private:  // User declarations
     bool __fastcall PutSample(String sFilePath);
     int __fastcall GetSample(int samp, String Name);
     void __fastcall PutPrograms(String sFilePath);
+    void __fastcall PutFiles(void);
     void __fastcall GetPrograms(String sFilePath);
 
     void __fastcall SetMenuItems(void);
     void __fastcall SetComPort(int baud);
     int __fastcall FindIndex(Byte* pName);
-    String __fastcall GetFileName(void);
+    int __fastcall GetFileNames(void);
     bool __fastcall DoSaveDialog(String &sName);
     bool __fastcall StrCmpCaseInsens(char* sA, char* sB, int len);
     __int32 __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
@@ -295,6 +300,7 @@ private:  // User declarations
     void __fastcall queue(UInt16 val, Byte* &ptbuf,
             int bytes_per_word, int bits_per_word, Byte &checksum);
     void __fastcall send_samp_parms(unsigned index);
+    bool __fastcall send_packet(Byte* tbuf, int blockct);
     void __fastcall printm(String message);
     void __fastcall print_ps_info(PSTOR* ps);
     int __fastcall receive(int count, bool displayHex=false);
@@ -332,7 +338,7 @@ private:  // User declarations
     bool m_rxTimeout, m_txTimeout, m_gpTimeout, m_inBufferFull;
     bool m_abort, m_sysBusy;
 
-    String m_DragDropFilePath;
+    TStringList* m_slFilePaths;
 
     // settings vars
     int m_baud, m_data_size, m_hedr_size, m_ack_size;

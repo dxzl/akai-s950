@@ -3,7 +3,7 @@ object FormMain: TFormMain
   Top = 0
   ActiveControl = Memo1
   Caption = 'Akai S900/S950 (rs232)'
-  ClientHeight = 251
+  ClientHeight = 160
   ClientWidth = 499
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -52,6 +52,7 @@ object FormMain: TFormMain
   Position = poDesktopCenter
   OnClose = FormClose
   OnCreate = FormCreate
+  OnDestroy = FormDestroy
   OnKeyDown = FormKeyDown
   OnShow = FormShow
   PixelsPerInch = 96
@@ -60,13 +61,13 @@ object FormMain: TFormMain
     Left = 0
     Top = 0
     Width = 137
-    Height = 251
+    Height = 160
     Align = alLeft
     TabOrder = 0
-    ExplicitHeight = 164
+    ExplicitHeight = 144
     DesignSize = (
       137
-      251)
+      160)
     object ComboBoxRs232: TComboBox
       Left = 1
       Top = 2
@@ -96,33 +97,33 @@ object FormMain: TFormMain
       Left = 1
       Top = 29
       Width = 135
-      Height = 221
+      Height = 130
       Anchors = [akLeft, akTop, akBottom]
       ItemHeight = 13
       TabOrder = 1
       OnClick = ListBox1Click
-      ExplicitHeight = 134
+      ExplicitHeight = 114
     end
   end
   object Panel1: TPanel
     Left = 137
     Top = 0
     Width = 362
-    Height = 251
+    Height = 160
     Align = alClient
     TabOrder = 1
-    ExplicitHeight = 164
+    ExplicitHeight = 144
     object Memo1: TMemo
       Tag = 2
       Left = 1
       Top = 1
       Width = 360
-      Height = 249
+      Height = 158
       Align = alClient
       ReadOnly = True
       ScrollBars = ssVertical
       TabOrder = 0
-      ExplicitHeight = 162
+      ExplicitHeight = 142
     end
   end
   object ApdComPort1: TApdComPort
@@ -133,6 +134,7 @@ object FormMain: TFormMain
   end
   object OpenDialog1: TOpenDialog
     InitialDir = '%Desktop%'
+    Options = [ofHideReadOnly, ofAllowMultiSelect, ofEnableSizing]
     Left = 416
     Top = 16
   end
@@ -147,35 +149,30 @@ object FormMain: TFormMain
       Caption = 'Menu'
       ShortCut = 16496
       object MenuGetCatalog: TMenuItem
-        Caption = 'Get list of samples and programs'
+        Caption = '&Get list of samples and programs'
         ShortCut = 16497
         OnClick = MenuGetCatalogClick
       end
       object N1: TMenuItem
         Caption = '-'
       end
-      object MenuGetSample: TMenuItem
-        Caption = 'Save sample from machine to .aki file'
-        ShortCut = 16498
-        OnClick = MenuGetSampleClick
-      end
       object MenuPutSample: TMenuItem
-        Caption = 'Send .wav/.aki sample file to machine'
-        ShortCut = 16499
+        Caption = '&Send to machine (.wav .aki .prg files)'
+        ShortCut = 16498
         OnClick = MenuPutSampleClick
       end
       object N2: TMenuItem
         Caption = '-'
       end
+      object MenuGetSample: TMenuItem
+        Caption = '&Receive sample from machine (.aki file)'
+        ShortCut = 16499
+        OnClick = MenuGetSampleClick
+      end
       object MenuGetPrograms: TMenuItem
-        Caption = 'Save &programs from machine to .prg file'
+        Caption = 'Receive &programs from machine (.prg file)'
         ShortCut = 16500
         OnClick = MenuGetProgramsClick
-      end
-      object MenuPutPrograms: TMenuItem
-        Caption = 'Send .prg programs file to machine'
-        ShortCut = 16501
-        OnClick = MenuPutProgramsClick
       end
       object N3: TMenuItem
         Caption = '-'
