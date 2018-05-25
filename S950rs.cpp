@@ -6,7 +6,11 @@
 //---------------------------------------------------------------------------
 #include <Vcl.Styles.hpp>
 #include <Vcl.Themes.hpp>
+USEFORM("SampParmsForm.cpp", FormEditSampParms);
 USEFORM("MainForm.cpp", FormMain);
+USEFORM("ListBoxForm.cpp", FormListBox);
+USEFORM("OverallSettingsForm.cpp", FormOverallSettings);
+USEFORM("ProgramsForm.cpp", FormProgram);
 //---------------------------------------------------------------------------
 int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 {

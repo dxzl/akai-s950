@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2018/03/31 12:48:07.000.319,=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/03/31 13:20:18.000.951,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramForm.cpp=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/03/31 13:20:18.000.951,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramForm.dfm=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.dfm</Transaction>
+    <Transaction>2018/03/31 13:20:18.000.951,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramForm.h=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.h</Transaction>
+    <Transaction>2018/04/01 09:47:19.000.302,=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/04/01 10:01:18.000.514,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\XposeForm.h=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.h</Transaction>
+    <Transaction>2018/04/01 10:01:18.000.514,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\XposeForm.dfm=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.dfm</Transaction>
+    <Transaction>2018/04/01 10:01:18.000.513,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\XposeForm.cpp=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/04/01 10:27:18.000.659,=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/04/01 10:29:54.000.672,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\NoteSelForm.h=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.h</Transaction>
+    <Transaction>2018/04/01 10:29:54.000.672,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\NoteSelForm.cpp=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/04/01 10:29:54.000.672,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\NoteSelForm.dfm=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.dfm</Transaction>
+    <Transaction>2018/04/20 09:49:40.000.095,=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/04/20 09:52:55.000.078,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ListBoxForm.cpp</Transaction>
+    <Transaction>2018/04/20 09:52:55.000.078,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.h=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ListBoxForm.h</Transaction>
+    <Transaction>2018/04/20 09:52:55.000.078,C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.dfm=C:\Users\somebody\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ListBoxForm.dfm</Transaction>
+    <Transaction>2018/05/04 10:13:20.000.636,=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/05/04 10:15:56.000.483,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\EditSampParmsForm.h=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.h</Transaction>
+    <Transaction>2018/05/04 10:15:56.000.483,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\EditSampParmsForm.cpp=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/05/04 10:15:56.000.483,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\EditSampParmsForm.dfm=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.dfm</Transaction>
+    <Transaction>2018/05/04 12:29:37.000.307,=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\pch1.h</Transaction>
+    <Transaction>2018/05/04 15:22:15.000.690,=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/05/04 15:22:54.000.624,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Arrays.h=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.h</Transaction>
+    <Transaction>2018/05/04 15:22:54.000.624,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Arrays.cpp=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/05/09 07:24:06.000.030,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Utils.h=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Arrays.h</Transaction>
+    <Transaction>2018/05/09 07:24:06.000.030,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Utils.cpp=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Arrays.cpp</Transaction>
+    <Transaction>2018/05/09 07:56:41.000.291,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\S9Utils.h=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Utils.h</Transaction>
+    <Transaction>2018/05/09 07:56:41.000.291,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\S9Utils.cpp=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Utils.cpp</Transaction>
+    <Transaction>2018/05/13 15:11:07.000.369,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\SampParmsForm.cpp=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\EditSampParmsForm.cpp</Transaction>
+    <Transaction>2018/05/13 15:11:07.000.369,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\SampParmsForm.h=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\EditSampParmsForm.h</Transaction>
+    <Transaction>2018/05/13 15:11:07.000.369,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\SampParmsForm.dfm=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\EditSampParmsForm.dfm</Transaction>
+    <Transaction>2018/05/13 15:12:13.000.977,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramsForm.h=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramForm.h</Transaction>
+    <Transaction>2018/05/13 15:12:13.000.977,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramsForm.cpp=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramForm.cpp</Transaction>
+    <Transaction>2018/05/13 15:12:13.000.977,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramsForm.dfm=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\ProgramForm.dfm</Transaction>
+    <Transaction>2018/05/13 15:13:48.000.999,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\NoteSelForm.cpp=</Transaction>
+    <Transaction>2018/05/13 15:13:55.000.800,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\XposeForm.cpp=</Transaction>
+    <Transaction>2018/05/13 15:15:03.000.256,=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/05/13 15:15:48.000.616,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\OverallSettingsForm.cpp=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.cpp</Transaction>
+    <Transaction>2018/05/13 15:15:48.000.616,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\OverallSettingsForm.dfm=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.dfm</Transaction>
+    <Transaction>2018/05/13 15:15:48.000.616,C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\OverallSettingsForm.h=C:\Users\Scott\Documents\Embarcadero\Studio\Projects\S950 (Rs232)\Unit1.h</Transaction>
+  </Transactions>
+	<ProjectSortOrder AutoSort="0" SortType="0">
+    <File Path="S9Utils.cpp"/>
+    <File Path="S9Utils.cpp"/>
+    <File Path="S9Utils.h"/>
+    <File Path="SampParmsForm.cpp"/>
+    <File Path="SampParmsForm.cpp"/>
+    <File Path="SampParmsForm.dfm"/>
+    <File Path="SampParmsForm.h"/>
+    <File Path="ListBoxForm.cpp"/>
+    <File Path="ListBoxForm.cpp"/>
+    <File Path="ListBoxForm.dfm"/>
+    <File Path="ListBoxForm.h"/>
+    <File Path="MainForm.cpp"/>
+    <File Path="MainForm.cpp"/>
+    <File Path="MainForm.dfm"/>
+    <File Path="MainForm.h"/>
+    <File Path="pch1.h"/>
+    <File Path="ProgramsForm.cpp"/>
+    <File Path="ProgramsForm.cpp"/>
+    <File Path="ProgramsForm.dfm"/>
+    <File Path="ProgramsForm.h"/>
+    <File Path="RegHelper.cpp"/>
+    <File Path="RegHelper.cpp"/>
+    <File Path="RegHelper.h"/>
+    <File Path="S950PCH.h"/>
+    <File Path="S950rs.cpp"/>
+    <File Path="OverallSettingsForm.cpp"/>
+    <File Path="OverallSettingsForm.cpp"/>
+    <File Path="OverallSettingsForm.dfm"/>
+    <File Path="OverallSettingsForm.h"/>
+  </ProjectSortOrder>
+</BorlandProject>

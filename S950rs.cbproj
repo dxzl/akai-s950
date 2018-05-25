@@ -64,6 +64,7 @@
         <ILINK_TranslatedLibraryPath>$(BDSLIB)\$(PLATFORM)\release\$(LANGDIR);$(ILINK_TranslatedLibraryPath)</ILINK_TranslatedLibraryPath>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=1.79.0.0;InternalName=;LegalCopyright=2017;LegalTrademarks=;OriginalFilename=S950debug.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.79.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=</VerInfo_Keys>
+        <BCC_PCHInject>pch1.h</BCC_PCHInject>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <IncludePath>$(BDSINCLUDE)\windows\vcl;$(IncludePath)</IncludePath>
@@ -135,18 +136,39 @@
         <OutputExt>exe</OutputExt>
         <LinkPackageStatics>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</LinkPackageStatics>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
-        <VerInfo_MajorVer>1</VerInfo_MajorVer>
+        <VerInfo_MajorVer>2</VerInfo_MajorVer>
         <AppEnableHighDPI>true</AppEnableHighDPI>
-        <VerInfo_MinorVer>84</VerInfo_MinorVer>
-        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=1.84.0.0;InternalName=;LegalCopyright=2017;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.84.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=;SpecialBuild=</VerInfo_Keys>
+        <VerInfo_MinorVer>0</VerInfo_MinorVer>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=2.0.0.0;InternalName=;LegalCopyright=2018;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=2.0.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=;SpecialBuild=</VerInfo_Keys>
         <Icon_MainIcon>Colorize.ico</Icon_MainIcon>
     </PropertyGroup>
     <ItemGroup>
+        <CppCompile Include="ListBoxForm.cpp">
+            <Form>FormListBox</Form>
+            <FormType>dfm</FormType>
+            <DependentOn>ListBoxForm.h</DependentOn>
+            <BuildOrder>7</BuildOrder>
+        </CppCompile>
         <CppCompile Include="MainForm.cpp">
             <Form>FormMain</Form>
             <FormType>dfm</FormType>
             <DependentOn>MainForm.h</DependentOn>
             <BuildOrder>2</BuildOrder>
+        </CppCompile>
+        <CppCompile Include="OverallSettingsForm.cpp">
+            <Form>FormOverallSettings</Form>
+            <FormType>dfm</FormType>
+            <DependentOn>OverallSettingsForm.h</DependentOn>
+            <BuildOrder>9</BuildOrder>
+        </CppCompile>
+        <None Include="pch1.h">
+            <BuildOrder>9</BuildOrder>
+        </None>
+        <CppCompile Include="ProgramsForm.cpp">
+            <Form>FormProgram</Form>
+            <FormType>dfm</FormType>
+            <DependentOn>ProgramsForm.h</DependentOn>
+            <BuildOrder>4</BuildOrder>
         </CppCompile>
         <CppCompile Include="RegHelper.cpp">
             <DependentOn>RegHelper.h</DependentOn>
@@ -159,7 +181,21 @@
         <CppCompile Include="S950rs.cpp">
             <BuildOrder>0</BuildOrder>
         </CppCompile>
+        <CppCompile Include="S9Utils.cpp">
+            <DependentOn>S9Utils.h</DependentOn>
+            <BuildOrder>10</BuildOrder>
+        </CppCompile>
+        <CppCompile Include="SampParmsForm.cpp">
+            <Form>FormEditSampParms</Form>
+            <FormType>dfm</FormType>
+            <DependentOn>SampParmsForm.h</DependentOn>
+            <BuildOrder>8</BuildOrder>
+        </CppCompile>
+        <FormResources Include="SampParmsForm.dfm"/>
         <FormResources Include="MainForm.dfm"/>
+        <FormResources Include="ListBoxForm.dfm"/>
+        <FormResources Include="OverallSettingsForm.dfm"/>
+        <FormResources Include="ProgramsForm.dfm"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

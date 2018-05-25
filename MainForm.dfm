@@ -3,8 +3,8 @@ object FormMain: TFormMain
   Top = 0
   ActiveControl = Memo1
   Caption = 'Akai S900/S950 (rs232)'
-  ClientHeight = 160
-  ClientWidth = 499
+  ClientHeight = 207
+  ClientWidth = 750
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -61,13 +61,13 @@ object FormMain: TFormMain
     Left = 0
     Top = 0
     Width = 137
-    Height = 160
+    Height = 207
     Align = alLeft
     TabOrder = 0
-    ExplicitHeight = 144
+    ExplicitHeight = 187
     DesignSize = (
       137
-      160)
+      207)
     object ComboBoxRs232: TComboBox
       Left = 1
       Top = 2
@@ -97,33 +97,35 @@ object FormMain: TFormMain
       Left = 1
       Top = 29
       Width = 135
-      Height = 130
+      Height = 177
       Anchors = [akLeft, akTop, akBottom]
       ItemHeight = 13
       TabOrder = 1
       OnClick = ListBox1Click
-      ExplicitHeight = 114
+      ExplicitHeight = 157
     end
   end
   object Panel1: TPanel
     Left = 137
     Top = 0
-    Width = 362
-    Height = 160
+    Width = 613
+    Height = 207
     Align = alClient
     TabOrder = 1
-    ExplicitHeight = 144
+    ExplicitWidth = 593
+    ExplicitHeight = 187
     object Memo1: TMemo
       Tag = 2
       Left = 1
       Top = 1
-      Width = 360
-      Height = 158
+      Width = 611
+      Height = 205
       Align = alClient
       ReadOnly = True
       ScrollBars = ssVertical
       TabOrder = 0
-      ExplicitHeight = 142
+      ExplicitWidth = 591
+      ExplicitHeight = 185
     end
   end
   object ApdComPort1: TApdComPort
@@ -194,14 +196,37 @@ object FormMain: TFormMain
         ShortCut = 16504
         OnClick = MenuUseRightChanForStereoSamplesClick
       end
+      object N5: TMenuItem
+        Caption = '-'
+      end
+      object MenuMakeOrEditProgram: TMenuItem
+        Caption = 'Make/Edit Program'
+        ShortCut = 16505
+        OnClick = MenuMakeOrEditProgramClick
+      end
+      object MenuEditSampleParameters: TMenuItem
+        Caption = 'Edit Sample Parameters'
+        ShortCut = 16506
+        OnClick = MenuEditSampleParametersClick
+      end
+      object MenuEditOverallSettings: TMenuItem
+        Caption = 'Edit Overall Settings'
+        ShortCut = 16507
+        OnClick = MenuEditOverallSettingsClick
+      end
       object N4: TMenuItem
         Caption = '-'
       end
-      object MenuHelp: TMenuItem
-        Caption = '&Help'
+      object MenuAbout: TMenuItem
+        Caption = '&About'
         ShortCut = 112
-        OnClick = MenuHelpClick
+        OnClick = MenuAboutClick
       end
+    end
+    object MainMenuHelp: TMenuItem
+      Caption = 'Help'
+      ShortCut = 112
+      OnClick = MainMenuHelpClick
     end
   end
   object Timer1: TTimer
