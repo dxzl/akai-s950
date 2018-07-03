@@ -23,7 +23,7 @@
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version 2.00, May 25, 2018"
+#define VERSION_STR "Version 2.10, July 3, 2018"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS950"
@@ -46,14 +46,15 @@
 #define SETTINGS 2
 #define CONNECT  3
 
-#define RXTIMEOUT 3100 // 3.1 seconds
-#define TXRS232TIMEOUT 3100 // 3.1 seconds
+#define ONESECTIMEOUT 1000 // 1 second
+#define RXTIMEOUT 3 // 3 seconds
+#define TXTIMEOUT 3 // 3 seconds
 
 // NOTE: increasing this will cause much more memory to be used because many
 // arrays are not dynamically allocated (they should be dynamic and use "new"
 // instead)... TODO!
-#define MAX_SAMPS 100 // S950 is 32 but S950 is "99" (I think it's 100 with TONE)
-#define MAX_PROGS 100 // S950 is 32 but S950 is "99" (I think it's 100 with TONE)
+#define MAX_SAMPS 100 // S900 is 32 but S950 is "99" (I think it's 100 with TONE)
+#define MAX_PROGS 100 // S900 is 32 but S950 is "99"?????
 
 #define DATA_PACKET_SIZE 120 // 120 bytes representing 60, 40 or 30 samples
 #define DATA_PACKET_OVERHEAD 2  // block-counter (7-bits) and checksum
@@ -70,16 +71,7 @@
 #define AKI_FILE_HEADER_SIZE (sizeof(PSTOR)) // parameter storage for .AKI file
 #define MAGIC_NUM_AKI 453782108 // magic number identifies .aki file
 
-// .PRG file header info.
-// a single program has PRG_FILE_HEADER_SIZE + (X*PROGKEYGROUPSIZ) + 2 for checksum
-// and EEX bytes
-#define PRG_FILE_HEADER_SIZE 83 // S950 program header size
-// magic number identifies .prg file
-#define MAGIC_NUM_PRG 639681490
-// S950 program keygroup size
-#define PROGKEYGROUPSIZ 140
-// max keygroups in a program (S950 is 32, but we'll allow 100)
-#define MAX_KEYGROUPS 100
+#define AKIEXT ".aki"
 
 // S950 sample header storage
 #define HEDRSIZ 19  // starts with BEX but no EEX
@@ -135,12 +127,28 @@
 #define DAC12 2047 // 2^12 / 2 - 1
 #define DAC16 32767 // 2^16 / 2 - 1
 
+// .PRG file header info.
+// a single program has PRG_FILE_HEADER_SIZE + (X*PROGKEYGROUPSIZ) + 2 for checksum
+// and EEX bytes
+#define PROGHEADERSIZ (76+7) // S950 program header size
+// magic number identifies .prg file
+#define MAGIC_NUM_PRG 639681490
+// S950 program keygroup size
+// in a .prg file, we also have the 4-byte prog size at the top of each program
+#define PROGKEYGROUPSIZ 140
+// max keygroups in a program (S950 is 32, (we need to limit this because of TEMPARRAYSIZ!)
+#define MAX_KEYGROUPS 32
+
 // this TempArray is used for all receive() data and needs to be big enough
 // for the largest single transmission from the target machine
 // (we need 122 bytes for a data packet)
 // (we need 127 bytes for a sample-dump-standard data packet)
 // 2400 bytes for the largest possible catalog...
-#define TEMPARRAYSIZ ((int)(sizeof(S950CAT)*(MAX_SAMPS+MAX_PROGS) + 9))
+//#define TEMPARRAYSIZ ((int)(sizeof(S950CAT)*(MAX_SAMPS+MAX_PROGS) + 9))
+//
+// Since we now can edit a program with 32 keygroups, we need a larger array...
+#define TEMPARRAYSIZ ((int)(2+PROGHEADERSIZ+(PROGKEYGROUPSIZ*MAX_KEYGROUPS)))
+
 
 #define DEF_RS232_BAUD_RATE (38400)
 
@@ -150,18 +158,7 @@
 // so I'm setting it to 125ms.
 #define DELAY_BETWEEN_EACH_PROGRAM_TX 125
 
-// These delays are for midi output of a sample - SysEx data we send out
-// the midi port is buffered by the device driver before it actually begins
-// to go out... this buffer appears to be 229-247 bytes, so after we send
-// the PutSample header, there won't be any ACK packet back which is
-// synchronous (as it is with RS232)... so we have to put delay between
-// blocks where the S950 will be responding. THis is not an ordinary delay,
-// this delay is embedded into the a midi-output-stream via a EVT_NOP
-// command in the stream... to get units of milliseconds, I've set
-// timeDiv 1000 and tempo 1,000,000 in streamws(). (timeDiv is in ticks/beat
-// and Tempo is in microseconds/beat (a beat is a quarter-note))
-#define DELAY_AFTER_HEADER_TX 50 // 50ms
-#define DELAY_AFTER_OUT_BLOCK 25 // 25ms
+#define STEPSPERSEMITONE 16 // 16 steps per semitone for Akai S900/S950
 
 // this struct can be modified if you need to rearrange it or add fields...
 typedef struct
@@ -206,9 +203,95 @@ typedef struct
   __int32 loudnessoffset; // signed value (4 bytes)
   Byte sparechar1; // (1 byte)
   Byte sparechar2; // (1 byte)
-  Byte flags; // (1 byte)
-  Byte loopmode; // (1 byte)
+  Byte flags; // (1 byte) (bit 0 = vel. xfade, bit 1 = reverse-waveform)
+  Byte loopmode; // (1 byte) 'O' one-shot, 'A' alternateing, 'L' looping
 } PSTOR; // sizeof(PSTOR) must always be 72 bytes!
+
+// 44 bytes
+typedef struct
+{
+  char chunkTag[4]; // "RIFF"
+  UInt32 fileSizeMinusEight;
+  char wave[4]; // "WAVE"
+  char fmt[4]; // "fmt "
+  UInt32 fmtSectionSize; // 16
+  UInt16 audioFormat; // 1 (umcompressed pcm)
+  UInt16 numChannels; // 1 (mono)
+  UInt32 sampleFreq;
+  UInt32 frameRate; // (SampleFreq * BitsPerSample * NumChannels) / 8
+  UInt16 bytesPerFrame; // 2
+  UInt16 bitsPerSample; // 16
+  char data[4]; // "data"
+  UInt32 dataSize; // # sample words * 2
+} WAVHEDR;
+
+// a SMPLCHUNK can have 0-N of these... (we need only one)
+typedef struct
+{
+  UInt32 cuePointId; // 0 (could refer to a particular cue point Id), "loop"
+  UInt32 type; // 0=forward, 1=alternate, 2=reverse (for the loop, not the sample)
+  UInt32 start; // (sample's end-index - loop-length) * 2 bytes per frame
+  UInt32 end; // sample's end-index * 2 bytes per frame
+  UInt32 fraction; // 0
+  UInt32 playCount; // 0 (endless)
+} SMPLLOOP;
+
+// we tack this on in a "smpl" chunk, after any loops (same size as a 24-byte SMPLLOOP)
+typedef struct
+{
+  UInt32 magic; // set this to MAGIC_NUM_AKI (identifies it as "uniquely ours")
+  Byte flags;
+  Byte loudnessoffset;
+  UInt16 spare1;
+  UInt32 spare2;
+  UInt32 spare3;
+  UInt32 spare4;
+  UInt32 spare5;
+} SMPLDATA;
+
+// generic digital-sampler chunk
+typedef struct
+{
+  char chunkTag[4]; // "smpl"
+  UInt32 chunkSize; // 60
+  UInt32 Manufacturer; // 0
+  UInt32 Product; // 0
+  UInt32 SamplePeriod; // 0
+  UInt32 MIDIUnityNote; // (60 for middle-C)
+  UInt32 MIDIPitchFraction; // 0
+  UInt32 SMPTEFormat; // 0
+  UInt32 SMPTEOffset; // 0
+  UInt32 loopCount; // 1
+  UInt32 samplerDataSize; // sizeof(SMPLOOP) + sizeof(UInt32) + sizeof(PSTOR)
+} SMPLCHUNKHEDR;
+
+// generic digital-sampler chunk
+// holds our loop and end-point
+typedef struct
+{
+  SMPLCHUNKHEDR sch;
+  SMPLLOOP sl;
+  SMPLDATA sd; // tack on the SMPLDATA struct (24 bytes)
+} SMPLCHUNKOUT;
+
+// a CUECHUNK can have 0-N of these... (we need only one)
+typedef struct {
+	char cuePointID[4]; // a unique ID for the Cue Point. "strt" "end "
+	UInt32 playOrderPosition; // Unsigned 4-byte little endian int: If a Playlist chunk is present in the Wave file, this the sample number at which this cue point will occur during playback of the entire play list as defined by the play list's order.  **Otherwise set to same as sample offset??***  Set to 0 when there is no playlist.
+	char dataChunkID[4]; // Unsigned 4-byte little endian int: The ID of the chunk containing the sample data that corresponds to this cue point.  If there is no playlist, this should be 'data'.
+	UInt32 chunkStart; // Unsigned 4-byte little endian int: The byte offset into the Wave List Chunk of the chunk containing the sample that corresponds to this cue point. This is the same chunk described by the Data Chunk ID value. If no Wave List Chunk exists in the Wave file, this value is 0.
+	UInt32 blockStart; // Unsigned 4-byte little endian int: The byte offset into the "data" or "slnt" Chunk to the start of the block containing the sample. The start of a block is defined as the first byte in uncompressed PCM wave data or the last byte in compressed wave data where decompression can begin to find the value of the corresponding sample value.
+	UInt32 frameOffset; // Unsigned 4-byte little endian int: The offset into the block (specified by Block Start) for the sample that corresponds to the cue point.
+} CUEPOINT;
+
+// holds our start-point
+typedef struct
+{
+	char chunkID[4]; // String: Must be "cue " (0x63756520).
+	UInt32 chunkDataSize; // Unsigned 4-byte little endian int: Byte count for the remainder of the chunk: 4 (size of cuePointsCount) + (24 (size of CuePoint struct) * number of CuePoints).
+	UInt32 cuePointsCount; // Unsigned 4-byte little endian int: Length of cuePoints[].
+  CUEPOINT cuePoints[2];
+} CUECHUNK;
 
 //---------------------------------------------------------------------------
 class TFormMain : public TForm
@@ -235,12 +318,12 @@ __published:  // IDE-managed Components
 		TMenuItem *MenuUseHWFlowControlBelow50000Baud;
     TMenuItem *N4;
 	TMenuItem *MenuAbout;
-    TApdComPort *ApdComPort1;
 		TMenuItem *MenuMakeOrEditProgram;
     TMenuItem *N5;
     TMenuItem *MenuEditSampleParameters;
 	TMenuItem *MainMenuHelp;
 	TMenuItem *MenuEditOverallSettings;
+  TApdComPort *ApdComPort1;
 
     void __fastcall MenuGetCatalogClick(TObject *Sender);
     void __fastcall MenuPutSampleClick(TObject *Sender);
@@ -267,15 +350,20 @@ __published:  // IDE-managed Components
 private:  // User declarations
 	void __fastcall Timer1FileDropTimeout(TObject *Sender);
 	void __fastcall Timer1GpTimeout(TObject *Sender);
-	void __fastcall Timer1RxTimeout(TObject *Sender);
-	void __fastcall Timer1TxTimeout(TObject *Sender);
+	void __fastcall Timer1OneSecTimeout(TObject *Sender);
 
 	bool __fastcall IsGpTimeout(void);
 	void __fastcall StopGpTimer(void);
 	void __fastcall StartGpTimer(int time);
+  void __fastcall StartElapsedSecondsTimer(void);
+  void __fastcall StopElapsedSecondsTimer(void);
+  void __fastcall ResetElapsedSecondsTimer(void);
+  bool __fastcall IsTimeElapsed(int iTime);
 
 	bool __fastcall PutSample(String sFilePath);
-	int __fastcall GetSample(int samp, String Name);
+	int __fastcall GetSample(String sPath, int iSamp);
+  int __fastcall GetAsWavFile(long lFileHandle, int iSamp, PSTOR* ps);
+  int __fastcall GetAsAkiFile(long lFileHandle, int iSamp, PSTOR* ps);
 	void __fastcall PutPrograms(String sFilePath);
 	void __fastcall PutFiles(void);
 	int __fastcall GetPrograms(String sFilePath);
@@ -304,7 +392,7 @@ private:  // User declarations
 	bool __fastcall exmit(int samp, int mode, bool bDelay);
 	bool __fastcall cxmit(int samp, int mode, bool bDelay);
 
-	int __fastcall get_samp_data(PSTOR * ps, int handle);
+	int __fastcall get_samp_data(PSTOR * ps, long lFileHandle);
 	int __fastcall get_comm_samp_data(__int16* bufptr, int bytes_per_word,
 	int samples_per_block, int bits_per_word, int blockct);
 
@@ -320,9 +408,9 @@ private:  // User declarations
 	Byte samp_parms[PARMSIZ];
 	Byte samp_hedr[HEDRSIZ];
 	unsigned m_rxByteCount;
-	int m_numSampEntries, m_numProgEntries;
-	bool m_rxTimeout, m_txTimeout, m_gpTimeout, m_inBufferFull;
-	bool m_abort, m_sysBusy;
+	int m_numSampEntries, m_numProgEntries, m_elapsedSeconds, m_busyCount;
+	bool m_gpTimeout, m_inBufferFull;
+	bool m_abort;
 
 	// holds the processed catalog info
 	CAT PermSampArray[MAX_SAMPS];
@@ -343,8 +431,8 @@ BEGIN_MESSAGE_MAP
 	VCL_MESSAGE_HANDLER(WM_DROPFILES, TWMDropFiles, WMDropFile)
 END_MESSAGE_MAP(TComponent)
 
-	TStringList* __fastcall GetSampleData(void);
-	TStringList* __fastcall GetProgramData(void);
+	TStringList* __fastcall GetCatalogSampleData(void);
+	TStringList* __fastcall GetCatalogProgramData(void);
 	Byte* __fastcall GetTempArray(void);
 	UInt32 __fastcall GetBaudRate(void);
 	void __fastcall SetBaudRate(UInt32 value);
@@ -352,7 +440,9 @@ END_MESSAGE_MAP(TComponent)
 public:    // User declarations
 	__fastcall TFormMain(TComponent* Owner);
 
-	void __fastcall DelayGpTimer(int time);
+	void __fastcall DelayGpTimer(int iTime);
+  int __fastcall WaitTxComEmpty(int iTime);
+
 	bool __fastcall comws(int count, Byte* ptr, bool bDelay);
 
 	int __fastcall LoadProgramToTempArray(int progIndex);
@@ -360,9 +450,15 @@ public:    // User declarations
 	int __fastcall LoadOverallSettingsToTempArray(void);
 	int __fastcall GetCatalog(bool bPrint=false, bool bDelay=false);
 
-	__property bool SystemBusy = {read = m_sysBusy};
-	__property TStringList* SampleData = {read = GetSampleData};
-	__property TStringList* ProgramData = {read = GetProgramData};
+  // this is a "high-level" busy flag - test, set and clear it from
+  // the UI level... such as a menu or button click!
+  // General rule: you can call SysUtil method IsBusy() for a high
+  // level menu-hook, but don't set/clear the busy flag there if inner-levels
+  // already set/clear the flag!
+	__property int BusyCount = {read = m_busyCount, write = m_busyCount};
+
+	__property TStringList* CatalogSampleData = {read = GetCatalogSampleData};
+	__property TStringList* CatalogProgramData = {read = GetCatalogProgramData};
 	__property Byte* TempArray = {read = GetTempArray};
 	__property UInt32 BaudRate = {read = GetBaudRate, write = SetBaudRate};
 };

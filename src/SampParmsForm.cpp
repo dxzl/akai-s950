@@ -61,12 +61,25 @@ void __fastcall TFormEditSampParms::ButtonCloseClick(TObject *Sender)
 void __fastcall TFormEditSampParms::ButtonRefreshSamplesListClick(TObject *Sender)
 
 {
-	// refresh the catalog
-	int iErrorCode = RefreshCatalog();
-	if (iErrorCode < 0 && iErrorCode != -1)
-		ShowMessage("Error: unable to allocate m_slSampleData/ProgramData! (code=" + String(iErrorCode) + ")");
+  // don't allow multiple button presses
+  if (IsBusy())
+    return;
 
-	RefreshSamplesInComboBox(0);
+  try
+  {
+    FormMain->BusyCount++;
+
+    // refresh the catalog
+    int iError = RefreshCatalog();
+    if (iError < 0 && iError != -1)
+      ShowMessage("Error: unable to allocate m_slSampleData/ProgramData! (code=" + String(iError) + ")");
+
+    RefreshSamplesInComboBox(0);
+  }
+  __finally
+  {
+    FormMain->BusyCount--;
+  }
 }
 //---------------------------------------------------------------------------
 // return 0 if success
@@ -74,28 +87,27 @@ int __fastcall TFormEditSampParms::RefreshCatalog(void)
 {
 	try
 	{
-
-		int iErrorCode = FormMain->GetCatalog();
-
 		// Invoke property getters in FormMain that create string-lists.
 		// (MUST delete on destroy or prior to reinvoking!)
 		if (m_slSampleData)
 			delete m_slSampleData;
-		m_slSampleData = FormMain->SampleData;
+		m_slSampleData = FormMain->CatalogSampleData;
 		if (!m_slSampleData)
 			return -2;
 
+		int iError = FormMain->GetCatalog();
+
 		// put error-code return here so we can load test SampleData (above)
-		if (iErrorCode < 0)
+		if (iError < 0)
 		{
-			if (iErrorCode == -2)
+			if (iError == -2)
 				ShowMessage("Transmit timeout requesting catalog!");
-			else if (iErrorCode == -3)
+			else if (iError == -3)
 				ShowMessage("Timeout receiving catalog!");
-			else if (iErrorCode == -4)
+			else if (iError == -4)
 				ShowMessage("Incorrect catalog received!");
 			else
-				ShowMessage("Not able to get catalog, check power and cables... (code=" + String(iErrorCode) + ")");
+				ShowMessage("Not able to get catalog, check power and cables... (code=" + String(iError) + ")");
 			return -1;
 		}
 
@@ -144,83 +156,97 @@ int __fastcall TFormEditSampParms::RefreshSamplesInComboBox(int iSampIdx)
 // Takes info in GUI, including possible new sample-name, and sends it
 int __fastcall TFormEditSampParms::SendParmsToMachine(int iSampIdx)
 {
+  // don't allow multiple button presses
+  if (IsBusy())
+    return -1;
+
 	// Send samp parms to machine
-	try
-	{
-		MenuSave->Enabled = false;
-		ButtonSendOrSave->Enabled = false;
+  try
+  {
+    FormMain->BusyCount++;
 
-		int iErrorCode = ParmsFromGui();
-		if (iErrorCode < 0)
-		{
-			if (iErrorCode != -1)
-			{
-				ShowMessage("Error in ParmsFromGui(), (code=" +
-																								String(iErrorCode) + ")");
-				return -1;
-			}
-			return -2;
-		}
+    try
+    {
+      MenuSave->Enabled = false;
+      ButtonSendOrSave->Enabled = false;
 
-		iErrorCode = ParmsToArray(iSampIdx);
-		if (iErrorCode < 0)
-		{
-			if (iErrorCode != -1)
-			{
-				ShowMessage("Error in ParmsToArray(), (code=" +
-																								String(iErrorCode) + ")");
-				return -1;
-			}
-			return -3;
-		}
+      int iError = ParmsFromGui();
+      if (iError < 0)
+      {
+        if (iError != -1)
+        {
+          ShowMessage("Error in ParmsFromGui(), (code=" +
+                                                  String(iError) + ")");
+          return -1;
+        }
+        return -2;
+      }
 
-		// transmit sample parameters (after 25ms delay)
-		if (!FormMain->comws(PARMSIZ, m_samp_parms, true))
-			return -4;
+      iError = ParmsToArray(iSampIdx);
+      if (iError < 0)
+      {
+        if (iError != -1)
+        {
+          ShowMessage("Error in ParmsToArray(), (code=" +
+                                                  String(iError) + ")");
+          return -1;
+        }
+        return -3;
+      }
 
-		// better delay a bit...
-		FormMain->DelayGpTimer(DELAY_BETWEEN_EACH_PROGRAM_TX);
+      // transmit sample parameters (after 25ms delay)
+      if (!FormMain->comws(PARMSIZ, m_samp_parms, true))
+        return -4;
 
-		// refresh the catalog and warn user of any changes
-		iErrorCode = RefreshCatalog();
-		if (iErrorCode < 0)
-		{
-			if (iErrorCode != -1)
-				ShowMessage("unable to allocate m_slSampleData/ProgramData! (code=" + String(iErrorCode) + ")");
-			return -5;
-		}
+      // better delay a bit...
+      FormMain->DelayGpTimer(DELAY_BETWEEN_EACH_PROGRAM_TX);
 
-		// find the index of the new name (should equal iSampIdx, but who knows?)
-		int iNewIdx = m_slSampleData->IndexOf(String(m_ps.name));
+      // refresh the catalog and warn user of any changes
+      iError = RefreshCatalog();
+      if (iError < 0)
+      {
+        if (iError != -1)
+          ShowMessage("unable to allocate m_slSampleData/ProgramData! (code=" + String(iError) + ")");
+        return -5;
+      }
 
-		if (iNewIdx < 0)
-		{
-			ShowMessage("can't find new sample-name in current machine-catalog!");
-			return -6;
-		}
+      // find the index of the new name (should equal iSampIdx, but who knows?)
+      int iNewIdx = m_slSampleData->IndexOf(String(m_ps.name));
 
-		iErrorCode = RefreshSamplesInComboBox(iNewIdx);
-		if (iErrorCode < 0)
-		{
-			if (iErrorCode != -1)
-				ShowMessage("unable to refresh samples in ComboBox! (code=" + String(iErrorCode) + ")");
-			return -7;
-		}
+      if (iNewIdx < 0)
+      {
+        ShowMessage("can't find new sample-name in current machine-catalog!");
+        return -6;
+      }
 
-		if (!ComboBoxSampNames->Items->Count)
-		{
-			ShowMessage("no samples on machine!");
-			return -8;
-		}
+      iError = RefreshSamplesInComboBox(iNewIdx);
+      if (iError < 0)
+      {
+        if (iError != -1)
+          ShowMessage("unable to refresh samples in ComboBox! (code=" + String(iError) + ")");
+        return -7;
+      }
 
-		MenuSave->Enabled = true;
-		ButtonSendOrSave->Enabled = true;
-		return 0;
-	}
-	catch(...)
-	{
-		return -100;
-	}
+      if (!ComboBoxSampNames->Items->Count)
+      {
+        ShowMessage("no samples on machine!");
+        return -8;
+      }
+
+      MenuSave->Enabled = true;
+      ButtonSendOrSave->Enabled = true;
+    }
+    catch(...)
+    {
+      return -100;
+    }
+  }
+  __finally
+  {
+    FormMain->BusyCount--;
+  }
+
+  return 0;
 }
 //---------------------------------------------------------------------------
 // Put ps (PSTOR struct) into GUI
@@ -643,40 +669,53 @@ int __fastcall TFormEditSampParms::ParmsFromArray(void)
 // Save the file previously opened file or send to machine
 void __fastcall TFormEditSampParms::MenuSaveClick(TObject *Sender)
 {
-	int iErrorCode;
+	int iError;
 
 	if (m_iSource == SOURCE_FILE)
 	{
-		iErrorCode = SaveSampParmsToFile();
+		iError = SaveSampParmsToFile();
 
-		if (iErrorCode < 0)
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
+			if (iError != -1)
 				ShowMessage("Unable to save file: \"" +
 							m_sFilePath + "\" SaveSampParmsToFile(), (code=" +
-																								String(iErrorCode) + ")");
+																								String(iError) + ")");
 		}
 	}
 	else if (m_iSource == SOURCE_MACHINE)
 	{
-		if (m_sampIndex >= 0 && m_sampIndex < ComboBoxSampNames->Items->Count)
-		{
-			iErrorCode = SendParmsToMachine(m_sampIndex);
+    // don't allow multiple button presses
+    if (IsBusy())
+      return;
 
-			if (iErrorCode < 0)
-			{
-				if (iErrorCode != -1)
-					ShowMessage("Error in SendParmsToMachine(), (code=" +
-																									String(iErrorCode) + ")");
-				iErrorCode = RefreshSamplesInComboBox(0);
-				if (iErrorCode < 0)
-				{
-					if (iErrorCode != -1)
-						ShowMessage("unable to refresh samples in ComboBox! (code=" + String(iErrorCode) + ")");
-					return;
-				}
-			}
-		}
+    try
+    {
+      FormMain->BusyCount++;
+
+      if (m_sampIndex >= 0 && m_sampIndex < ComboBoxSampNames->Items->Count)
+      {
+        iError = SendParmsToMachine(m_sampIndex);
+
+        if (iError < 0)
+        {
+          if (iError != -1)
+            ShowMessage("Error in SendParmsToMachine(), (code=" +
+                                                    String(iError) + ")");
+          iError = RefreshSamplesInComboBox(0);
+          if (iError < 0)
+          {
+            if (iError != -1)
+              ShowMessage("unable to refresh samples in ComboBox! (code=" + String(iError) + ")");
+            return;
+          }
+        }
+      }
+    }
+    __finally
+    {
+      FormMain->BusyCount--;
+    }
 	}
 }
 //---------------------------------------------------------------------------
@@ -686,7 +725,7 @@ int __fastcall TFormEditSampParms::SaveSampParmsToFile(void)
 {
 	try
 	{
-		int iFileHandle = 0;
+		long lFileHandle = 0;
 
 		try
 		{
@@ -700,35 +739,35 @@ int __fastcall TFormEditSampParms::SaveSampParmsToFile(void)
 			if (!FileExists(m_sFilePath))
 				return -2;
 
-			iFileHandle = FileOpen(m_sFilePath, fmShareDenyNone | fmOpenReadWrite);
+			lFileHandle = FileOpen(m_sFilePath, fmShareDenyNone | fmOpenReadWrite);
 
-			if (iFileHandle == 0)
+			if (lFileHandle == 0)
 				return -3;
 
 			// .aki file
 			UInt32 iMagicNumber;
-			int byteCount = FileRead(iFileHandle, &iMagicNumber, UINT32SIZE);
+			int byteCount = FileRead(lFileHandle, &iMagicNumber, UINT32SIZE);
 			if (byteCount < UINT32SIZE)
 				return -4;
 			if (iMagicNumber != MAGIC_NUM_AKI)
 				return -5;
 
-			int iErrorCode = ParmsFromGui();
-			if (iErrorCode < 0)
+			int iError = ParmsFromGui();
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
+				if (iError != -1)
 					ShowMessage("Error in ParmsFromGui(), (code=" +
-																									String(iErrorCode) + ")");
+																									String(iError) + ")");
 				return -1;
 			}
 
-			byteCount = FileWrite(iFileHandle, &m_ps, AKI_FILE_HEADER_SIZE); // write 72 bytes
+			byteCount = FileWrite(lFileHandle, &m_ps, AKI_FILE_HEADER_SIZE); // write 72 bytes
 			if (byteCount < (int)AKI_FILE_HEADER_SIZE)
 				return -6;
 		}
 		__finally
 		{
-			if (iFileHandle) FileClose(iFileHandle);
+			if (lFileHandle) FileClose(lFileHandle);
 		}
 		return 0;
 	}
@@ -740,12 +779,12 @@ int __fastcall TFormEditSampParms::SaveSampParmsToFile(void)
 //---------------------------------------------------------------------------
 void __fastcall TFormEditSampParms::MenuLoadFromAkiFileClick(TObject *Sender)
 {
-		int iErrorCode = LoadSampParmsFromFile();
+		int iError = LoadSampParmsFromFile();
 
-		if (iErrorCode < 0)
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
-				ShowMessage("Problem loading file (code=" + String(iErrorCode) + ")");
+			if (iError != -1)
+				ShowMessage("Problem loading file (code=" + String(iError) + ")");
 		}
 }
 //---------------------------------------------------------------------------
@@ -765,15 +804,15 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromFile(void)
 		return -1; // Cancel
 
 	String sFilePath = OpenDialog1->FileName;
-	int iFileHandle = 0;
+	long lFileHandle = 0;
 
 	try
 	{
 		try
 		{
-			iFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenRead);
+			lFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenRead);
 
-			if (iFileHandle == 0)
+			if (lFileHandle == 0)
 				return -2;
 
 			MenuSave->Enabled = false;
@@ -781,12 +820,12 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromFile(void)
 
 			// .aki file
 			UInt32 iMagicNumber;
-			int bytesRead = FileRead(iFileHandle, &iMagicNumber, UINT32SIZE);
+			int bytesRead = FileRead(lFileHandle, &iMagicNumber, UINT32SIZE);
 			if (bytesRead < UINT32SIZE)
 				return -3;
 			if (iMagicNumber != MAGIC_NUM_AKI)
 				return -4;
-			bytesRead = FileRead(iFileHandle, &m_ps, AKI_FILE_HEADER_SIZE); // read 72 bytes
+			bytesRead = FileRead(lFileHandle, &m_ps, AKI_FILE_HEADER_SIZE); // read 72 bytes
 			if (bytesRead < (int)AKI_FILE_HEADER_SIZE)
 				return -5;
 			if (ParmsToGui(SOURCE_FILE) < 0)
@@ -794,7 +833,7 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromFile(void)
 		}
 		__finally
 		{
-			if (iFileHandle) FileClose(iFileHandle);
+			if (lFileHandle) FileClose(lFileHandle);
 		}
 
 		m_sFilePath = sFilePath; // set global path
@@ -810,16 +849,29 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromFile(void)
 // Get samp parms from machine
 void __fastcall TFormEditSampParms::ComboBoxSampNamesSelect(TObject *Sender)
 {
-	// here, the user has selected a sample from the drop-down list
-	// we keep the index reported by the catalog in the Combo box's Objects property
-	int idx = (int)ComboBoxSampNames->Items->Objects[ComboBoxSampNames->ItemIndex];
-	int iErrorCode = LoadSampParmsFromMachine(idx);
-	if (iErrorCode < 0)
-	{
-		if (iErrorCode != -1)
-			ShowMessage("Error in LoadProgramFromMachine(), (code=" +
-																							String(iErrorCode) + ")");
-	}
+  // don't allow multiple button presses
+  if (IsBusy())
+    return;
+
+  try
+  {
+    FormMain->BusyCount++;
+
+    // here, the user has selected a sample from the drop-down list
+    // we keep the index reported by the catalog in the Combo box's Objects property
+    int idx = (int)ComboBoxSampNames->Items->Objects[ComboBoxSampNames->ItemIndex];
+    int iError = LoadSampParmsFromMachine(idx);
+    if (iError < 0)
+    {
+      if (iError != -1)
+        ShowMessage("Error in LoadProgramFromMachine(), (code=" +
+                                                String(iError) + ")");
+    }
+  }
+  __finally
+  {
+    FormMain->BusyCount--;
+  }
 }
 //---------------------------------------------------------------------------
 // Get samp parms from machine
@@ -836,10 +888,10 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromMachine(int iSampIdx)
 		ButtonSendOrSave->Enabled = false;
 
 		// get the samp parms into TempArray
-		int iErrorCode = FormMain->LoadSampParmsToTempArray(iSampIdx);
-		if (iErrorCode < 0)
+		int iError = FormMain->LoadSampParmsToTempArray(iSampIdx);
+		if (iError < 0)
 		{
-			switch(iErrorCode)
+			switch(iError)
 			{
 				case -2:
 						ShowMessage("transmit timeout!");
@@ -865,19 +917,19 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromMachine(int iSampIdx)
 		// copy m_temp_array into m_samp_parms
 		memcpy(m_samp_parms, FormMain->TempArray, PARMSIZ);
 
-		iErrorCode = ParmsFromArray();
-		if (iErrorCode < 0)
+		iError = ParmsFromArray();
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
-				ShowMessage("Could not convert parameters from TempArray! (code=" + String(iErrorCode) + ")");
+			if (iError != -1)
+				ShowMessage("Could not convert parameters from TempArray! (code=" + String(iError) + ")");
 			return -1;
 		}
 
-		iErrorCode = ParmsToGui(SOURCE_MACHINE);
-		if (iErrorCode < 0)
+		iError = ParmsToGui(SOURCE_MACHINE);
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
-				ShowMessage("Could not convert parameters to Gui! (code=" + String(iErrorCode) + ")");
+			if (iError != -1)
+				ShowMessage("Could not convert parameters to Gui! (code=" + String(iError) + ")");
 			return -1;
 		}
 

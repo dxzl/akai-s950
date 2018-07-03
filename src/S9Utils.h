@@ -6,6 +6,11 @@
 //---------------------------------------------------------------------------
 namespace S9Utils
 {
+  bool __fastcall IsBusy(void);
+  bool __fastcall IsBlackKey(int iKey);
+  bool __fastcall IsWhiteKey(int iKey);
+  int __fastcall NextWhiteKey(int iKey);
+  int __fastcall NextBlackKey(int iKey);
 	String __fastcall KeyToString(Byte key);
 	int __fastcall StringToKey(String s);
 	bool __fastcall CharIsNote(char c);

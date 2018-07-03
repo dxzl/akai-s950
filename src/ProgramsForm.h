@@ -13,12 +13,22 @@
 
 //#include "MainForm.h"
 
-//---------------------------------------------------------------------------
 #define PADROWS 3
 #define PADCOLS 1
 
-#define PROGHEDRSIZ (76+7)
-#define KEYGROUPSIZ 140
+#define KEY_MIDDLE_C (24+12+12+12) // 60
+
+#define S_SELECTED " (selected)"
+//---------------------------------------------------------------------------
+// Columns in grid
+#define C_KEYGROUP          0
+#define C_SS_COARSEPITCH    (3+PADCOLS)
+#define C_SS_FINEPITCH      (4+PADCOLS)
+#define C_MIDIOFFSET        (5+PADCOLS)
+#define C_LOWKEY            (6+PADCOLS)
+#define C_HIGHKEY           (7+PADCOLS)
+
+//---------------------------------------------------------------------------
 
 // Program header
 #define PRNAME   7  // 10 bytes
@@ -264,12 +274,24 @@ __published:    // IDE-managed Components
 	TButton *ButtonKgDefaults;
 	TMenuItem *N3;
 	TMenuItem *MenuShowUndefined;
-		void __fastcall FormCreate(TObject *Sender);
-		void __fastcall ButtonCloseClick(TObject *Sender);
-		void __fastcall ButtonSendClick(TObject *Sender);
-		void __fastcall DeleteKeygroup1Click(TObject *Sender);
-		void __fastcall CopyKeygroup1Click(TObject *Sender);
-		void __fastcall SGRowMoved(TObject *Sender, int FromIndex, int ToIndex);
+  TMenuItem *MenuTools;
+  TMenuItem *MenuDrumifyWhite;
+  TMenuItem *MenuOctifyKG;
+  TMenuItem *MenuMidifyKeygroups;
+  TButton *ButtonSelectAll;
+  TMenuItem *N4;
+  TMenuItem *MenuClearSelected;
+  TMenuItem *MenuDrumifyBlack;
+  TMenuItem *MenuDrumify;
+  TMenuItem *MenuSelectAll;
+  TMenuItem *MenuDeleteSelectedKeygroups;
+  TMenuItem *N5;
+  void __fastcall FormCreate(TObject *Sender);
+  void __fastcall ButtonCloseClick(TObject *Sender);
+  void __fastcall ButtonSendClick(TObject *Sender);
+  void __fastcall DeleteKeygroup1Click(TObject *Sender);
+  void __fastcall CopyKeygroup1Click(TObject *Sender);
+  void __fastcall SGRowMoved(TObject *Sender, int FromIndex, int ToIndex);
 	void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
 	void __fastcall FormDestroy(TObject *Sender);
 	void __fastcall MenuSaveIntoPrgFileClick(TObject *Sender);
@@ -285,6 +307,17 @@ __published:    // IDE-managed Components
 	void __fastcall ButtonKgDefaultsClick(TObject *Sender);
 	void __fastcall MenuShowUndefinedClick(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
+  void __fastcall MenuDrumifyWhiteClick(TObject *Sender);
+  void __fastcall MenuOctifyKGClick(TObject *Sender);
+  void __fastcall MenuMidifyKeygroupsClick(TObject *Sender);
+  void __fastcall SGMouseDown(TObject *Sender, TMouseButton Button, TShiftState Shift,
+          int X, int Y);
+  void __fastcall ButtonSelectAllClick(TObject *Sender);
+  void __fastcall MenuDrumifyBlackClick(TObject *Sender);
+  void __fastcall MenuDrumifyClick(TObject *Sender);
+  void __fastcall MenuSelectAllClick(TObject *Sender);
+  void __fastcall MenuClearSelectedClick(TObject *Sender);
+  void __fastcall MenuDeleteSelectedKeygroupsClick(TObject *Sender);
 
 private:    // User declarations
 	void __fastcall InitKeygroupCells(void);
@@ -303,34 +336,39 @@ private:    // User declarations
 	String __fastcall GetFinePitch(Int16 rawPitch);
 	String __fastcall GetCoarsePitch(Int16 rawPitch);
 	String __fastcall GetNewProgName(String sName);
-	int __fastcall ReadNamesInPrgFile(int iFileHandle, TStringList* sl);
-	int __fastcall ProgFromFileToTempArray(int iFileHandle, int iFileOffset);
+	int __fastcall ReadNamesInPrgFile(long lFileHandle, TStringList* sl);
+	int __fastcall ProgFromFileToTempArray(long lFileHandle, int iFileOffset);
 	int __fastcall ProgFromTempArrayToGui(void);
-	int __fastcall ProgFromFileToGui(int iFileHandle, int iFileOffset);
+	int __fastcall ProgFromFileToGui(long lFileHandle, int iFileOffset);
 	void __fastcall LoadOrDeleteProgramFromFile(bool bLoad);
 	int __fastcall LoadProgramFromMachine(int iPrgIdx);
-	int __fastcall DeletePrgFromFile(String sFilePath, int &iFileHandle, int iFileOffset);
+	int __fastcall DeletePrgFromFile(String sFilePath, long &lFileHandle, int iFileOffset);
 	int __fastcall GridToTempArray(int progIdx);
-	int __fastcall GridToFile(int iFileHandle);
+	int __fastcall GridToFile(long lFileHandle);
 	void __fastcall ClearStringGrid(void);
 	void __fastcall SendProgramToMachine(void);
 	int __fastcall RefreshProgramsInComboBox(int iSampIdx);
 	void __fastcall RefreshKeygroupsFromSampleList(void);
 	int __fastcall RefreshCatalog(void);
+  int __fastcall CountSelected(void);
+  void __fastcall SetButtonText(int iOldCount, int iNewCount);
+  void __fastcall SelectAllKeygroups(bool bSelect);
+  void __fastcall DeleteSelectedKeygroups(void);
+  int __fastcall DeleteKeygroup(int iRow);
 
 	TStringList* SampleData;
 	TStringList* ProgramData;
 
 	// fixed size of one keygroup (one row in grid) is 140 bytes
 	// DB is 2 bytes DW is 4 bytes, DD is 8 bytes, sample name is 10 DBs
-	Byte kg[KEYGROUPSIZ]; // encoded array for midi transmission
+	Byte kg[PROGKEYGROUPSIZ]; // encoded array for midi transmission
 	KEYGROUP KeyGroup; // current working keygroup struct
 
 	// Programs header info
-	Byte pg[PROGHEDRSIZ]; // encoded array for midi transmission
+	Byte pg[PROGHEADERSIZ]; // encoded array for midi transmission
 	PRGHEDR ProgramHeader; // current working program header struct
 
-  int m_progIndex;
+  int m_progIndex, m_selectCount;
 
 public:        // User declarations
 		__fastcall TFormProgram(TComponent* Owner);

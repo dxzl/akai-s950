@@ -37,9 +37,10 @@ void __fastcall TFormProgram::FormCreate(TObject *Sender)
 
   ButtonSend->Enabled = false;
   MenuSendToMachine->Enabled = false;
-  MenuSaveIntoPrgFile->Enabled = false;
+  MenuSaveIntoPrgFile->Enabled = true;
 
 	m_progIndex = -1;
+  m_selectCount = 0;
 
 	SampleData = NULL;
 	ProgramData = NULL;
@@ -62,7 +63,7 @@ void __fastcall TFormProgram::FormCreate(TObject *Sender)
 	SG->Cells[3][1] = "";
 	SG->Cells[3][2] = "(+/- 50)";
 	SG->Cells[4][0] = "SS Coarse Pitch";
-	SG->Cells[4][1] = "(+/- 50";
+	SG->Cells[4][1] = "(+/- 127";
 	SG->Cells[4][2] = "semitones)";
 	SG->Cells[5][0] = "SS Fine Pitch";
 	SG->Cells[5][1] = "(+/- 99";
@@ -70,12 +71,12 @@ void __fastcall TFormProgram::FormCreate(TObject *Sender)
 	SG->Cells[6][0] = "Midi Offset (0-15)";
 	SG->Cells[6][1] = "(added to base";
 	SG->Cells[6][2] = "channel)";
-	SG->Cells[7][0] = "Lower Key";
-	SG->Cells[7][1] = "(-2C to +8G,";
-	SG->Cells[7][2] = "sharp-# flat-b)";
-	SG->Cells[8][0] = "Upper Key";
-	SG->Cells[8][1] = "(-2C to +8G,";
-	SG->Cells[8][2] = "sharp-# flat-b)";
+	SG->Cells[C_LOWKEY][0] = "Lower Key";
+	SG->Cells[C_LOWKEY][1] = "(-2C to +8G,";
+	SG->Cells[C_LOWKEY][2] = "sharp-# flat-b)";
+	SG->Cells[C_HIGHKEY][0] = "Upper Key";
+	SG->Cells[C_HIGHKEY][1] = "(-2C to +8G,";
+	SG->Cells[C_HIGHKEY][2] = "sharp-# flat-b)";
 	SG->Cells[9][0] = "Attack";
 	SG->Cells[9][1] = "(0-99)";
 	SG->Cells[9][2] = "";
@@ -167,7 +168,7 @@ void __fastcall TFormProgram::FormCreate(TObject *Sender)
 	SG->Cells[36][1] = "";
 	SG->Cells[36][2] = "(+/- 50)";
 	SG->Cells[37][0] = "LS Coarse Pitch";
-	SG->Cells[37][1] = "(+/- 50";
+	SG->Cells[37][1] = "(+/- 127";
 	SG->Cells[37][2] = "semitones)";
 	SG->Cells[38][0] = "LS Fine Pitch";
 	SG->Cells[38][1] = "(+/- 99";
@@ -192,6 +193,8 @@ void __fastcall TFormProgram::FormCreate(TObject *Sender)
 	SG->Cells[44][0] = "Transpose"; // Inverse!
 	SG->Cells[44][1] = "(0=Off";
 	SG->Cells[44][2] = "1=On)";
+
+  ButtonSelectAll->Caption = "Select All";
 
 	ButtonRefreshProgramsListClick(NULL);
 	RefreshKeygroupsFromSampleList();
@@ -224,11 +227,11 @@ int __fastcall TFormProgram::KeygroupToGui(int index, bool bSkipNames)
 
 		SG->Cells[1+PADCOLS][iRow] = String(KeyGroup.SoftSampFilter); // soft-sample filter (0-99)
 		SG->Cells[2+PADCOLS][iRow] = String(KeyGroup.SoftSampLoudness); // soft-sample velocity loudness (0-99)
-		SG->Cells[3+PADCOLS][iRow] = GetCoarsePitch(KeyGroup.SoftSampTransposeOffset); // course pitch offset (+/- 50)
+		SG->Cells[3+PADCOLS][iRow] = GetCoarsePitch(KeyGroup.SoftSampTransposeOffset); // course pitch offset (+/- 127)
 		SG->Cells[4+PADCOLS][iRow] = GetFinePitch(KeyGroup.SoftSampTransposeOffset); // fine pitch offset (+/- 99)
 		SG->Cells[5+PADCOLS][iRow] = String(KeyGroup.MidiOffset); // midi offset (0-15)
-		SG->Cells[6+PADCOLS][iRow] = KeyToString(KeyGroup.LowerMidiKey); // low key (0-127)
-		SG->Cells[7+PADCOLS][iRow] = KeyToString(KeyGroup.UpperMidiKey); // high key (0-127)
+		SG->Cells[C_LOWKEY][iRow] = KeyToString(KeyGroup.LowerMidiKey); // low key (0-127)
+		SG->Cells[C_HIGHKEY][iRow] = KeyToString(KeyGroup.UpperMidiKey); // high key (0-127)
 		SG->Cells[8+PADCOLS][iRow] = String(KeyGroup.AttackTime); // attack (0-99)
 		SG->Cells[9+PADCOLS][iRow] = String(KeyGroup.DecayTime); // decay (0-99)
 		SG->Cells[10+PADCOLS][iRow] = String(KeyGroup.SustLevel); // sustain (0-99)
@@ -314,12 +317,12 @@ int __fastcall TFormProgram::KeygroupFromGui(int index)
 
 		// If the grid does not let the user set all possible parameters,
 		// then we need some defaults!
-		int iErrorCode = KeygroupLoadDefaults();
-		if (iErrorCode < 0)
+		int iError = KeygroupLoadDefaults();
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
+			if (iError != -1)
 				ShowMessage("Error in KeygroupLoadDefaults(), (code=" +
-																							String(iErrorCode) + ")");
+																							String(iError) + ")");
 			return -1;
 		}
 
@@ -352,8 +355,9 @@ int __fastcall TFormProgram::KeygroupFromGui(int index)
 			KeyGroup.SoftSampLoudness = 0;
 		}
 
+    // coarse pitch, semitones
 		iTemp = SG->Cells[3+PADCOLS][iRow].ToIntDef(-1000);
-		if (iTemp >= -50 && iTemp <= 50)
+		if (iTemp >= -127 && iTemp <= 127)
 			KeyGroup.SoftSampTransposeOffset = iTemp*16; // +/- course transpose in semitone steps
 		else
 		{
@@ -377,21 +381,21 @@ int __fastcall TFormProgram::KeygroupFromGui(int index)
 			KeyGroup.MidiOffset = 0;
 		}
 
-		iTemp = StringToKey(SG->Cells[6+PADCOLS][iRow]);
+		iTemp = StringToKey(SG->Cells[C_LOWKEY][iRow]);
 		if (iTemp >= 0 && iTemp <= 127)
 			KeyGroup.LowerMidiKey = iTemp; // low key (0-127)
 		else
 		{
-			SG->Cells[6+PADCOLS][iRow] = "+0C";
+			SG->Cells[C_LOWKEY][iRow] = "+0C";
 			KeyGroup.LowerMidiKey = 24;
 		}
 
-		iTemp = StringToKey(SG->Cells[7+PADCOLS][iRow]);
+		iTemp = StringToKey(SG->Cells[C_HIGHKEY][iRow]);
 		if (iTemp >= 0 && iTemp <= 127)
 			KeyGroup.UpperMidiKey = iTemp; // high key (0-127)
 		else
 		{
-			SG->Cells[7+PADCOLS][iRow] = "+8G";
+			SG->Cells[C_HIGHKEY][iRow] = "+8G";
 			KeyGroup.UpperMidiKey = 127;
 		}
 
@@ -684,7 +688,7 @@ int __fastcall TFormProgram::KeygroupFromGui(int index)
 
 		// Loud-sample coarse pitch (semitones)
 		iTemp = SG->Cells[36+PADCOLS][iRow].ToIntDef(-1000);
-		if (iTemp >= -50 && iTemp <= 50)
+		if (iTemp >= -127 && iTemp <= 127)
 			KeyGroup.LoudSampTransposeOffset = iTemp*16; // +/- course transpose in semitone steps
 		else
 		{
@@ -789,7 +793,7 @@ int __fastcall TFormProgram::HeaderToGui(void)
 {
 	try
 	{
-		ComboBoxProgNames->Text = String(ProgramHeader.ProgName).Trim();
+		ComboBoxProgNames->Text = String(ProgramHeader.ProgName).TrimRight();
 		EditKeyTilt->Text = String(ProgramHeader.KeyTilt);
 		EditMidiPrgNum->Text = String(ProgramHeader.MidiPgmNumber);
 		CheckBoxPosXfade->Checked = ProgramHeader.PosXfade == 0 ? false : true;
@@ -828,16 +832,16 @@ int __fastcall TFormProgram::HeaderFromGui(void)
 
 		// If the grid does not let the user set all possible parameters,
 		// then we need some defaults!
-		int iErrorCode = HeaderLoadDefaults(NumKeyGroups);
-		if (iErrorCode < 0)
+		int iError = HeaderLoadDefaults(NumKeyGroups);
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
+			if (iError != -1)
 				ShowMessage("Error in HeaderLoadDefaults(), (code=" +
-																							String(iErrorCode) + ")");
+																							String(iError) + ")");
 			return -1;
 		}
 
-		AnsiString sTemp = ComboBoxProgNames->Text.Trim();
+		AnsiString sTemp = ComboBoxProgNames->Text.TrimRight();
 
 		if (!NameOk(sTemp))
 		{
@@ -888,21 +892,21 @@ void __fastcall TFormProgram::ButtonKgDefaultsClick(TObject *Sender)
 
 		if (iRow >= PADROWS && iRow < SG->RowCount)
 		{
-			int iErrorCode = KeygroupLoadDefaults(); // load defaults into KeyGroup
+			int iError = KeygroupLoadDefaults(); // load defaults into KeyGroup
 
-			if (iErrorCode < 0)
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
-					ShowMessage("Unable to load keygroup defaults KeygroupLoadDefaults()! (code=" + String(iErrorCode) + ")");
+				if (iError != -1)
+					ShowMessage("Unable to load keygroup defaults KeygroupLoadDefaults()! (code=" + String(iError) + ")");
 				return;
 			}
 
-			iErrorCode = KeygroupToGui(iRow-PADROWS, true);
+			iError = KeygroupToGui(iRow-PADROWS, true);
 
-			if (iErrorCode < 0)
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
-					ShowMessage("Unable to load keygroup defaults KeyGroupToGui()! (code=" + String(iErrorCode) + ")");
+				if (iError != -1)
+					ShowMessage("Unable to load keygroup defaults KeyGroupToGui()! (code=" + String(iError) + ")");
 				return;
 			}
 
@@ -988,7 +992,7 @@ int __fastcall TFormProgram::HeaderToArray(int progIdx)
 	try
 	{
 		// Clear pg array to all 0
-		memset(pg, 0, PROGHEDRSIZ);
+		memset(pg, 0, PROGHEADERSIZ);
 
 		pg[0] = BEX;
 		pg[1] = AKAI_ID;
@@ -1083,7 +1087,7 @@ int __fastcall TFormProgram::KeygroupToArray(void)
 	try
 	{
 		// Clear kg array to all 0
-		memset(kg, 0, KEYGROUPSIZ);
+		memset(kg, 0, PROGKEYGROUPSIZ);
 
 		encodeDB(KeyGroup.UpperMidiKey, &kg[UMK]);
 		encodeDB(KeyGroup.LowerMidiKey, &kg[LMK]);
@@ -1220,12 +1224,25 @@ int __fastcall TFormProgram::KeygroupFromArray(void)
 //---------------------------------------------------------------------------
 void __fastcall TFormProgram::ButtonRefreshProgramsListClick(TObject *Sender)
 {
-	// refresh the catalog
-	int iErrorCode = RefreshCatalog();
-	if (iErrorCode < 0 && iErrorCode != -1)
-		ShowMessage("Error: unable to allocate SampleData/ProgramData! (code=" + String(iErrorCode) + ")");
+  // don't allow multiple button presses
+  if (IsBusy())
+    return;
 
-	RefreshProgramsInComboBox(0);
+  try
+  {
+    FormMain->BusyCount++;
+
+    // refresh the catalog
+    int iError = RefreshCatalog();
+    if (iError < 0 && iError != -1)
+      ShowMessage("Error: unable to allocate SampleData/ProgramData! (code=" + String(iError) + ")");
+
+    RefreshProgramsInComboBox(0);
+  }
+  __finally
+  {
+    FormMain->BusyCount--;
+  }
 }
 //---------------------------------------------------------------------------
 // return 0 if success
@@ -1233,19 +1250,18 @@ int __fastcall TFormProgram::RefreshCatalog(void)
 {
 	try
 	{
+		int iError = FormMain->GetCatalog();
 
-		int iErrorCode = FormMain->GetCatalog();
-
-		if (iErrorCode < 0)
+		if (iError < 0)
 		{
-			if (iErrorCode == -2)
+			if (iError == -2)
 				ShowMessage("Transmit timeout requesting catalog!");
-			else if (iErrorCode == -3)
+			else if (iError == -3)
 				ShowMessage("Timeout receiving catalog!");
-			else if (iErrorCode == -4)
+			else if (iError == -4)
 				ShowMessage("Incorrect catalog received!");
 			else
-				ShowMessage("Not able to get catalog, check power and cables... (code=" + String(iErrorCode) + ")");
+				ShowMessage("Not able to get catalog, check power and cables... (code=" + String(iError) + ")");
 			return -1;
 		}
 
@@ -1257,8 +1273,8 @@ int __fastcall TFormProgram::RefreshCatalog(void)
 			delete ProgramData;
 
 		// Create new TStringList for catalog data
-		SampleData = FormMain->SampleData;
-		ProgramData = FormMain->ProgramData;
+		SampleData = FormMain->CatalogSampleData;
+		ProgramData = FormMain->CatalogProgramData;
 
 		if (!ProgramData || !SampleData)
 			return -2;
@@ -1377,91 +1393,112 @@ void __fastcall TFormProgram::MenuSendToMachineClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TFormProgram::SendProgramToMachine(void)
 {
-	AnsiString sProgName = ComboBoxProgNames->Text.TrimRight();
-	ComboBoxProgNames->Text = sProgName;
-
-	if (!NameOk(sProgName))
-	{
-		ShowMessage("Name must be 1-10 ASCII characters!");
-		ComboBoxProgNames->SetFocus();
-		return;
-	}
-
-	// iProgIdx, we have the indices of names on the target machine from
-	// the catalog stored both in the drop-down combo-box and the
-	// ProgramData TStringList. The actual index is stored in the Items->Objects[]
-	// field. We also have the count of programs on the machine. So if we
-	// have a new program name in ComboBoxProgNames->Text, that's not in the
-	// drop-down list, set iProgIdx to ComboBoxProgNames->Items->Count. Otherwise,
-	// set it to the matching Items->Objects[].
-	int iProgIdx;
-
-	int iItemIdx = ComboBoxProgNames->Items->IndexOf(sProgName);
-
-	if (iItemIdx < 0)
-	{
-		// if already MAX_PROGS in list and the new name isn't one of them
-		// print an error
-		if (ComboBoxProgNames->Items->Count >= MAX_PROGS)
-		{
-			ShowMessage(String(MAX_PROGS) +
-						" programs exist on machine... can't add"
-						" more. You must delete a program on the"
-						" machine or edit an existing program!");
-			return;
-		}
-		iProgIdx = ComboBoxProgNames->Items->Count; // we have a new program
-	}
-	else
-	{
-		String s = "\r\n\r\n\"" + sProgName +
-			"\" exists on the machine already, overwrite it?";
-		int button = MessageBox(Handle, s.w_str(), L"S900/S950",
-							MB_ICONQUESTION + MB_YESNO + MB_DEFBUTTON2);
-
-		if (button == IDNO) return;
-
-		iProgIdx = (int)ComboBoxProgNames->Items->Objects[iItemIdx]; // overwrite old program
-	}
-
-	int progSize = GridToTempArray(iProgIdx);
-
-	if (progSize < 2+PROGHEDRSIZ+KEYGROUPSIZ)
-	{
-		if (progSize != -1)
-			ShowMessage("problem converting grid values! (code=" + String(progSize) + ")");
-		return;
-	}
-
-	// send program to Akai S950/S900, with delay
-	if (!FormMain->comws(progSize, FormMain->TempArray, true))
-	{
-		ShowMessage("Unable to send... try again or close...");
-		return;
-	}
-
-	// better delay a bit...
-	FormMain->DelayGpTimer(DELAY_BETWEEN_EACH_PROGRAM_TX);
-
-	// refresh the catalog
-	int iErrorCode = RefreshCatalog();
-	if (iErrorCode < 0)
-  {
-    if (iErrorCode != -1)
-		ShowMessage("Error: unable to allocate SampleData/ProgramData! (code=" + String(iErrorCode) + ")");
+  // don't allow multiple button presses
+  if (IsBusy())
     return;
+
+  try
+  {
+    FormMain->BusyCount++;
+
+    try
+    {
+      AnsiString sProgName = ComboBoxProgNames->Text.TrimRight();
+      ComboBoxProgNames->Text = sProgName;
+
+      if (!NameOk(sProgName))
+      {
+        ShowMessage("Name must be 1-10 ASCII characters!");
+        ComboBoxProgNames->SetFocus();
+        return;
+      }
+
+      // iProgIdx, we have the indices of names on the target machine from
+      // the catalog stored both in the drop-down combo-box and the
+      // ProgramData TStringList. The actual index is stored in the Items->Objects[]
+      // field. We also have the count of programs on the machine. So if we
+      // have a new program name in ComboBoxProgNames->Text, that's not in the
+      // drop-down list, set iProgIdx to ComboBoxProgNames->Items->Count. Otherwise,
+      // set it to the matching Items->Objects[].
+      int iProgIdx;
+
+      int iItemIdx = ComboBoxProgNames->Items->IndexOf(sProgName);
+
+      if (iItemIdx < 0)
+      {
+        // if already MAX_PROGS in list and the new name isn't one of them
+        // print an error
+        if (ComboBoxProgNames->Items->Count >= MAX_PROGS)
+        {
+          ShowMessage(String(MAX_PROGS) +
+                " programs exist on machine... can't add"
+                " more. You must delete a program on the"
+                " machine or edit an existing program!");
+          return;
+        }
+        iProgIdx = ComboBoxProgNames->Items->Count; // we have a new program
+      }
+      else
+      {
+        String s = "\r\n\r\n\"" + sProgName +
+          "\" exists on the machine already, overwrite it?";
+        int button = MessageBox(Handle, s.w_str(), L"S900/S950",
+                  MB_ICONQUESTION + MB_YESNO + MB_DEFBUTTON2);
+
+        if (button == IDNO) return;
+
+        iProgIdx = (int)ComboBoxProgNames->Items->Objects[iItemIdx]; // overwrite old program
+      }
+
+      int progSize = GridToTempArray(iProgIdx);
+
+      if (progSize < 2+PROGHEADERSIZ+PROGKEYGROUPSIZ)
+      {
+        if (progSize != -1)
+          ShowMessage("problem converting grid values! (code=" + String(progSize) + ")");
+        return;
+      }
+
+      // send program to Akai S950/S900, with delay
+      if (!FormMain->comws(progSize, FormMain->TempArray, true))
+      {
+        ShowMessage("Unable to send... try again or close...");
+        return;
+      }
+
+      // better delay a bit...
+      FormMain->DelayGpTimer(DELAY_BETWEEN_EACH_PROGRAM_TX);
+
+      // refresh the catalog
+      int iError = RefreshCatalog();
+      if (iError < 0)
+      {
+        if (iError != -1)
+        ShowMessage("Error: unable to allocate SampleData/ProgramData! (code=" + String(iError) + ")");
+        return;
+      }
+
+      // find our name in the catalog
+      iItemIdx = ProgramData->IndexOf(sProgName);
+
+      if (iItemIdx < 0)
+      {
+        ShowMessage("Error: The program we just tried to write does not appear in the catalog! \"" + sProgName + "\"");
+        iItemIdx = 0;
+      }
+
+      RefreshProgramsInComboBox(iItemIdx);
+    }
+    catch(...)
+    {
+      ShowMessage("Unknown problem in SendProgramToMachine()!");
+      return;
+    }
   }
-
-	// find our name in the catalog
-	iItemIdx = ProgramData->IndexOf(sProgName);
-
-	if (iItemIdx < 0)
-	{
-		ShowMessage("Error: The program we just tried to write does not appear in the catalog! \"" + sProgName + "\"");
-		iItemIdx = 0;
-	}
-
-	RefreshProgramsInComboBox(iItemIdx);
+  __finally
+  {
+    FormMain->BusyCount--;
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormProgram::InitKeygroupCells(void)
@@ -1490,12 +1527,12 @@ void __fastcall TFormProgram::InitKeygroupCells(void)
 			sName += String(ii);
 		}
 		else
-			sName = SampleData->Strings[ii].Trim();
+			sName = SampleData->Strings[ii].TrimRight();
 
-		strncpy(&KeyGroup.SoftSampleName[0], sName.c_str(), MAX_NAME_S900);
+		strncpy(KeyGroup.SoftSampleName, sName.c_str(), MAX_NAME_S900);
 		KeyGroup.SoftSampleName[MAX_NAME_S900] = '\0';
 
-		strncpy(&KeyGroup.LoudSampleName[0], sName.c_str(), MAX_NAME_S900);
+		strncpy(KeyGroup.LoudSampleName, sName.c_str(), MAX_NAME_S900);
 		KeyGroup.LoudSampleName[MAX_NAME_S900] = '\0';
 
 		if (KeygroupToGui(ii) < 0)
@@ -1530,8 +1567,26 @@ void __fastcall TFormProgram::UpdateKeygroupNumbers(void)
       ButtonAddKg->Enabled = true;
   }
 
+  int iOldCount = m_selectCount;
+  m_selectCount = 0;
+
 	for (int ii = 0; ii < NumKeyGroups; ii++)
-		SG->Cells[PADCOLS-1][ii+PADROWS] = String(ii+1); // keygroup #
+  {
+		String s = String(ii+1); // keygroup #
+
+    int row = ii+PADROWS;
+
+    // Increment select-count if selected... (we use Objects[0] as select flag)
+    if ((int)SG->Rows[row]->Objects[0] != 0)
+    {
+      m_selectCount++;
+      s += S_SELECTED;
+    }
+
+    SG->Cells[PADCOLS-1][row] = s;
+  }
+
+  SetButtonText(iOldCount, m_selectCount);
 
 	// this seems to make some "vanishing cell text" issues go away...
 	SG->EditorMode = true;
@@ -1555,19 +1610,35 @@ void __fastcall TFormProgram::ButtonDelKgClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TFormProgram::DeleteKeygroup1Click(TObject *Sender)
 {
+  DeleteKeygroup(SG->Row);
+}
+//---------------------------------------------------------------------------
+// delete all selected keygroups
+void __fastcall TFormProgram::DeleteSelectedKeygroups(void)
+{
+  for (int iRow = PADROWS; iRow < SG->RowCount; iRow++)
+  {
+    if ((int)SG->Rows[iRow]->Objects[0] != 0)
+      if (DeleteKeygroup(iRow) == 0)
+        iRow--;
+  }
+}
+//---------------------------------------------------------------------------
+int __fastcall TFormProgram::DeleteKeygroup(int iRow)
+{
 	SG->OnRowMoved = NULL;
+  int iOldCount = m_selectCount;
 
 	try
 	{
-		int iRow = SG->Row;
 		int iRowCount = SG->RowCount;
 
 		// don't delete header rows or 1st row!
 		if (iRow < PADROWS || iRowCount <= PADROWS+1)
-			return;
+			return -1;
 
 		// To delete, we move the data up than subtract a row
-		for (int ii = iRow ; ii < iRowCount-1 ; ii++)
+		for (int ii = iRow; ii < iRowCount-1; ii++)
 			SG->Rows[ii]->Assign(SG->Rows[ii + 1]);
 
 		SG->Rows[SG->RowCount-1]->Clear();
@@ -1579,8 +1650,10 @@ void __fastcall TFormProgram::DeleteKeygroup1Click(TObject *Sender)
 	__finally
 	{
 		UpdateKeygroupNumbers();
+    SetButtonText(iOldCount, m_selectCount);
 		SG->OnRowMoved = SGRowMoved;
 	}
+  return 0;
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormProgram::CopyKeygroup1Click(TObject *Sender)
@@ -1629,21 +1702,27 @@ String __fastcall TFormProgram::GetFinePitch(Int16 rawPitch)
 // load program from machine
 void __fastcall TFormProgram::MenuLoadFromMachineClick(TObject *Sender)
 {
+  // don't allow multiple button presses
+  if (IsBusy())
+    return;
+
 	// Add the names to FormListBox and get the selected program
 	TFormListBox* pLB = NULL;
 
 	try
 	{
+    FormMain->BusyCount++;
+
 		try
 		{
 			m_progIndex = -1;
 
 			// refresh the catalog
-			int iErrorCode = RefreshCatalog();
-			if (iErrorCode < 0)
+			int iError = RefreshCatalog();
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
-					ShowMessage("unable to allocate SampleData/ProgramData! (code=" + String(iErrorCode) + ")");
+				if (iError != -1)
+					ShowMessage("unable to allocate SampleData/ProgramData! (code=" + String(iError) + ")");
 				return;
 			}
 
@@ -1674,57 +1753,72 @@ void __fastcall TFormProgram::MenuLoadFromMachineClick(TObject *Sender)
 				iProgIdx = (int)ProgramData->Objects[pLB->ItemOffset];
 			}
 
-			iErrorCode = LoadProgramFromMachine(iProgIdx);
-			if (iErrorCode < 0)
+			iError = LoadProgramFromMachine(iProgIdx);
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
+				if (iError != -1)
 					ShowMessage("Error in LoadProgramFromMachine(), (code=" +
-																									String(iErrorCode) + ")");
+																									String(iError) + ")");
 			}
 
 			// refresh combo-box too!
-			iErrorCode = RefreshProgramsInComboBox(pLB->ItemOffset);
-			if (iErrorCode < 0)
+			iError = RefreshProgramsInComboBox(pLB->ItemOffset);
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
-					ShowMessage("unable to refresh programs in ComboBox! (code=" + String(iErrorCode) + ")");
+				if (iError != -1)
+					ShowMessage("unable to refresh programs in ComboBox! (code=" + String(iError) + ")");
 				return;
 			}
 
 			m_progIndex = iProgIdx; // global index we can use for sending the program back...
 		}
-		__finally
-		{
-			if (pLB) pLB->Release();
-		}
+    catch(...)
+    {
+      ShowMessage("Unable to load program!");
+    }
 	}
-	catch(...)
-	{
-		ShowMessage("Unable to load program!");
-	}
+  __finally
+  {
+    if (pLB) pLB->Release();
+
+    FormMain->BusyCount--;
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormProgram::ComboBoxProgNamesSelect(TObject *Sender)
 {
+  // don't allow multiple button presses
+  if (IsBusy())
+    return;
+
 	try
 	{
-		m_progIndex = -1;
+    FormMain->BusyCount++;
 
-		// here, the user has selected a program from the drop-down list
-		int idx = (int)ComboBoxProgNames->Items->Objects[ComboBoxProgNames->ItemIndex];
-		int iErrorCode = LoadProgramFromMachine(idx);
-		if (iErrorCode < 0)
-		{
-			if (iErrorCode != -1)
-				ShowMessage("Error in LoadProgramFromMachine(), (code=" +
-																								String(iErrorCode) + ")");
-		}
+    try
+    {
+      m_progIndex = -1;
 
-		m_progIndex = idx; // global index we can use for sending the program back...
-	}
-	catch(...)
-	{
-		ShowMessage("Error in ComboBoxProgNamesSelect()!");
+      // here, the user has selected a program from the drop-down list
+      int idx = (int)ComboBoxProgNames->Items->Objects[ComboBoxProgNames->ItemIndex];
+      int iError = LoadProgramFromMachine(idx);
+      if (iError < 0)
+      {
+        if (iError != -1)
+          ShowMessage("Error in LoadProgramFromMachine(), (code=" +
+                                                  String(iError) + ")");
+      }
+
+      m_progIndex = idx; // global index we can use for sending the program back...
+    }
+    catch(...)
+    {
+      ShowMessage("Error in ComboBoxProgNamesSelect()!");
+    }
+  }
+  __finally
+  {
+    FormMain->BusyCount--;
   }
 }
 //---------------------------------------------------------------------------
@@ -1734,28 +1828,26 @@ int __fastcall TFormProgram::LoadProgramFromMachine(int iPrgIdx)
 {
   ButtonSend->Enabled = false;
   MenuSendToMachine->Enabled = false;
-  MenuSaveIntoPrgFile->Enabled = false;
 
 	int progSize = FormMain->LoadProgramToTempArray(iPrgIdx); // get the program into TempArray
 
-	if (progSize < 2+PROGHEDRSIZ+KEYGROUPSIZ)
+	if (progSize < 2+PROGHEADERSIZ+PROGKEYGROUPSIZ)
 	{
 		ShowMessage("Unable to load program... check RS232 cable, baud-rate or power!");
 		return -1;
 	}
 
-	int iErrorCode = ProgFromTempArrayToGui();
-	if (iErrorCode < 0)
+	int iError = ProgFromTempArrayToGui();
+	if (iError < 0)
 	{
-		if (iErrorCode != -1)
+		if (iError != -1)
 			ShowMessage("Error in ProgramFromTempArrayToGui(), (code=" +
-																							String(iErrorCode) + ")");
+																							String(iError) + ")");
 		return -1;
 	}
 
   ButtonSend->Enabled = true;
   MenuSendToMachine->Enabled = true;
-  MenuSaveIntoPrgFile->Enabled = true;
 
 	return 0;
 }
@@ -1763,7 +1855,7 @@ int __fastcall TFormProgram::LoadProgramFromMachine(int iPrgIdx)
 void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
 {
 	// First, make sure the user's program name is ok...
-	AnsiString sProgName = ComboBoxProgNames->Text.Trim();
+	AnsiString sProgName = ComboBoxProgNames->Text.TrimRight();
 	ComboBoxProgNames->Text = sProgName;
 
 	if (!NameOk(sProgName))
@@ -1801,7 +1893,7 @@ void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
 
 		TStringList* sl = NULL;
 
-		int iFileHandle = 0;
+		long lFileHandle = 0;
 
 		try
 		{
@@ -1810,36 +1902,36 @@ void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
 			if (!sl) return;
 
 			if (!FileExists(sFilePath))
-				iFileHandle = FileCreate(sFilePath);
+				lFileHandle = FileCreate(sFilePath);
 			else
-				iFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenReadWrite);
+				lFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenReadWrite);
 
-			if (iFileHandle == 0)
+			if (lFileHandle == 0)
 			{
 				ShowMessage("Unable to open file for writing: \"" + sFilePath + "\"");
 				return;
 			}
 
 			// initialize a new, empty .prg file (it will have 4 bytes in it for EOF)
-			int iFileSize = FileSeek(iFileHandle, 0, 2); // point to eof
+			int iFileSize = FileSeek(lFileHandle, 0, 2); // point to eof
 			if (iFileSize == 0)
 			{
-				FileSeek(iFileHandle, 0, 0); // point to start
+				FileSeek(lFileHandle, 0, 0); // point to start
 				Int32 magicNum = MAGIC_NUM_PRG;
-				FileWrite(iFileHandle, &magicNum, UINT32SIZE);
+				FileWrite(lFileHandle, &magicNum, UINT32SIZE);
 				Int32 numProgs = 0; // will be incremented when we add program(s)
-				FileWrite(iFileHandle, &numProgs, UINT32SIZE);
+				FileWrite(lFileHandle, &numProgs, UINT32SIZE);
 				iFileSize = UINT32SIZE*3;
-				FileWrite(iFileHandle, &iFileSize, UINT32SIZE);
+				FileWrite(lFileHandle, &iFileSize, UINT32SIZE);
 			}
 			else // go ahead and read the program names in the file...
 			{
-				int iErrorCode = ReadNamesInPrgFile(iFileHandle, sl);
+				int iError = ReadNamesInPrgFile(lFileHandle, sl);
 
-				if (iErrorCode < 0)
+				if (iError < 0)
 				{
 					 ShowMessage("Unable to read file:\r\r\n\"" +
-							sFilePath + "\" (code=" + String(iErrorCode) + ")");
+							sFilePath + "\" (code=" + String(iError) + ")");
 					 return;
 				}
 
@@ -1856,12 +1948,12 @@ void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
 
 						if (button == IDNO) return;
 
-						iErrorCode = DeletePrgFromFile(sFilePath, iFileHandle, (int)sl->Objects[idx]);
-						if (iErrorCode < 0)
+						iError = DeletePrgFromFile(sFilePath, lFileHandle, (int)sl->Objects[idx]);
+						if (iError < 0)
 						{
-							if (iErrorCode != -1)
+							if (iError != -1)
 								ShowMessage("problem deleting file..."
-											" (code=" + String(iErrorCode) + ")");
+											" (code=" + String(iError) + ")");
 								return;
 						}
 					}
@@ -1869,18 +1961,18 @@ void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
 			}
 
 			// Append to end of existing .prg file
-			int iErrorCode = GridToFile(iFileHandle);
-			if (iErrorCode < 0)
+			int iError = GridToFile(lFileHandle);
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
-					ShowMessage("problem writing to file... (code=" + String(iErrorCode) + ")");
+				if (iError != -1)
+					ShowMessage("problem writing to file... (code=" + String(iError) + ")");
 				return;
 			}
 		}
 		__finally
 		{
 			if (sl) delete sl;
-			if (iFileHandle) FileClose(iFileHandle);
+			if (lFileHandle) FileClose(lFileHandle);
 		}
 	}
 	catch (...)
@@ -1891,7 +1983,7 @@ void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
 //---------------------------------------------------------------------------
 // delete program from file at iFileOffset
 // returns new file-size if success or negative error code
-int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, int &iFileHandle, int iFileOffset)
+int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, long &lFileHandle, int iFileOffset)
 {
 	Byte* buf = NULL;
 	Int32 fileSize = 0;
@@ -1901,13 +1993,13 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, int &iFileHandl
 		try
 		{
 			// Seek: Offset, Mode 0=beginning, 1=current pos, 2=end
-			FileSeek(iFileHandle, 0, 0); // reset
+			FileSeek(lFileHandle, 0, 0); // reset
 			UInt32 magicNum;
-			FileRead(iFileHandle, &magicNum, UINT32SIZE);
+			FileRead(lFileHandle, &magicNum, UINT32SIZE);
 			if (magicNum != MAGIC_NUM_PRG)
 				return -2; // not a .prg file
 			UInt32 numProgs;
-			FileRead(iFileHandle, &numProgs, UINT32SIZE);
+			FileRead(lFileHandle, &numProgs, UINT32SIZE);
 			if (numProgs == 0)
 				return -3; // no programs to delete
 
@@ -1916,29 +2008,29 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, int &iFileHandl
 			if (FileExists(sTempPath))
 				DeleteFile(sTempPath);
 
-			int iTempHandle = FileCreate(sTempPath);
-			if (iTempHandle == 0)
+			long lTempHandle = FileCreate(sTempPath);
+			if (lTempHandle == 0)
 				return -4;
 
 			// read/write first part of file
-			FileSeek(iFileHandle, 0, 0); // reset
+			FileSeek(lFileHandle, 0, 0); // reset
 			buf = new Byte[iFileOffset];
-			int iByteCount = FileRead(iFileHandle, buf, iFileOffset);
+			int iByteCount = FileRead(lFileHandle, buf, iFileOffset);
 			if (iByteCount != iFileOffset)
 				return -5;
-			iByteCount = FileWrite(iTempHandle, buf, iFileOffset); // write first part to temp file
+			iByteCount = FileWrite(lTempHandle, buf, iFileOffset); // write first part to temp file
 			if (iByteCount != iFileOffset)
 				return -6;
 			delete [] buf;
 			buf = NULL;
 
 			Int32 progSize;
-			iByteCount = FileRead(iFileHandle, &progSize, UINT32SIZE);
+			iByteCount = FileRead(lFileHandle, &progSize, UINT32SIZE);
 			if (iByteCount != UINT32SIZE)
 				return -7;
 
-			int iStart = FileSeek(iFileHandle, progSize, 1); // point 1 prog beyond the one we are deleting
-			int iEnd = FileSeek(iFileHandle, 0, 2); // point to eof
+			int iStart = FileSeek(lFileHandle, progSize, 1); // point 1 prog beyond the one we are deleting
+			int iEnd = FileSeek(lFileHandle, 0, 2); // point to eof
 
 			if (iStart < 0 || iEnd < 0)
 				return -8;
@@ -1946,32 +2038,32 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, int &iFileHandl
 			// now we need to move data past this program into temp file...
 			int iSize = iEnd-iStart;
 			buf = new Byte[iSize];
-			FileSeek(iFileHandle, iStart, 0);
-			iByteCount = FileRead(iFileHandle, buf, iSize); // read second part to buf
+			FileSeek(lFileHandle, iStart, 0);
+			iByteCount = FileRead(lFileHandle, buf, iSize); // read second part to buf
 			if (iByteCount != iSize)
 				return -9;
-			FileSeek(iFileHandle, iFileOffset, 0);
-			iByteCount = FileWrite(iTempHandle, buf, iSize); // write second part to temp file
+			FileSeek(lFileHandle, iFileOffset, 0);
+			iByteCount = FileWrite(lTempHandle, buf, iSize); // write second part to temp file
 			if (iByteCount != iSize)
 				return -10;
 			delete buf;
 			buf = 0;
 
-			FileClose(iFileHandle);
+			FileClose(lFileHandle);
 
 			// point 4 bytes from end and write the file-size
-			fileSize = FileSeek(iTempHandle, -UINT32SIZE, 2) + UINT32SIZE;
-			iByteCount = FileWrite(iTempHandle, &fileSize, UINT32SIZE); // write new filesize
+			fileSize = FileSeek(lTempHandle, -UINT32SIZE, 2) + UINT32SIZE;
+			iByteCount = FileWrite(lTempHandle, &fileSize, UINT32SIZE); // write new filesize
 			if (iByteCount != UINT32SIZE)
 				return -11;
-			FileSeek(iTempHandle, UINT32SIZE, 0); // point to # programs, past magic #
+			FileSeek(lTempHandle, UINT32SIZE, 0); // point to # programs, past magic #
 			numProgs--; // 1 less program
-			iByteCount = FileWrite(iTempHandle, &numProgs, UINT32SIZE); // write new filesize
+			iByteCount = FileWrite(lTempHandle, &numProgs, UINT32SIZE); // write new filesize
 			if (iByteCount != UINT32SIZE)
 				return -12;
 
 			// close both files, delete old and rename new to old
-			FileClose(iTempHandle);
+			FileClose(lTempHandle);
 
 			try
 			{
@@ -1985,8 +2077,8 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, int &iFileHandl
 			catch (...) {}
 
 			// reopen and assign handle to new file by reference
-			iFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenReadWrite);
-			if (iFileHandle == 0)
+			lFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenReadWrite);
+			if (lFileHandle == 0)
 				return -13;
 		}
 		__finally
@@ -2005,7 +2097,7 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, int &iFileHandl
 //---------------------------------------------------------------------------
 // append program in TempArray to end of existing .prg file
 // returns program size if success or negative error code
-int __fastcall TFormProgram::GridToFile(int iFileHandle)
+int __fastcall TFormProgram::GridToFile(long lFileHandle)
 {
 	try
 	{
@@ -2021,10 +2113,9 @@ int __fastcall TFormProgram::GridToFile(int iFileHandle)
 		// the index from the catalog if the program already exists, or 1 greater
 		// then the number of programs if it does not.
 		int progIdx = 0; // NOT SURE YET WHAT TO PUT HERE!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 		int progSize = GridToTempArray(progIdx);
 
-		if (progSize < 2+PROGHEDRSIZ+KEYGROUPSIZ)
+		if (progSize < 2+PROGHEADERSIZ+PROGKEYGROUPSIZ)
 		{
 			if (progSize != -1)
 			{
@@ -2035,36 +2126,36 @@ int __fastcall TFormProgram::GridToFile(int iFileHandle)
 		}
 
 		// Seek -4 from end of file
-		int oldFileSize = FileSeek(iFileHandle, -UINT32SIZE, 2) + UINT32SIZE;
+		int oldFileSize = FileSeek(lFileHandle, -UINT32SIZE, 2) + UINT32SIZE;
 
 		// write the new program's size
-		int byteCount = FileWrite(iFileHandle, &progSize, UINT32SIZE);
+		int byteCount = FileWrite(lFileHandle, &progSize, UINT32SIZE);
 
 		if (byteCount != UINT32SIZE)
 			return -3;
 
 		// write the new program
-		byteCount = FileWrite(iFileHandle, FormMain->TempArray, progSize); // -1 if error
+		byteCount = FileWrite(lFileHandle, FormMain->TempArray, progSize); // -1 if error
 
 		if (byteCount != progSize)
 			return -4;
 
 		// write the new size of the .prg file
 		int newFileSize = oldFileSize+progSize+UINT32SIZE;
-		byteCount = FileWrite(iFileHandle, &newFileSize, UINT32SIZE); // -1 if error
+		byteCount = FileWrite(lFileHandle, &newFileSize, UINT32SIZE); // -1 if error
 
 		if (byteCount != UINT32SIZE)
 			return -5;
 
 		// Update # programs
 		int numProgs = 0;
-		FileSeek(iFileHandle, UINT32SIZE, 0); // seek past magic-num to #programs
-		byteCount = FileRead(iFileHandle, &numProgs, UINT32SIZE);
+		FileSeek(lFileHandle, UINT32SIZE, 0); // seek past magic-num to #programs
+		byteCount = FileRead(lFileHandle, &numProgs, UINT32SIZE);
 		if (byteCount != UINT32SIZE)
 			return -6;
 		numProgs++;
-		FileSeek(iFileHandle, UINT32SIZE, 0); // seek past magic-num to #programs
-		byteCount = FileWrite(iFileHandle, &numProgs, UINT32SIZE);
+		FileSeek(lFileHandle, UINT32SIZE, 0); // seek past magic-num to #programs
+		byteCount = FileWrite(lFileHandle, &numProgs, UINT32SIZE);
 		if (byteCount != UINT32SIZE)
 			return -7;
 		//ShowMessage(String(progSize) + ", " + String(newFileSize)); // 225, 241
@@ -2092,7 +2183,6 @@ void __fastcall TFormProgram::LoadOrDeleteProgramFromFile(bool bLoad)
   {
     ButtonSend->Enabled = false;
     MenuSendToMachine->Enabled = false;
-    MenuSaveIntoPrgFile->Enabled = false;
   }
 
 	try
@@ -2116,7 +2206,7 @@ void __fastcall TFormProgram::LoadOrDeleteProgramFromFile(bool bLoad)
 		TStringList* sl = NULL;
 		TFormListBox* pLB = NULL;
 
-		int iFileHandle = 0;
+		long lFileHandle = 0;
 
 		try
 		{
@@ -2124,18 +2214,18 @@ void __fastcall TFormProgram::LoadOrDeleteProgramFromFile(bool bLoad)
 
 			if (!sl) return;
 
-			iFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenRead);
+			lFileHandle = FileOpen(sFilePath, fmShareDenyNone | fmOpenRead);
 
-			if (iFileHandle == 0)
+			if (lFileHandle == 0)
 				return;
 
-			int iErrorCode = ReadNamesInPrgFile(iFileHandle, sl);
+			int iError = ReadNamesInPrgFile(lFileHandle, sl);
 
-			if (iErrorCode < 0)
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
+				if (iError != -1)
 					 ShowMessage("Unable to read file:\r\r\n\"" +
-							sFilePath + "\" ReadNamesInPrgFile() (code=" + String(iErrorCode) + ")");
+							sFilePath + "\" ReadNamesInPrgFile() (code=" + String(iError) + ")");
 				 return;
 			}
 
@@ -2172,22 +2262,22 @@ void __fastcall TFormProgram::LoadOrDeleteProgramFromFile(bool bLoad)
 
 			if (bLoad)
 			{
-				iErrorCode = ProgFromFileToGui(iFileHandle, prgOffset);
-				if (iErrorCode < 0)
+				iError = ProgFromFileToGui(lFileHandle, prgOffset);
+				if (iError < 0)
 				{
-					if (iErrorCode != -1)
+					if (iError != -1)
 						ShowMessage("Unable to load program ProgFromFileToGui()\r\n"
-																	"(code=" + String(iErrorCode) + ")");
+																	"(code=" + String(iError) + ")");
 				}
 			}
 			else
 			{
-				iErrorCode = DeletePrgFromFile(sFilePath, iFileHandle, prgOffset);
-				if (iErrorCode < 0)
+				iError = DeletePrgFromFile(sFilePath, lFileHandle, prgOffset);
+				if (iError < 0)
 				{
-					if (iErrorCode != -1)
+					if (iError != -1)
 						ShowMessage("Unable to delete program (code=" +
-																							String(iErrorCode) + ")");
+																							String(iError) + ")");
 				}
 			}
 
@@ -2195,14 +2285,13 @@ void __fastcall TFormProgram::LoadOrDeleteProgramFromFile(bool bLoad)
       {
         ButtonSend->Enabled = true;
         MenuSendToMachine->Enabled = true;
-        MenuSaveIntoPrgFile->Enabled = true;
       }
 		}
 		__finally
 		{
 			if (sl) delete sl;
 			if (pLB) pLB->Release();
-			if (iFileHandle) FileClose(iFileHandle);
+			if (lFileHandle) FileClose(lFileHandle);
 		}
 	}
 	catch(...)
@@ -2214,24 +2303,24 @@ void __fastcall TFormProgram::LoadOrDeleteProgramFromFile(bool bLoad)
 // Reads program from file and writes it to the string-grid
 // returns program's size or negative if error
 // (-1 means we already displayed the error message)
-int __fastcall TFormProgram::ProgFromFileToGui(int iFileHandle, int iFileOffset)
+int __fastcall TFormProgram::ProgFromFileToGui(long lFileHandle, int iFileOffset)
 {
-	if (iFileHandle == 0)
+	if (lFileHandle == 0)
 		return -2;
 
 	try
 	{
 		// Read program into TempArray
-		Int32 progSize = ProgFromFileToTempArray(iFileHandle, iFileOffset);
+		Int32 progSize = ProgFromFileToTempArray(lFileHandle, iFileOffset);
 		if (progSize <= 0)
 			return -3;
 
-		int iErrorCode = ProgFromTempArrayToGui();
-		if (iErrorCode < 0)
+		int iError = ProgFromTempArrayToGui();
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
+			if (iError != -1)
 				ShowMessage("Error in ProgramFromTempArrayToGui() (code=" +
-																								String(iErrorCode) + ")");
+																								String(iError) + ")");
 			return -1;
 		}
 
@@ -2253,57 +2342,57 @@ int __fastcall TFormProgram::ProgFromTempArrayToGui(void)
 		ClearStringGrid();
 
 		// Copy program header info
-		memmove(pg, FormMain->TempArray, PROGHEDRSIZ);
+		memcpy(pg, FormMain->TempArray, PROGHEADERSIZ);
 
 		 // read user controls into ProgramHeader struct
-		int iErrorCode = HeaderFromArray();
-		if (iErrorCode < 0)
+		int iError = HeaderFromArray();
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
+			if (iError != -1)
 				ShowMessage("Error in HeaderFromArray(), (code=" +
-																							String(iErrorCode) + ")");
+																							String(iError) + ")");
 			return -1;
 		}
 
 		// move info in pg[] into GUI controls
-		iErrorCode = HeaderToGui();
-		if (iErrorCode < 0)
+		iError = HeaderToGui();
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
+			if (iError != -1)
 				ShowMessage("Error in HeaderToGui(), (code=" +
-																							String(iErrorCode) + ")");
+																							String(iError) + ")");
 			return -1;
 		}
 
 		if (ProgramHeader.NumKeygroups > MAX_KEYGROUPS)
 			return -2;
 
-		int offset = PROGHEDRSIZ;
+		int offset = PROGHEADERSIZ;
 
 		for (int ii = 0; ii < ProgramHeader.NumKeygroups; ii++)
 		{
 			// Copy keygroup info
-			memmove(kg, &FormMain->TempArray[offset], KEYGROUPSIZ);
-			offset += KEYGROUPSIZ;
+			memcpy(kg, &FormMain->TempArray[offset], PROGKEYGROUPSIZ);
+			offset += PROGKEYGROUPSIZ;
 
-			iErrorCode = KeygroupFromArray();
-			if (iErrorCode < 0)
+			iError = KeygroupFromArray();
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
+				if (iError != -1)
 					ShowMessage("Error in KeygroupFromArray(), (code=" +
-																								String(iErrorCode) + ")");
+																								String(iError) + ")");
 				return -1;
 			}
 
 			if (ii > 0)
 				SG->RowCount++;
 
-			iErrorCode = KeygroupToGui(ii);
-			if (iErrorCode < 0)
+			iError = KeygroupToGui(ii);
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
+				if (iError != -1)
 					ShowMessage("Error in KeygroupToGui(), (code=" +
-																								String(iErrorCode) + ")");
+																								String(iError) + ")");
 				return -1;
 			}
 
@@ -2319,17 +2408,17 @@ int __fastcall TFormProgram::ProgFromTempArrayToGui(void)
 //---------------------------------------------------------------------------
 // read a program from a .prg file into TempArray, given its offset
 // returns file-size or negative number if error
-int __fastcall TFormProgram::ProgFromFileToTempArray(int iFileHandle, int iFileOffset)
+int __fastcall TFormProgram::ProgFromFileToTempArray(long lFileHandle, int iFileOffset)
 {
-	if (iFileHandle == 0)
+	if (lFileHandle == 0)
 		return -2;
 
 	try
 	{
-		FileSeek(iFileHandle, iFileOffset, 0); // point to program
+		FileSeek(lFileHandle, iFileOffset, 0); // point to program
 
 		Int32 progSize;
-		int bytesRead = FileRead(iFileHandle, &progSize, UINT32SIZE);
+		int bytesRead = FileRead(lFileHandle, &progSize, UINT32SIZE);
 
 		if (bytesRead != UINT32SIZE)
 			return -3;
@@ -2339,7 +2428,7 @@ int __fastcall TFormProgram::ProgFromFileToTempArray(int iFileHandle, int iFileO
 			return -4;
 
 		// copy program in file to buf
-		bytesRead = FileRead(iFileHandle, FormMain->TempArray, progSize);
+		bytesRead = FileRead(lFileHandle, FormMain->TempArray, progSize);
 
 		if (bytesRead != progSize)
 			return -5;
@@ -2361,9 +2450,9 @@ void __fastcall TFormProgram::ClearStringGrid(void)
 // open a .prg file and return a string list of program names
 // with the file-offset of the program size in the TObject* field
 // returns negative if failure
-int __fastcall TFormProgram::ReadNamesInPrgFile(int iFileHandle, TStringList* sl)
+int __fastcall TFormProgram::ReadNamesInPrgFile(long lFileHandle, TStringList* sl)
 {
-	if (iFileHandle == 0)
+	if (lFileHandle == 0)
 		return -2;
 
 	Byte* buf = NULL;
@@ -2373,12 +2462,12 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(int iFileHandle, TStringList* sl
 	{
 		try
 		{
-			UInt32 iFileLength = FileSeek(iFileHandle, 0, 2); // seek to end
+			UInt32 iFileLength = FileSeek(lFileHandle, 0, 2); // seek to end
 
 			// seek/read the stored file-length (__int32 at end of the file)
-			FileSeek(iFileHandle, -UINT32SIZE, 2);
+			FileSeek(lFileHandle, -UINT32SIZE, 2);
 			UInt32 storedFileLength;
-			UInt32 bytesRead = FileRead(iFileHandle, &storedFileLength, UINT32SIZE);
+			UInt32 bytesRead = FileRead(lFileHandle, &storedFileLength, UINT32SIZE);
 
 			if (bytesRead != UINT32SIZE)
 				return -3;
@@ -2386,11 +2475,11 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(int iFileHandle, TStringList* sl
 			if (storedFileLength != iFileLength)
 				return -4;
 
-			FileSeek(iFileHandle, 0, 0); // back to start
+			FileSeek(lFileHandle, 0, 0); // back to start
 
 			// read the magic number
 			UInt32 my_magic; // uniquely identifies a .prg file
-			bytesRead = FileRead(iFileHandle, &my_magic, UINT32SIZE);
+			bytesRead = FileRead(lFileHandle, &my_magic, UINT32SIZE);
 
 			if (bytesRead != UINT32SIZE)
 				return -5;
@@ -2399,7 +2488,7 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(int iFileHandle, TStringList* sl
 				return -6;
 
 			// read the number of programs
-			bytesRead = FileRead(iFileHandle, &numProgs, UINT32SIZE);
+			bytesRead = FileRead(lFileHandle, &numProgs, UINT32SIZE);
 
 			if (bytesRead != UINT32SIZE)
 				return -7;
@@ -2416,18 +2505,18 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(int iFileHandle, TStringList* sl
 				Application->ProcessMessages();
 
 				// save file-offset for origin of the program
-				int progPos = FileSeek(iFileHandle,0,1); // 0 bytes from current position
+				int progPos = FileSeek(lFileHandle,0,1); // 0 bytes from current position
 
 				// read program-size from file.
 				// a program in the file is already formatted for the S950 and
 				// includes the BEX, checksum and EEX.
 				UInt32 progSize;
-				bytesRead = FileRead(iFileHandle, &progSize, UINT32SIZE);
-
+				bytesRead = FileRead(lFileHandle, &progSize, UINT32SIZE);
 				if (bytesRead != UINT32SIZE)
 					return -9;
 
 				// sanity check!
+        // ShowMessage("progsize: " + String(progSize) + ", TEMPARRAYSIZ: " + String(TEMPARRAYSIZ));
 				if (progSize > TEMPARRAYSIZ)
 					return -10;
 
@@ -2437,7 +2526,7 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(int iFileHandle, TStringList* sl
 					return -11;
 
 				// copy program in file to buf
-				bytesRead = FileRead(iFileHandle, buf, progSize);
+				bytesRead = FileRead(lFileHandle, buf, progSize);
 
 				if (bytesRead != progSize)
 					return -12;
@@ -2478,59 +2567,59 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(int iFileHandle, TStringList* sl
 // take program in grid and format it as a program ready to transmit
 // or save into a .prg file
 // returns the program's size or negative if error
-// returns -1 if error message printed here
+// returns -1 if error message printed here or progSize
 int __fastcall TFormProgram::GridToTempArray(int progIdx)
 {
 	try
 	{
 		ProgramHeader.NumKeygroups = SG->RowCount - PADROWS;
 
-		int iErrorCode = HeaderFromGui();
-		if (iErrorCode < 0) // read user controls into ProgramHeader struct
+		int iError = HeaderFromGui();
+		if (iError < 0) // read user controls into ProgramHeader struct
 		{
-			if (iErrorCode != -1)
+			if (iError != -1)
 				ShowMessage("Error in HeaderFromGui(), (code=" +
-																							String(iErrorCode) + ")");
+																							String(iError) + ")");
 			return -1;
 		}
 
 		// Copy program header info
-		iErrorCode = HeaderToArray(progIdx);
-		if (iErrorCode < 0) // encode from ProgramHeader struct into pg array
+		iError = HeaderToArray(progIdx);
+		if (iError < 0) // encode from ProgramHeader struct into pg array
 		{
-			if (iErrorCode != -1)
+			if (iError != -1)
 				ShowMessage("Error in HeaderToArray(), (code=" +
-																							String(iErrorCode) + ")");
+																							String(iError) + ")");
 			return -1;
 		}
 
-		memmove(FormMain->TempArray, pg, PROGHEDRSIZ);
+		memcpy(FormMain->TempArray, pg, PROGHEADERSIZ);
 
 		// encode the keygroups to kg then move to TempArray
-		int taIdx = PROGHEDRSIZ;
+		int taIdx = PROGHEADERSIZ;
 		for (int ii = 0; ii < ProgramHeader.NumKeygroups; ii++)
 		{
-			iErrorCode = KeygroupFromGui(ii);
+			iError = KeygroupFromGui(ii);
 
-			if (iErrorCode < 0)
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
+				if (iError != -1)
 					ShowMessage("Error in KeygroupFromGui(), (code=" +
-																								String(iErrorCode) + ")");
+																								String(iError) + ")");
 				return -1;
 			}
 
-			iErrorCode = KeygroupToArray(); // encode to kg[]
-			if (iErrorCode < 0)
+			iError = KeygroupToArray(); // encode to kg[]
+			if (iError < 0)
 			{
-				if (iErrorCode != -1)
+				if (iError != -1)
 					ShowMessage("Error in KeygroupToArray(), (code=" +
-																								String(iErrorCode) + ")");
+																								String(iError) + ")");
 				return -1;
 			}
 
-			memmove(&FormMain->TempArray[taIdx], kg, KEYGROUPSIZ);
-			taIdx += KEYGROUPSIZ;
+			memcpy(&FormMain->TempArray[taIdx], kg, PROGKEYGROUPSIZ);
+			taIdx += PROGKEYGROUPSIZ;
 		}
 
 		// checksum is exclusive or of 7-(taIdx-1)
@@ -2558,6 +2647,520 @@ void __fastcall TFormProgram::MenuShowUndefinedClick(TObject *Sender)
 	MenuShowUndefined->Checked = !MenuShowUndefined->Checked;
 }
 //---------------------------------------------------------------------------
+void __fastcall TFormProgram::MenuDrumifyClick(TObject *Sender)
+{
+	int NumKeyGroups = SG->RowCount - PADROWS;
+
+  bool bFirst = true;
+  int iKey = -1;
+  int coarsePitch = -1;
+  int midiOffset = -1;
+  int iSelectCount = CountSelected();
+
+  if (iSelectCount == 0)
+  {
+    ShowMessage("Nothing selected...\n"
+          "Press Ctrl and left-click keygroups to select them.");
+    return;
+  }
+
+	for (int ii = 0; ii < NumKeyGroups; ii++)
+  {
+    int row = ii+PADROWS;
+
+    // Drumify if selected... (we use Objects[0] as select flag)
+    if ((int)SG->Rows[row]->Objects[C_KEYGROUP] != 0)
+    {
+      if (bFirst)
+      {
+        String s = SG->Cells[C_LOWKEY][row];
+
+        // Read the low-key of the 1st selected keygroup as our base key
+        // then set the high key the same and iterate, advancing to the next black key
+        iKey = StringToKey(s);
+
+        if (iKey < 0)
+        {
+          ShowMessage("Invalid low-key in first selected row: \"" + s + "\"");
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        if (iKey + iSelectCount > 128)
+        {
+          ShowMessage("Can't drumify all selected keygroups, max key is \"8B\"!"
+              " Reduce Low Key by " + String(iKey + iSelectCount - 128) + " semitone(s)...");
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        coarsePitch = SG->Cells[C_SS_COARSEPITCH][row].ToIntDef(0);
+        midiOffset = SG->Cells[C_MIDIOFFSET][row].ToIntDef(0);
+
+        bFirst = false;
+      }
+      else if (iKey > 127)
+      {
+        ShowMessage("Error: iKey > 127!");
+        SG->Row = row;
+        SG->Col = C_LOWKEY;
+        return;
+      }
+
+
+      String sKey = KeyToString(iKey);
+
+      // now, we need to offset the pitch, up if we've lowered the key and
+      // down if we've raised the key. we assume a base raw pitch of 960 (C3)
+      // we won't be changing the fine pitch at all. Units are 1/16 semitone.
+      // So really, I think all we need to do is change the Coarse Pitch field
+      // up or down, in semitones. So if the base key here is C3, there is
+      // no change to that pitch. if it's C2, we need to add +12 to the coarse pitch field.
+      // Also, we should "make no change" if coarse pitch is anything other than 0, initially.
+      //
+      // 24 is C0 so C3 is 24+12+12+12 = 60
+      // so we want to set the coarse pitch to 60 - iKey
+
+      // Adjust the pitch...
+      // (NOTE: for now, we make a huge presumption, namely that the sample's
+      // base pitch is middle-C, the default for all WAV samples uploaded to
+      // the machine. In future, ideally, you need to load the sample
+      // parameters from the machine, for each drum sample, and use the "actual"
+      // base pitch, not KEY_MIDDLE_C)
+      int newPitch = coarsePitch + (KEY_MIDDLE_C-iKey);
+
+      SG->Cells[C_LOWKEY][row] = sKey;
+      SG->Cells[C_HIGHKEY][row] = sKey;
+      SG->Cells[C_SS_COARSEPITCH][row] = String(newPitch);
+      SG->Cells[C_MIDIOFFSET][row] = String(midiOffset);
+
+      iKey++;
+    }
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormProgram::MenuDrumifyBlackClick(TObject *Sender)
+{
+	int NumKeyGroups = SG->RowCount - PADROWS;
+
+  bool bFirst = true;
+  int iKey = -1;
+  int coarsePitch = -1;
+  int midiOffset = -1;
+  int iSelectCount = CountSelected();
+
+  if (iSelectCount == 0)
+  {
+    ShowMessage("Nothing selected...\n"
+          "Press Ctrl and left-click keygroups to select them.");
+    return;
+  }
+
+	for (int ii = 0; ii < NumKeyGroups; ii++)
+  {
+    int row = ii+PADROWS;
+
+    // Drumify if selected... (we use Objects[0] as select flag)
+    if ((int)SG->Rows[row]->Objects[C_KEYGROUP] != 0)
+    {
+      if (bFirst)
+      {
+        String s = SG->Cells[C_LOWKEY][row];
+
+        // Read the low-key of the 1st selected keygroup as our base key
+        // then set the high key the same and iterate, advancing to the next black key
+        iKey = StringToKey(s);
+
+        if (iKey < 0)
+        {
+          ShowMessage("Invalid low-key in first selected row: \"" + s + "\"");
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        if (!IsBlackKey(iKey))
+        {
+          ShowMessage("\"" + s + "\" is not a half-note (black) key!\n"
+              "Type in a semitone key for the first selected keygroup,\n"
+              "such as \"0C#\" or \"3Eb\"");
+
+          // focus
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        if (iKey + iSelectCount > 128)
+        {
+          ShowMessage("Can't drumify all selected keygroups, max key is \"8B\"!"
+              " Reduce Low Key by " + String(iKey + iSelectCount - 128) + " semitone(s)...");
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        coarsePitch = SG->Cells[C_SS_COARSEPITCH][row].ToIntDef(0);
+        midiOffset = SG->Cells[C_MIDIOFFSET][row].ToIntDef(0);
+
+        bFirst = false;
+      }
+      else if (iKey > 127)
+      {
+        ShowMessage("Error: iKey > 127!");
+        return;
+      }
+
+      String sKey = KeyToString(iKey);
+
+      // Adjust the pitch...
+      int newPitch = coarsePitch + (KEY_MIDDLE_C-iKey);
+
+      SG->Cells[C_LOWKEY][row] = sKey;
+      SG->Cells[C_HIGHKEY][row] = sKey;
+      SG->Cells[C_SS_COARSEPITCH][row] = String(newPitch);
+      SG->Cells[C_MIDIOFFSET][row] = String(midiOffset);
+
+      iKey = NextBlackKey(iKey); // next key
+    }
+  }
+}
+//---------------------------------------------------------------------------
+// Column
+// Lower key column = C_LOWKEY,
+// Upper key column = C_HIGHKEY
+void __fastcall TFormProgram::MenuDrumifyWhiteClick(TObject *Sender)
+{
+	int NumKeyGroups = SG->RowCount - PADROWS;
+
+  bool bFirst = true;
+  int iKey = -1;
+  int coarsePitch = -1;
+  int midiOffset = -1;
+  int iSelectCount = CountSelected();
+
+  if (iSelectCount == 0)
+  {
+    ShowMessage("Nothing selected...\n"
+          "Press Ctrl and left-click keygroups to select them.");
+    return;
+  }
+
+	for (int ii = 0; ii < NumKeyGroups; ii++)
+  {
+    int row = ii+PADROWS;
+
+    // Drumify if selected... (we use Objects[0] as select flag)
+    if ((int)SG->Rows[row]->Objects[C_KEYGROUP] != 0)
+    {
+      if (bFirst)
+      {
+        String s = SG->Cells[C_LOWKEY][row];
+
+        // Read the low-key of the 1st selected keygroup as our base key
+        // then set the high key the same and iterate, advancing to the next white key
+        iKey = StringToKey(s);
+
+        if (iKey < 0)
+        {
+          ShowMessage("Invalid low-key in first selected row: \"" + s + "\"");
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        if (!IsWhiteKey(iKey))
+        {
+          ShowMessage("\"" + s + "\" is not a whole-note (white) key!\n"
+              "Type in a non-flat/non-sharp key for the first selected keygroup,\n"
+              "such as \"0C\" or \"3E\"");
+
+          // focus
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        if (iKey + iSelectCount > 128)
+        {
+          ShowMessage("Can't drumify all selected keygroups, max key is \"8B\"!"
+              " Reduce Low Key by " + String(iKey + iSelectCount - 128) + " semitone(s)...");
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        coarsePitch = SG->Cells[C_SS_COARSEPITCH][row].ToIntDef(0);
+        midiOffset = SG->Cells[C_MIDIOFFSET][row].ToIntDef(0);
+
+        bFirst = false;
+      }
+      else if (iKey > 127)
+      {
+        ShowMessage("Error: iKey > 127!");
+        SG->Row = row;
+        SG->Col = C_LOWKEY;
+        return;
+      }
+
+      String sKey = KeyToString(iKey);
+
+      // Adjust the pitch...
+      int newPitch = coarsePitch + (KEY_MIDDLE_C-iKey);
+
+      SG->Cells[C_LOWKEY][row] = sKey;
+      SG->Cells[C_HIGHKEY][row] = sKey;
+      SG->Cells[C_SS_COARSEPITCH][row] = String(newPitch);
+      SG->Cells[C_MIDIOFFSET][row] = String(midiOffset);
+
+      iKey = NextWhiteKey(iKey); // next key
+    }
+  }
+}
+//---------------------------------------------------------------------------
+// assign 1 octave to each selected sample starting at
+// first selected sample's Low Key
+void __fastcall TFormProgram::MenuOctifyKGClick(TObject *Sender)
+{
+	int NumKeyGroups = SG->RowCount - PADROWS;
+
+  bool bFirst = true;
+  int iKey = -1;
+  int iSelectCount = CountSelected();
+
+  if (iSelectCount == 0)
+  {
+    ShowMessage("Nothing selected...\n"
+          "Press Ctrl and left-click keygroups to select them.");
+    return;
+  }
+
+	for (int ii = 0; ii < NumKeyGroups; ii++)
+  {
+    int row = ii+PADROWS;
+
+    // Drumify if selected... (we use Objects[0] as select flag)
+    if ((int)SG->Rows[row]->Objects[C_KEYGROUP] != 0)
+    {
+      if (bFirst)
+      {
+        String s = SG->Cells[C_LOWKEY][row];
+
+        // Read the low-key of the 1st selected keygroup as our base key
+        // then set the high key the same and iterate, advancing to the next white key
+        iKey = StringToKey(s);
+
+        if (iKey < 0)
+        {
+          ShowMessage("Invalid low-key in first selected row: \"" + s + "\"");
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        if (iKey + (iSelectCount*12) > 128)
+        {
+          ShowMessage("Can't octify all selected keygroups, max key is \"8B\"!"
+              " Reduce Low Key by " + String(iKey + (iSelectCount*12) - 128) + " semitone(s)...");
+          SG->Row = row;
+          SG->Col = C_LOWKEY;
+          return;
+        }
+
+        bFirst = false;
+      }
+      else if (iKey > 127)
+      {
+        ShowMessage("Error: iKey > 127!");
+        SG->Row = row;
+        SG->Col = C_LOWKEY;
+        return;
+      }
+
+      SG->Cells[C_LOWKEY][row] = KeyToString(iKey);
+      SG->Cells[C_HIGHKEY][row] = KeyToString(iKey+12-1);
+
+      iKey += 12; // next octave
+    }
+  }
+}
+//---------------------------------------------------------------------------
+// set midi channel for all selected keygroups to the midi channel of
+// the first selected keygroup
+void __fastcall TFormProgram::MenuMidifyKeygroupsClick(TObject *Sender)
+{
+	int NumKeyGroups = SG->RowCount - PADROWS;
+
+  bool bFirst = true;
+  int midiOffset = -1;
+  int iSelectCount = CountSelected();
+
+  if (iSelectCount == 0)
+  {
+    ShowMessage("Nothing selected...\n"
+          "Press Ctrl and left-click keygroups to select them.");
+    return;
+  }
+
+	for (int ii = 0; ii < NumKeyGroups; ii++)
+  {
+    int row = ii+PADROWS;
+
+    // Drumify if selected... (we use Objects[0] as select flag)
+    if ((int)SG->Rows[row]->Objects[C_KEYGROUP] != 0)
+    {
+      if (bFirst)
+      {
+        String s = SG->Cells[C_MIDIOFFSET][row];
+
+        // Read the low-key of the 1st selected keygroup as our base key
+        // then set the high key the same and iterate, advancing to the next white key
+        midiOffset = s.ToIntDef(-1);
+
+        if (midiOffset < 0 || midiOffset > 15)
+        {
+          ShowMessage("Invalid midi-offset in first selected row: \"" + s + "\"\n"
+                      "Must be 0-15!");
+          SG->Row = row;
+          SG->Col = C_MIDIOFFSET;
+          return;
+        }
+
+        bFirst = false;
+      }
+
+      SG->Cells[C_MIDIOFFSET][row] = String(midiOffset);
+
+      //if (midiOffset < 15)
+      //  midiOffset++; // next channel
+    }
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormProgram::MenuClearSelectedClick(TObject *Sender)
+{
+  SelectAllKeygroups(false);
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormProgram::MenuSelectAllClick(TObject *Sender)
+{
+  SelectAllKeygroups(true);
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormProgram::MenuDeleteSelectedKeygroupsClick(TObject *Sender)
+{
+  DeleteSelectedKeygroups();
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormProgram::ButtonSelectAllClick(TObject *Sender)
+{
+  if (ButtonSelectAll->Tag == 0)
+    SelectAllKeygroups(true);
+  else
+    SelectAllKeygroups(false);
+}
+//---------------------------------------------------------------------------
+// select/deselect all keygroups
+void __fastcall TFormProgram::SelectAllKeygroups(bool bSelect)
+{
+  int iOldCount = m_selectCount;
+
+  if (bSelect)
+  {
+    for (int iRow = PADROWS; iRow < SG->RowCount; iRow++)
+    {
+      if ((int)SG->Rows[iRow]->Objects[0] == 0)
+      {
+        SG->Rows[iRow]->Strings[0] = String(iRow-PADROWS+1) + S_SELECTED;
+        SG->Rows[iRow]->Objects[0] = (TObject*)1; // write selected
+      }
+    }
+    m_selectCount = SG->RowCount;
+  }
+  else // clear all selections
+  {
+    for (int iRow = PADROWS; iRow < SG->RowCount; iRow++)
+    {
+      if ((int)SG->Rows[iRow]->Objects[0] != 0)
+      {
+        SG->Rows[iRow]->Strings[0] = String(iRow-PADROWS+1);
+        SG->Rows[iRow]->Objects[0] = (TObject*)0; // write deselected
+      }
+    }
+    m_selectCount = 0;
+  }
+
+  SetButtonText(iOldCount, m_selectCount);
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormProgram::SetButtonText(int iOldCount, int iNewCount)
+{
+  if (iOldCount && !iNewCount)
+  {
+    ButtonSelectAll->Caption = "Select All";
+    ButtonSelectAll->Tag = 0;
+  }
+  else if (!iOldCount && iNewCount)
+  {
+    ButtonSelectAll->Caption = "Clear Selected";
+    ButtonSelectAll->Tag = 1;
+  }
+}
+//---------------------------------------------------------------------------
+// Count # of selected rows
+int __fastcall TFormProgram::CountSelected(void)
+{
+	int NumKeyGroups = SG->RowCount - PADROWS;
+
+  int iCount = 0;
+
+	for (int ii = 0; ii < NumKeyGroups; ii++)
+  {
+    int row = ii+PADROWS;
+
+    // Drumify if selected... (we use Objects[0] as select flag)
+    if ((int)SG->Rows[row]->Objects[C_KEYGROUP] != 0)
+      iCount++;
+  }
+
+  SetButtonText(m_selectCount, iCount);
+
+  m_selectCount = iCount;
+
+  return iCount;
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormProgram::SGMouseDown(TObject *Sender, TMouseButton Button, TShiftState Shift,
+          int X, int Y)
+{
+  if (Shift.Contains(ssCtrl))
+  {
+    int iCol, iRow;
+    SG->MouseToCell(X, Y, iCol, iRow);
+    int iSelected = (int)SG->Rows[iRow]->Objects[0]; // read
+    iSelected = (iSelected == 0) ? 1 : 0; // toggle selection
+
+    String s = String(iRow-PADROWS+1);
+
+    int iOldCount = m_selectCount;
+
+    if (iSelected)
+    {
+      s += S_SELECTED;
+      m_selectCount++;
+    }
+    else
+      m_selectCount--;
+
+    SetButtonText(iOldCount, m_selectCount);
+
+    SG->Rows[iRow]->Strings[0] = s;
+    SG->Rows[iRow]->Objects[0] = (TObject*)iSelected; // write
+  }
+}
+//---------------------------------------------------------------------------
 void __fastcall TFormProgram::MenuHelpClick(TObject *Sender)
 {
 	String s =
@@ -2579,7 +3182,16 @@ void __fastcall TFormProgram::MenuHelpClick(TObject *Sender)
 	" for each sample on the target machine (if the machine is connected).\r\n\r\n"
 	"Press \"Send Program to Machine\" to transmit the current program.\r\n\r\n"
 	"Press \"Refresh Programs List\" to refresh the drop-down programs list.\r\n\r\n"
-	"Sample parameters cannot be edited in the program editor.";
+	"To Select/Deselect a keygroup, hold down the Ctrl key and click any cell in the row.\r\n\r\n"
+	"\"Drumify\" will auto-set both the midi key and pitch offset for all of your drum samples.\r\n"
+  "  1) Select the keygroups you want to drumify (hold Crtl and click the keygroups).\r\n"
+  "  2) In the first selected keygroup, set the starting note (3C, -4Db, Etc.) in the \"Low Key\" column.\r\n"
+  "  3) In the first selected keygroup, set the starting pitch (usually you want to keep this 0) in the \"Coarse Pitch\" column.\r\n"
+  "  4) In the first selected keygroup, set the midi-offset you want all of the drums to be on in the \"Midi Offset\" column.\r\n"
+  "  5) Click Tools->Drumify.\r\n"
+  "Now you can tap notes on your midi keyboard to play your drum-samples in real-time! (Note: "
+  "Presently, the base sample pitch is fixed at 3C (middle C), which is the default for uploaded WAVs).\r\n\r\n"
+	"Sample parameters cannot be edited in the program editor, use the sample-parameters editor for that.";
 	ShowMessage(s);
 }
 //---------------------------------------------------------------------------

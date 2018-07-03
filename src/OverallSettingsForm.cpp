@@ -33,25 +33,29 @@ void __fastcall TFormOverallSettings::FormCreate(TObject *Sender)
 
 	ProgramData = NULL;
 
-  int iErrorCode = RefreshAll();
+  int iError = RefreshAll();
 
-  if (iErrorCode < 0)
+  if (iError < 0)
   {
-		if (iErrorCode != -1)
-			ShowMessage("Unable to refresh settings! (code=" + String(iErrorCode) + ")");
+		if (iError != -1)
+			ShowMessage("Unable to refresh settings! (code=" + String(iError) + ")");
 
 		if (LoadDefaults() < 0)
 			return;
 
-		iErrorCode = ToGui(); // Display OverallSettings struct
+		iError = ToGui(); // Display OverallSettings struct
 
-		if (iErrorCode < 0)
+		if (iError < 0)
 		{
-			if (iErrorCode != -1)
-				ShowMessage("Unable to load from machine (ToGui())! (code=" + String(iErrorCode) + ")");
+			if (iError != -1)
+				ShowMessage("Unable to load from machine (ToGui())! (code=" + String(iError) + ")");
 			return;
 		}
 
+    ComboBoxBaudRate->Hint = "Sets a new baud-rate at both the machine and in this program\n"
+                             "when you click \"Send\". If you change this and communication\n"
+                             "stops working, you must reset the baud rate manually at both the\n"
+                             "machine and in the main window of this program!";
     ShowMessage("Defaults loaded. You need to press \"Refresh\" once the machine is connected...");
   }
 }
@@ -68,18 +72,18 @@ int __fastcall TFormOverallSettings::RefreshCatalog(void)
 {
 	try
 	{
-		int iErrorCode = FormMain->GetCatalog();
+		int iError = FormMain->GetCatalog();
 
-		if (iErrorCode < 0)
+		if (iError < 0)
 		{
-			if (iErrorCode == -2)
+			if (iError == -2)
 				ShowMessage("Transmit timeout requesting catalog!");
-			else if (iErrorCode == -3)
+			else if (iError == -3)
 				ShowMessage("Timeout receiving catalog!");
-			else if (iErrorCode == -4)
+			else if (iError == -4)
 				ShowMessage("Incorrect catalog received!");
 			else
-				ShowMessage("Not able to get catalog, check power and cables... (code=" + String(iErrorCode) + ")");
+				ShowMessage("Not able to get catalog, check power and cables... (code=" + String(iError) + ")");
 			return -1;
 		}
 
@@ -87,7 +91,7 @@ int __fastcall TFormOverallSettings::RefreshCatalog(void)
 		// (MUST delete on destroy or prior to reinvoking!)
 		if (ProgramData)
 			delete ProgramData;
-		ProgramData = FormMain->ProgramData;
+		ProgramData = FormMain->CatalogProgramData;
 		if (!ProgramData)
 			return -2;
 
@@ -106,12 +110,24 @@ void __fastcall TFormOverallSettings::ButtonCloseClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TFormOverallSettings::ButtonRefreshClick(TObject *Sender)
 {
-  int iErrorCode = RefreshAll();
+  if (IsBusy())
+    return;
 
-  if (iErrorCode < 0)
+  try
   {
-		if (iErrorCode != -1)
-			ShowMessage("Unable to refresh settings! (code=" + String(iErrorCode) + ")");
+    FormMain->BusyCount++;
+
+    int iError = RefreshAll();
+
+    if (iError < 0)
+    {
+      if (iError != -1)
+        ShowMessage("Unable to refresh settings! (code=" + String(iError) + ")");
+    }
+  }
+  __finally
+  {
+    FormMain->BusyCount--;
   }
 }
 //---------------------------------------------------------------------------
@@ -121,11 +137,11 @@ int __fastcall TFormOverallSettings::RefreshAll(void)
   ButtonSend->Enabled = false;
 
 	// load catalog into ProgramData
-	int iErrorCode = RefreshCatalog();
-	if (iErrorCode < 0)
+	int iError = RefreshCatalog();
+	if (iError < 0)
 	{
-		if (iErrorCode != -1)
-			ShowMessage("Unable to load catalog! (code=" + String(iErrorCode) + ")");
+		if (iError != -1)
+			ShowMessage("Unable to load catalog! (code=" + String(iError) + ")");
 
 		return -1;
 	}
@@ -134,11 +150,11 @@ int __fastcall TFormOverallSettings::RefreshAll(void)
 	ComboBoxProgNames->Items->Assign(ProgramData);
 
 	// load overall settings
-	iErrorCode = LoadFromMachine();
-	if (iErrorCode < 0)
+	iError = LoadFromMachine();
+	if (iError < 0)
 	{
-		if (iErrorCode != -1)
-			ShowMessage("Unable to load overall settings! (code=" + String(iErrorCode) + ")");
+		if (iError != -1)
+			ShowMessage("Unable to load overall settings! (code=" + String(iError) + ")");
 
 		return -1;
   }
@@ -150,55 +166,83 @@ int __fastcall TFormOverallSettings::RefreshAll(void)
 //---------------------------------------------------------------------------
 void __fastcall TFormOverallSettings::ButtonSendClick(TObject *Sender)
 {
-	int iErrorCode = SendToMachine();
-	if (iErrorCode < 0)
+	int iError = SendToMachine();
+	if (iError < 0)
 	{
-		if (iErrorCode != -1)
-			ShowMessage("Unable to send overall settings! (code=" + String(iErrorCode) + ")");
+		if (iError != -1)
+			ShowMessage("Unable to send overall settings! (code=" + String(iError) + ")");
 		return;
 	}
-
-	// trigger baud rate change in FormMain if user just changed baud-rate on machine!
-	if (OverallSettings.BaudRate != FormMain->BaudRate)
-		FormMain->BaudRate = OverallSettings.BaudRate;
 }
 //---------------------------------------------------------------------------
 int __fastcall TFormOverallSettings::SendToMachine(void)
 {
+  // don't allow multiple button presses
+  if (IsBusy())
+    return -1;
+
 	try
 	{
-		int iError = FromGui(); // Load OverallSettings struct from GUI
+    FormMain->BusyCount++;
 
-		if (iError < 0)
-		{
-			if (iError != -1)
-				ShowMessage("Unable to send to machine (FromGui())! (code=" + String(iError) + ")");
-			return -1;
-		}
+    try
+    {
+      // Save the machine's baud-rate that's working right now...
+      UInt32 OldBaudRate = OverallSettings.BaudRate;
 
-		// convert OverallSettings struct to os[]
-		iError = ToArray();
+      int iError = FromGui(); // Load OverallSettings struct from GUI
 
-		if (iError < 0)
-		{
-			if (iError != -1)
-				ShowMessage("Unable to send to machine (ToArray())! (code=" + String(iError) + ")");
-			return -1;
-		}
+      if (iError < 0)
+      {
+        if (iError != -1)
+          ShowMessage("Unable to send to machine (FromGui())! (code=" + String(iError) + ")");
+        return -1;
+      }
 
-		// send overall settings to Akai S950/S900, with delay
-		if (!FormMain->comws(OSSIZ, os, true))
-		{
-			ShowMessage("Unable to send... try again or close...");
-			return -1;
-		}
+      // convert OverallSettings struct to os[]
+      iError = ToArray();
 
-		return 0;
-	}
-	catch(...)
-	{
-		return -100;
-	}
+      if (iError < 0)
+      {
+        if (iError != -1)
+          ShowMessage("Unable to send to machine (ToArray())! (code=" + String(iError) + ")");
+        return -1;
+      }
+
+      // send overall settings to Akai S950/S900, with delay
+      if (!FormMain->comws(OSSIZ, os, true))
+      {
+        ShowMessage("Unable to send... try again or close...");
+        return -1;
+      }
+
+      // trigger baud rate change in FormMain if user just changed baud-rate on machine!
+      if (OverallSettings.BaudRate != OldBaudRate)
+      {
+        // add timeout seconds for slower baud-rate...
+        int iTimeoutTime = OldBaudRate < 19200 ? TXTIMEOUT+2 : TXTIMEOUT;
+
+        // wait for comws() above to complete...
+        if (FormMain->WaitTxComEmpty(iTimeoutTime) < 0)
+        {
+          ShowMessage("Unable to verify empty transmit buffer...");
+          return -1;
+        }
+
+        FormMain->BaudRate = OverallSettings.BaudRate;
+      }
+    }
+    catch(...)
+    {
+      return -100;
+    }
+  }
+  __finally
+  {
+    FormMain->BusyCount--;
+  }
+
+  return 0;
 }
 //---------------------------------------------------------------------------
 int __fastcall TFormOverallSettings::LoadFromMachine(void)
@@ -206,11 +250,11 @@ int __fastcall TFormOverallSettings::LoadFromMachine(void)
 	try
 	{
 		// receive overall settings from Akai S950/S900
-		int iErrorCode = FormMain->LoadOverallSettingsToTempArray(); // get the overall settings into TempArray
+		int iError = FormMain->LoadOverallSettingsToTempArray(); // get the overall settings into TempArray
 
-		if (iErrorCode < 0)
+		if (iError < 0)
 		{
-			switch(iErrorCode)
+			switch(iError)
 			{
 				case -2:
 						ShowMessage("transmit timeout!");
@@ -234,10 +278,10 @@ int __fastcall TFormOverallSettings::LoadFromMachine(void)
 		}
 
 		// copy TempArray to os[]
-		memmove(os, FormMain->TempArray, OSSIZ);
+		memcpy(os, FormMain->TempArray, OSSIZ);
 
 		// convert os[] to OverallSettings struct
-		int iError = FromArray();
+		iError = FromArray();
 
 		if (iError < 0)
 		{

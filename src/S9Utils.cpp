@@ -24,6 +24,58 @@ const char* KEYS[] =
 	"B",
 };
 //---------------------------------------------------------------------------
+const int WHITEKEYS[] =
+{
+  0, // C
+  2, // D
+  4, // E
+  5, // F
+  7, // G
+  9, // A
+  11 // B
+};
+#define WK_COUNT 7
+//---------------------------------------------------------------------------
+const int BLACKKEYS[] =
+{
+  1, // C#
+  3, // Eb
+  6, // F#
+  8, // G#
+  10 // Bb
+};
+#define BK_COUNT 5
+//---------------------------------------------------------------------------
+bool __fastcall S9Utils::IsWhiteKey(int iKey)
+{
+  iKey = iKey % 12; // convert from ovtave+note to to a note
+  for (int ii = 0; ii < WK_COUNT; ii++)
+    if (iKey == WHITEKEYS[ii])
+      return true;
+  return false;
+}
+//---------------------------------------------------------------------------
+int __fastcall S9Utils::NextWhiteKey(int iKey)
+{
+  do { iKey++; } while(IsBlackKey(iKey));
+  return iKey;
+}
+//---------------------------------------------------------------------------
+bool __fastcall S9Utils::IsBlackKey(int iKey)
+{
+  iKey = iKey % 12; // convert from ovtave+note to to a note
+  for (int ii = 0; ii < BK_COUNT; ii++)
+    if (iKey == BLACKKEYS[ii])
+      return true;
+  return false;
+}
+//---------------------------------------------------------------------------
+int __fastcall S9Utils::NextBlackKey(int iKey)
+{
+  do { iKey++; } while(IsWhiteKey(iKey));
+  return iKey;
+}
+//---------------------------------------------------------------------------
 // Given a key in the range 0-127, returns the -2C-+8G equavalent string
 // (11octaves*12notes)-4 = 128 total midi notes
 String __fastcall S9Utils::KeyToString(Byte key)
@@ -396,6 +448,33 @@ void __fastcall S9Utils::trimright(Byte* pStr)
 	}
 
 	pStr[len] = 0;
+}
+//---------------------------------------------------------------------------
+// prints a message if the main "busy" flag is set.
+// The flag is used at high-level UI menu/button handlers to avoid
+// com-conflicts...
+bool __fastcall S9Utils::IsBusy(void)
+{
+  if (FormMain->BusyCount < 0)
+  {
+    printm("repairing busy-counter - please tell dxzl@live.com! (" + String(FormMain->BusyCount) + ")");
+    FormMain->BusyCount = 0; // repair
+    return false;
+  }
+
+  if (FormMain->BusyCount > 0)
+  {
+    if (FormMain->BusyCount > 1)
+    {
+      printm("repairing busy-counter - please tell dxzl@live.com! (" + String(FormMain->BusyCount) + ")");
+      FormMain->BusyCount = 1; // repair
+    }
+
+    ShowMessage("Communications busy. Try Again...");
+    return true;
+  }
+
+  return false;
 }
 //---------------------------------------------------------------------------
 
