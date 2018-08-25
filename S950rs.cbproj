@@ -105,12 +105,13 @@
         <VerInfo_PreRelease>true</VerInfo_PreRelease>
         <VerInfo_Debug>true</VerInfo_Debug>
         <VerInfo_Private>true</VerInfo_Private>
-        <Icon_MainIcon>src\Colorize.ico</Icon_MainIcon>
+        <Icon_MainIcon>src\s9.ico</Icon_MainIcon>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <LinkPackageStatics>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</LinkPackageStatics>
         <AppEnableHighDPI>true</AppEnableHighDPI>
         <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=1.83.0.0;InternalName=;LegalCopyright=2017;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.83.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann</VerInfo_Keys>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
+        <BCC_IncludePath>C:\Users\Scott\Documents\Embarcadero\Studio\AsyncPro-master\source\hpp\Win32\Debug;$(BCC_IncludePath)</BCC_IncludePath>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <VerInfo_Special>true</VerInfo_Special>
