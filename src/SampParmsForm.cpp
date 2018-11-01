@@ -300,8 +300,8 @@ int __fastcall TFormEditSampParms::ParmsToGui(int iMode)
 
 			LabelSampleRate->Caption = "Sample Rate: " + String(m_ps.freq) + " Hz";
 			LabelSampleRate->Tag = m_ps.freq; // save the raw # in Tag
-			LabelSampleLength->Caption = "Sample Length: " + String(m_ps.totalct);
-			LabelSampleLength->Tag = m_ps.totalct; // save the raw # in Tag
+			LabelSampleLength->Caption = "Sample Length: " + String(m_ps.sampleCount);
+			LabelSampleLength->Tag = m_ps.sampleCount; // save the raw # in Tag
       UInt32 iPeriod = 1.0e9 / (double)m_ps.freq; // in nanoseconds
  			LabelSampleTime->Caption = "Time (mS): " + String(m_ps.endpoint*iPeriod/1.0e6);
 
@@ -313,12 +313,12 @@ int __fastcall TFormEditSampParms::ParmsToGui(int iMode)
 			UpDownEnd->Min = 0;
 			UpDownLoop->Min = 0;
 
-			TBStart->Max = m_ps.totalct;
-			TBEnd->Max = m_ps.totalct;
-			TBLoop->Max = m_ps.totalct;
-			UpDownStart->Max = m_ps.totalct;
-			UpDownEnd->Max = m_ps.totalct;
-			UpDownLoop->Max = m_ps.totalct;
+			TBStart->Max = m_ps.sampleCount;
+			TBEnd->Max = m_ps.sampleCount;
+			TBLoop->Max = m_ps.sampleCount;
+			UpDownStart->Max = m_ps.sampleCount;
+			UpDownEnd->Max = m_ps.sampleCount;
+			UpDownLoop->Max = m_ps.sampleCount;
 
 			TBStart->Position = m_ps.startpoint;
 			UpDownStart->Position = TBStart->Position;
@@ -512,7 +512,7 @@ int __fastcall TFormEditSampParms::ParmsToArray(UInt16 index)
 		 // 35-38  DW Undefined
 
 		// number of sample words
-		encodeDD(m_ps.totalct, &m_samp_parms[39]); // 8
+		encodeDD(m_ps.sampleCount, &m_samp_parms[39]); // 8
 
 		// sampling frequency
 		encodeDW(m_ps.freq, &m_samp_parms[47]); // 4
@@ -595,7 +595,7 @@ int __fastcall TFormEditSampParms::ParmsFromArray(void)
 		// m_ps.undef_dw = decodeDW((Byte*)&m_samp_parms[35]); // 4
 
 		// number of words in sample (for velocity-crossfade it's the sum of soft and loud parts)
-		m_ps.totalct = decodeDD(&m_samp_parms[39]); // 8
+		m_ps.sampleCount = decodeDD(&m_samp_parms[39]); // 8
 
 		// original sample rate in Hz
 		m_ps.freq = decodeDW(&m_samp_parms[47]); // 4

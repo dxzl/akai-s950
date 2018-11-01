@@ -2,7 +2,7 @@ object FormProgram: TFormProgram
   Left = 0
   Top = 0
   Caption = 'Create S900/S950 Program'
-  ClientHeight = 321
+  ClientHeight = 467
   ClientWidth = 916
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -154,11 +154,12 @@ object FormProgram: TFormProgram
   end
   object Panel2: TPanel
     Left = 0
-    Top = 280
+    Top = 426
     Width = 916
     Height = 41
     Align = alBottom
     TabOrder = 1
+    ExplicitTop = 220
     object ButtonSend: TButton
       Left = 97
       Top = 6
@@ -202,15 +203,16 @@ object FormProgram: TFormProgram
     Left = 0
     Top = 73
     Width = 916
-    Height = 207
+    Height = 353
     Align = alClient
     Caption = 'Panel3'
     TabOrder = 2
+    ExplicitHeight = 147
     object SG: TStringGrid
       Left = 1
       Top = 1
       Width = 914
-      Height = 205
+      Height = 351
       Align = alClient
       ColCount = 2
       DefaultColWidth = 100
@@ -219,6 +221,7 @@ object FormProgram: TFormProgram
       Options = [goFixedVertLine, goVertLine, goHorzLine, goRangeSelect, goRowMoving, goEditing, goAlwaysShowEditor, goFixedHotTrack]
       TabOrder = 0
       OnMouseDown = SGMouseDown
+      ExplicitHeight = 145
       ColWidths = (
         100
         100)
@@ -288,31 +291,31 @@ object FormProgram: TFormProgram
       Caption = 'Tools'
       object MenuDrumify: TMenuItem
         Caption = 'Drumify'
-        ShortCut = 16498
+        ShortCut = 32881
         OnClick = MenuDrumifyClick
       end
       object MenuDrumifyBlack: TMenuItem
         Caption = 'Drumify (semitones only)'
         Hint = 'Puts selected keygroups on ascending individual black keys'
-        ShortCut = 16499
+        ShortCut = 32882
         OnClick = MenuDrumifyBlackClick
       end
       object MenuDrumifyWhite: TMenuItem
         Caption = 'Drumify  (whole notes only)'
         Hint = 'Puts selected keygroups on ascending individual white keys'
-        ShortCut = 16500
+        ShortCut = 32883
         OnClick = MenuDrumifyWhiteClick
       end
       object MenuOctifyKG: TMenuItem
         Caption = 'Octify Keygroups'
         Hint = 'Assigns each keygroup to one octave and auto-transposes'
-        ShortCut = 16501
+        ShortCut = 32884
         OnClick = MenuOctifyKGClick
       end
       object MenuMidifyKeygroups: TMenuItem
         Caption = 'Midify Keygroups'
         Hint = 'Assigns each selected keygroup to a different midi-offset'
-        ShortCut = 16502
+        ShortCut = 32885
         OnClick = MenuMidifyKeygroupsClick
       end
       object N4: TMenuItem
@@ -320,7 +323,7 @@ object FormProgram: TFormProgram
       end
       object MenuDeleteSelectedKeygroups: TMenuItem
         Caption = 'Delete Selected Keygroups'
-        ShortCut = 16503
+        ShortCut = 32886
         OnClick = MenuDeleteSelectedKeygroupsClick
       end
       object N5: TMenuItem
@@ -328,13 +331,26 @@ object FormProgram: TFormProgram
       end
       object MenuClearSelected: TMenuItem
         Caption = 'Clear Selected Keygroups'
-        ShortCut = 16504
+        ShortCut = 32887
         OnClick = MenuClearSelectedClick
       end
       object MenuSelectAll: TMenuItem
         Caption = 'Select All Keygroups'
-        ShortCut = 16505
+        ShortCut = 32888
         OnClick = MenuSelectAllClick
+      end
+      object N6: TMenuItem
+        Caption = '-'
+      end
+      object MenuCopyHilightedKeygroup: TMenuItem
+        Caption = 'Copy Current Keygroup'#39's Data'
+        ShortCut = 32889
+        OnClick = MenuCopyHilightedKeygroupClick
+      end
+      object MenuPasteHilightedKeygroup: TMenuItem
+        Caption = 'Paste Copied Keygroup'#39's Data'
+        ShortCut = 32890
+        OnClick = MenuPasteHilightedKeygroupClick
       end
     end
     object MenuHelp: TMenuItem

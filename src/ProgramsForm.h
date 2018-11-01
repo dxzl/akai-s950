@@ -95,6 +95,7 @@
 
 #define NEWPROGNAME "NewProg " // a ## number will be added...
 #define NEWSAMPNAME "NewSamp " // a ## number will be added...
+#define COPYMAGIC "83059138S950" // magic # used to validate clipboard keygroup
 //---------------------------------------------------------------------------
 // Scott Swift's .PRG file-format:
 
@@ -286,6 +287,9 @@ __published:    // IDE-managed Components
   TMenuItem *MenuSelectAll;
   TMenuItem *MenuDeleteSelectedKeygroups;
   TMenuItem *N5;
+  TMenuItem *N6;
+  TMenuItem *MenuCopyHilightedKeygroup;
+  TMenuItem *MenuPasteHilightedKeygroup;
   void __fastcall FormCreate(TObject *Sender);
   void __fastcall ButtonCloseClick(TObject *Sender);
   void __fastcall ButtonSendClick(TObject *Sender);
@@ -318,6 +322,8 @@ __published:    // IDE-managed Components
   void __fastcall MenuSelectAllClick(TObject *Sender);
   void __fastcall MenuClearSelectedClick(TObject *Sender);
   void __fastcall MenuDeleteSelectedKeygroupsClick(TObject *Sender);
+  void __fastcall MenuCopyHilightedKeygroupClick(TObject *Sender);
+  void __fastcall MenuPasteHilightedKeygroupClick(TObject *Sender);
 
 private:    // User declarations
 	void __fastcall InitKeygroupCells(void);

@@ -3054,6 +3054,51 @@ void __fastcall TFormProgram::MenuDeleteSelectedKeygroupsClick(TObject *Sender)
   DeleteSelectedKeygroups();
 }
 //---------------------------------------------------------------------------
+void __fastcall TFormProgram::MenuCopyHilightedKeygroupClick(TObject *Sender)
+{
+  // Put the comma separated keygroup text on the clipboard replacing
+  // the Keygroup # with a COPYMAGIC so we can identify it upon paste...
+  try
+  {
+    if (SG->RowCount > PADROWS)
+    {
+      String s = SG->Rows[SG->Row]->CommaText;
+
+      // replace the row number with a "magic number" for the clipboard
+      // so that we can identify it for pasting
+      int iCommaPos = s.Pos(",");
+      if (iCommaPos > 0)
+        Clipboard()->AsText = COPYMAGIC + s.SubString(iCommaPos, s.Length()-iCommaPos+1);
+    }
+  }
+  catch(...){}
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormProgram::MenuPasteHilightedKeygroupClick(TObject *Sender)
+{
+  // Check the text on the clipboard for a leading string COPYMAGIC.
+  // If it's our data - paste it into the current keygroup.
+  try
+  {
+    if (SG->RowCount > PADROWS)
+    {
+      String s = Clipboard()->AsText;
+
+      int iCommaPos = s.Pos(",");
+      if (iCommaPos > 0)
+      {
+        String sMagic = s.SubString(1, iCommaPos-1);
+        if (sMagic == String(COPYMAGIC))
+        {
+          String sRemaining = s.SubString(iCommaPos, s.Length()-iCommaPos+1);
+          SG->Rows[SG->Row]->CommaText = String(SG->Row-PADROWS+1) + sRemaining;
+        }
+      }
+    }
+  }
+  catch(...){}
+}
+//---------------------------------------------------------------------------
 void __fastcall TFormProgram::ButtonSelectAllClick(TObject *Sender)
 {
   if (ButtonSelectAll->Tag == 0)

@@ -6,6 +6,7 @@
 #define MainFormH
 //---------------------------------------------------------------------------
 #include <System.Classes.hpp>
+#include <Vcl.Clipbrd.hpp>
 #include <Vcl.Controls.hpp>
 #include <Vcl.StdCtrls.hpp>
 #include <Vcl.Forms.hpp>
@@ -23,7 +24,7 @@
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version 2.10, July 3, 2018"
+#define VERSION_STR "Version (Experimental 59), October 18, 2018"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS950"
@@ -193,7 +194,7 @@ typedef struct
   UInt32 looplen; // loop length relative to startidx (4 bytes)
   UInt32 freq; // sample freq. in Hz (4 bytes)
 	UInt32 pitch; // pitch - units = 1/16 semitone (4 bytes)
-  UInt32 totalct; // total number of words in sample (4 bytes)
+  UInt32 sampleCount; // total number of words in sample (4 bytes)
   UInt32 period; // sample period in nanoseconds (4 bytes)
   UInt32 spareint1; // (4 bytes)
   UInt16 bits_per_word; // (2 bytes)
@@ -220,10 +221,10 @@ typedef struct
   UInt32 sampleFreq;
   UInt32 frameRate; // (SampleFreq * BitsPerSample * NumChannels) / 8
   UInt16 bytesPerFrame; // 2
-  UInt16 bitsPerSample; // 16
+  UInt16 bitsPerSample; // 12 for the S900/S950
   char data[4]; // "data"
-  UInt32 dataSize; // # sample words * 2
-} WAVHEDR;
+  UInt32 dataSize; // # sample words * bytesPerFrame
+} WAVHEDR; // 44 bytes
 
 // a SMPLCHUNK can have 0-N of these... (we need only one)
 typedef struct
@@ -234,7 +235,7 @@ typedef struct
   UInt32 end; // sample's end-index * 2 bytes per frame
   UInt32 fraction; // 0
   UInt32 playCount; // 0 (endless)
-} SMPLLOOP;
+} SMPLLOOP; // 24 bytes
 
 // we tack this on in a "smpl" chunk, after any loops (same size as a 24-byte SMPLLOOP)
 typedef struct
@@ -247,7 +248,7 @@ typedef struct
   UInt32 spare3;
   UInt32 spare4;
   UInt32 spare5;
-} SMPLDATA;
+} SMPLDATA; // 24 bytes
 
 // generic digital-sampler chunk
 typedef struct
@@ -263,16 +264,7 @@ typedef struct
   UInt32 SMPTEOffset; // 0
   UInt32 loopCount; // 1
   UInt32 samplerDataSize; // sizeof(SMPLOOP) + sizeof(UInt32) + sizeof(PSTOR)
-} SMPLCHUNKHEDR;
-
-// generic digital-sampler chunk
-// holds our loop and end-point
-typedef struct
-{
-  SMPLCHUNKHEDR sch;
-  SMPLLOOP sl;
-  SMPLDATA sd; // tack on the SMPLDATA struct (24 bytes)
-} SMPLCHUNKOUT;
+} SMPLCHUNKHEDR; // 44 bytes
 
 // a CUECHUNK can have 0-N of these... (we need only one)
 typedef struct {
@@ -282,7 +274,7 @@ typedef struct {
 	UInt32 chunkStart; // Unsigned 4-byte little endian int: The byte offset into the Wave List Chunk of the chunk containing the sample that corresponds to this cue point. This is the same chunk described by the Data Chunk ID value. If no Wave List Chunk exists in the Wave file, this value is 0.
 	UInt32 blockStart; // Unsigned 4-byte little endian int: The byte offset into the "data" or "slnt" Chunk to the start of the block containing the sample. The start of a block is defined as the first byte in uncompressed PCM wave data or the last byte in compressed wave data where decompression can begin to find the value of the corresponding sample value.
 	UInt32 frameOffset; // Unsigned 4-byte little endian int: The offset into the block (specified by Block Start) for the sample that corresponds to the cue point.
-} CUEPOINT;
+} CUEPOINT; // 24 bytes
 
 // holds our start-point
 typedef struct
@@ -291,7 +283,7 @@ typedef struct
 	UInt32 chunkDataSize; // Unsigned 4-byte little endian int: Byte count for the remainder of the chunk: 4 (size of cuePointsCount) + (24 (size of CuePoint struct) * number of CuePoints).
 	UInt32 cuePointsCount; // Unsigned 4-byte little endian int: Length of cuePoints[].
   CUEPOINT cuePoints[2];
-} CUECHUNK;
+} CUECHUNK; // 60 bytes
 
 //---------------------------------------------------------------------------
 class TFormMain : public TForm
@@ -370,7 +362,7 @@ private:  // User declarations
 
 	void __fastcall SetMenuItems(void);
 	int __fastcall FindIndex(Byte* pName);
-	void __fastcall SetComPort(int baud);
+	int __fastcall SetComPort(int baud);
 	int __fastcall GetFileNames(void);
 	bool __fastcall DoSaveDialog(String &sName);
 	__int32 __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
@@ -379,8 +371,8 @@ private:  // User declarations
 
 	bool __fastcall bytewisecompare(Byte* buf1, Byte* buf2, int maxLen);
 	int __fastcall findidx(Byte* sampName);
-	void __fastcall queue(UInt16 val, Byte* &ptbuf,
-			int bytes_per_word, int bits_per_word, Byte &checksum);
+	void __fastcall queue(__int32 acc, Byte* &ptbuf,
+			int sampler_bytes_per_word, int bits_per_word, Byte &checksum);
 	void __fastcall send_samp_parms(unsigned index);
 	bool __fastcall send_packet(Byte* tbuf, int blockct);
 	void __fastcall print_ps_info(PSTOR* ps);
@@ -392,9 +384,9 @@ private:  // User declarations
 	bool __fastcall exmit(int samp, int mode, bool bDelay);
 	bool __fastcall cxmit(int samp, int mode, bool bDelay);
 
-	int __fastcall get_samp_data(PSTOR * ps, long lFileHandle);
-	int __fastcall get_comm_samp_data(__int16* bufptr, int bytes_per_word,
-	int samples_per_block, int bits_per_word, int blockct);
+	int __fastcall get_samp_data(PSTOR * ps, long lFileHandle, bool bIsWavFile);
+	int __fastcall get_data_block(Byte* dest, int sampler_bytes_per_word, int target_bytes_per_word,
+    	int sampler_words_per_packet, int bits_per_word, int packet_count, bool bIsWavFile);
 
 	int __fastcall get_comm_samp_hedr(int samp);
 	void __fastcall WMDropFile(TWMDropFiles &Msg);
@@ -441,7 +433,7 @@ public:    // User declarations
 	__fastcall TFormMain(TComponent* Owner);
 
 	void __fastcall DelayGpTimer(int iTime);
-  int __fastcall WaitTxComEmpty(int iTime);
+  int __fastcall WaitTxCom(int iTime, int count=0);
 
 	bool __fastcall comws(int count, Byte* ptr, bool bDelay);
 

@@ -223,7 +223,7 @@ int __fastcall TFormOverallSettings::SendToMachine(void)
         int iTimeoutTime = OldBaudRate < 19200 ? TXTIMEOUT+2 : TXTIMEOUT;
 
         // wait for comws() above to complete...
-        if (FormMain->WaitTxComEmpty(iTimeoutTime) < 0)
+        if (FormMain->WaitTxCom(iTimeoutTime) < 0)
         {
           ShowMessage("Unable to verify empty transmit buffer...");
           return -1;
