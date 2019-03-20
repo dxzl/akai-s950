@@ -24,7 +24,7 @@
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version (Experimental 59), October 18, 2018"
+#define VERSION_STR "Version (Experimental 64), March 19, 2019"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS950"
@@ -77,6 +77,9 @@
 // S950 sample header storage
 #define HEDRSIZ 19  // starts with BEX but no EEX
 #define ACKSIZ 4
+
+// minimum points in a loop
+#define MINLOOP 5
 
 // packet retry count
 #define PACKET_RETRY_COUNT 3
@@ -193,14 +196,14 @@ typedef struct
   UInt32 endpoint; // end of play point (4 bytes)
   UInt32 looplen; // loop length relative to startidx (4 bytes)
   UInt32 freq; // sample freq. in Hz (4 bytes)
-	UInt32 pitch; // pitch - units = 1/16 semitone (4 bytes)
+  UInt32 pitch; // pitch - units = 1/16 semitone (4 bytes)
   UInt32 sampleCount; // total number of words in sample (4 bytes)
   UInt32 period; // sample period in nanoseconds (4 bytes)
   UInt32 spareint1; // (4 bytes)
   UInt16 bits_per_word; // (2 bytes)
   char name[PSTOR_NAME_COUNT]; // ASCII sample name (14 bytes)
   Byte spares[PSTOR_SPARE_COUNT]; // unused bytes (12 bytes)
-	__int32 spareint2; // signed value (4 bytes)
+  __int32 spareint2; // signed value (4 bytes)
   __int32 loudnessoffset; // signed value (4 bytes)
   Byte sparechar1; // (1 byte)
   Byte sparechar2; // (1 byte)
@@ -268,20 +271,20 @@ typedef struct
 
 // a CUECHUNK can have 0-N of these... (we need only one)
 typedef struct {
-	char cuePointID[4]; // a unique ID for the Cue Point. "strt" "end "
-	UInt32 playOrderPosition; // Unsigned 4-byte little endian int: If a Playlist chunk is present in the Wave file, this the sample number at which this cue point will occur during playback of the entire play list as defined by the play list's order.  **Otherwise set to same as sample offset??***  Set to 0 when there is no playlist.
-	char dataChunkID[4]; // Unsigned 4-byte little endian int: The ID of the chunk containing the sample data that corresponds to this cue point.  If there is no playlist, this should be 'data'.
-	UInt32 chunkStart; // Unsigned 4-byte little endian int: The byte offset into the Wave List Chunk of the chunk containing the sample that corresponds to this cue point. This is the same chunk described by the Data Chunk ID value. If no Wave List Chunk exists in the Wave file, this value is 0.
-	UInt32 blockStart; // Unsigned 4-byte little endian int: The byte offset into the "data" or "slnt" Chunk to the start of the block containing the sample. The start of a block is defined as the first byte in uncompressed PCM wave data or the last byte in compressed wave data where decompression can begin to find the value of the corresponding sample value.
-	UInt32 frameOffset; // Unsigned 4-byte little endian int: The offset into the block (specified by Block Start) for the sample that corresponds to the cue point.
+  char cuePointID[4]; // a unique ID for the Cue Point. "strt" "end "
+  UInt32 playOrderPosition; // Unsigned 4-byte little endian int: If a Playlist chunk is present in the Wave file, this the sample number at which this cue point will occur during playback of the entire play list as defined by the play list's order.  **Otherwise set to same as sample offset??***  Set to 0 when there is no playlist.
+  char dataChunkID[4]; // Unsigned 4-byte little endian int: The ID of the chunk containing the sample data that corresponds to this cue point.  If there is no playlist, this should be 'data'.
+  UInt32 chunkStart; // Unsigned 4-byte little endian int: The byte offset into the Wave List Chunk of the chunk containing the sample that corresponds to this cue point. This is the same chunk described by the Data Chunk ID value. If no Wave List Chunk exists in the Wave file, this value is 0.
+  UInt32 blockStart; // Unsigned 4-byte little endian int: The byte offset into the "data" or "slnt" Chunk to the start of the block containing the sample. The start of a block is defined as the first byte in uncompressed PCM wave data or the last byte in compressed wave data where decompression can begin to find the value of the corresponding sample value.
+  UInt32 frameOffset; // Unsigned 4-byte little endian int: The offset into the block (specified by Block Start) for the sample that corresponds to the cue point.
 } CUEPOINT; // 24 bytes
 
 // holds our start-point
 typedef struct
 {
-	char chunkID[4]; // String: Must be "cue " (0x63756520).
-	UInt32 chunkDataSize; // Unsigned 4-byte little endian int: Byte count for the remainder of the chunk: 4 (size of cuePointsCount) + (24 (size of CuePoint struct) * number of CuePoints).
-	UInt32 cuePointsCount; // Unsigned 4-byte little endian int: Length of cuePoints[].
+  char chunkID[4]; // String: Must be "cue " (0x63756520).
+  UInt32 chunkDataSize; // Unsigned 4-byte little endian int: Byte count for the remainder of the chunk: 4 (size of cuePointsCount) + (24 (size of CuePoint struct) * number of CuePoints).
+  UInt32 cuePointsCount; // Unsigned 4-byte little endian int: Length of cuePoints[].
   CUEPOINT cuePoints[2];
 } CUECHUNK; // 60 bytes
 
@@ -289,7 +292,7 @@ typedef struct
 class TFormMain : public TForm
 {
 __published:  // IDE-managed Components
-	TPanel *Panel2;
+  TPanel *Panel2;
     TComboBox *ComboBoxRs232;
     TListBox *ListBox1;
     TOpenDialog *OpenDialog1;
@@ -302,19 +305,19 @@ __published:  // IDE-managed Components
     TMenuItem *N1;
     TMenuItem *MenuGetSample;
     TMenuItem *MenuPutSample;
-		TMenuItem *N2;
+    TMenuItem *N2;
     TMenuItem *MenuGetPrograms;
     TMenuItem *N3;
     TMenuItem *MenuUseRightChanForStereoSamples;
     TMenuItem *MenuAutomaticallyRenameSample;
-		TMenuItem *MenuUseHWFlowControlBelow50000Baud;
+    TMenuItem *MenuUseHWFlowControlBelow50000Baud;
     TMenuItem *N4;
-	TMenuItem *MenuAbout;
-		TMenuItem *MenuMakeOrEditProgram;
+  TMenuItem *MenuAbout;
+    TMenuItem *MenuMakeOrEditProgram;
     TMenuItem *N5;
     TMenuItem *MenuEditSampleParameters;
-	TMenuItem *MainMenuHelp;
-	TMenuItem *MenuEditOverallSettings;
+  TMenuItem *MainMenuHelp;
+  TMenuItem *MenuEditOverallSettings;
   TApdComPort *ApdComPort1;
 
     void __fastcall MenuGetCatalogClick(TObject *Sender);
@@ -326,133 +329,133 @@ __published:  // IDE-managed Components
     void __fastcall MenuUseRightChanForStereoSamplesClick(TObject *Sender);
 
     void __fastcall ListBox1Click(TObject *Sender);
-	void __fastcall MenuAboutClick(TObject *Sender);
+  void __fastcall MenuAboutClick(TObject *Sender);
     void __fastcall FormCreate(TObject *Sender);
     void __fastcall ComboBoxRs232Change(TObject *Sender);
-	void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
-		void __fastcall FormShow(TObject *Sender);
+  void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
+    void __fastcall FormShow(TObject *Sender);
     void __fastcall FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift);
     void __fastcall ComboBoxRs232Select(TObject *Sender);
-	void __fastcall FormDestroy(TObject *Sender);
-		void __fastcall MenuMakeOrEditProgramClick(TObject *Sender);
-		void __fastcall MenuEditSampleParametersClick(TObject *Sender);
-	void __fastcall MainMenuHelpClick(TObject *Sender);
-	void __fastcall MenuEditOverallSettingsClick(TObject *Sender);
+  void __fastcall FormDestroy(TObject *Sender);
+    void __fastcall MenuMakeOrEditProgramClick(TObject *Sender);
+    void __fastcall MenuEditSampleParametersClick(TObject *Sender);
+  void __fastcall MainMenuHelpClick(TObject *Sender);
+  void __fastcall MenuEditOverallSettingsClick(TObject *Sender);
 
 private:  // User declarations
-	void __fastcall Timer1FileDropTimeout(TObject *Sender);
-	void __fastcall Timer1GpTimeout(TObject *Sender);
-	void __fastcall Timer1OneSecTimeout(TObject *Sender);
+  void __fastcall Timer1FileDropTimeout(TObject *Sender);
+  void __fastcall Timer1GpTimeout(TObject *Sender);
+  void __fastcall Timer1OneSecTimeout(TObject *Sender);
 
-	bool __fastcall IsGpTimeout(void);
-	void __fastcall StopGpTimer(void);
-	void __fastcall StartGpTimer(int time);
+  bool __fastcall IsGpTimeout(void);
+  void __fastcall StopGpTimer(void);
+  void __fastcall StartGpTimer(int time);
   void __fastcall StartElapsedSecondsTimer(void);
   void __fastcall StopElapsedSecondsTimer(void);
   void __fastcall ResetElapsedSecondsTimer(void);
   bool __fastcall IsTimeElapsed(int iTime);
 
-	bool __fastcall PutSample(String sFilePath);
-	int __fastcall GetSample(String sPath, int iSamp);
+  bool __fastcall PutSample(String sFilePath);
+  int __fastcall GetSample(String sPath, int iSamp);
   int __fastcall GetAsWavFile(long lFileHandle, int iSamp, PSTOR* ps);
   int __fastcall GetAsAkiFile(long lFileHandle, int iSamp, PSTOR* ps);
-	void __fastcall PutPrograms(String sFilePath);
-	void __fastcall PutFiles(void);
-	int __fastcall GetPrograms(String sFilePath);
+  void __fastcall PutPrograms(String sFilePath);
+  void __fastcall PutFiles(void);
+  int __fastcall GetPrograms(String sFilePath);
 
-	void __fastcall SetMenuItems(void);
-	int __fastcall FindIndex(Byte* pName);
-	int __fastcall SetComPort(int baud);
-	int __fastcall GetFileNames(void);
-	bool __fastcall DoSaveDialog(String &sName);
-	__int32 __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
-	void __fastcall encode_sample_info(UInt16 index, PSTOR* ps);
-	void __fastcall decode_sample_info(PSTOR* ps);
+  void __fastcall SetMenuItems(void);
+  int __fastcall FindIndex(Byte* pName);
+  int __fastcall SetComPort(int baud);
+  int __fastcall GetFileNames(void);
+  bool __fastcall DoSaveDialog(String &sName);
+  __int32 __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
+  void __fastcall encode_sample_info(UInt16 index, PSTOR* ps);
+  void __fastcall decode_sample_info(PSTOR* ps);
 
-	bool __fastcall bytewisecompare(Byte* buf1, Byte* buf2, int maxLen);
-	int __fastcall findidx(Byte* sampName);
-	void __fastcall queue(__int32 acc, Byte* &ptbuf,
-			int sampler_bytes_per_word, int bits_per_word, Byte &checksum);
-	void __fastcall send_samp_parms(unsigned index);
-	bool __fastcall send_packet(Byte* tbuf, int blockct);
-	void __fastcall print_ps_info(PSTOR* ps);
-	int __fastcall receive(int count, bool displayHex=false);
-	bool __fastcall catalog(bool print);
+  bool __fastcall bytewisecompare(Byte* buf1, Byte* buf2, int maxLen);
+  int __fastcall findidx(Byte* sampName);
+  void __fastcall queue(__int32 acc, Byte* &ptbuf,
+      int sampler_bytes_per_word, int bits_per_word, Byte &checksum);
+  void __fastcall send_samp_parms(unsigned index);
+  bool __fastcall send_packet(Byte* tbuf, int blockct);
+  void __fastcall print_ps_info(PSTOR* ps);
+  int __fastcall receive(int count, bool displayHex=false);
+  bool __fastcall catalog(bool print);
 
-	bool __fastcall chandshake(int mode, int blockct=0);
-	int __fastcall get_ack(int blockct);
-	bool __fastcall exmit(int samp, int mode, bool bDelay);
-	bool __fastcall cxmit(int samp, int mode, bool bDelay);
+  bool __fastcall chandshake(int mode, int blockct=0);
+  int __fastcall get_ack(int blockct);
+  bool __fastcall exmit(int samp, int mode, bool bDelay);
+  bool __fastcall cxmit(int samp, int mode, bool bDelay);
 
-	int __fastcall get_samp_data(PSTOR * ps, long lFileHandle, bool bIsWavFile);
-	int __fastcall get_data_block(Byte* dest, int sampler_bytes_per_word, int target_bytes_per_word,
-    	int sampler_words_per_packet, int bits_per_word, int packet_count, bool bIsWavFile);
+  int __fastcall get_samp_data(PSTOR * ps, long lFileHandle, bool bIsWavFile);
+  int __fastcall get_data_block(Byte* dest, int sampler_bytes_per_word, int target_bytes_per_word,
+      int sampler_words_per_packet, int bits_per_word, int packet_count, bool bIsWavFile);
 
-	int __fastcall get_comm_samp_hedr(int samp);
-	void __fastcall WMDropFile(TWMDropFiles &Msg);
+  int __fastcall get_comm_samp_hedr(int samp);
+  void __fastcall WMDropFile(TWMDropFiles &Msg);
 
-	// receive data buffer, needs to be big enough for a catalog of a
-	// sampler with the max samples allowed OR large enough for
-	// the largest sysex dump you expect, sample parameters, drum settings, etc.
-	Byte m_temp_array[TEMPARRAYSIZ];
+  // receive data buffer, needs to be big enough for a catalog of a
+  // sampler with the max samples allowed OR large enough for
+  // the largest sysex dump you expect, sample parameters, drum settings, etc.
+  Byte m_temp_array[TEMPARRAYSIZ];
 
-	// holds the Rx/Tx sample information
-	Byte samp_parms[PARMSIZ];
-	Byte samp_hedr[HEDRSIZ];
-	unsigned m_rxByteCount;
-	int m_numSampEntries, m_numProgEntries, m_elapsedSeconds, m_busyCount;
-	bool m_gpTimeout, m_inBufferFull;
-	bool m_abort;
+  // holds the Rx/Tx sample information
+  Byte samp_parms[PARMSIZ];
+  Byte samp_hedr[HEDRSIZ];
+  unsigned m_rxByteCount;
+  int m_numSampEntries, m_numProgEntries, m_elapsedSeconds, m_busyCount;
+  bool m_gpTimeout, m_inBufferFull;
+  bool m_abort;
 
-	// holds the processed catalog info
-	CAT PermSampArray[MAX_SAMPS];
-	CAT PermProgArray[MAX_PROGS];
+  // holds the processed catalog info
+  CAT PermSampArray[MAX_SAMPS];
+  CAT PermProgArray[MAX_PROGS];
 
-	TStringList* m_slFilePaths;
+  TStringList* m_slFilePaths;
 
-	// settings vars
-	int m_baud, m_data_size, m_hedr_size, m_ack_size;
-	bool m_use_right_chan, m_auto_rename, m_force_hwflow;
-	bool m_use_smooth_quantization;
+  // settings vars
+  int m_baud, m_data_size, m_hedr_size, m_ack_size;
+  bool m_use_right_chan, m_auto_rename, m_force_hwflow;
+  bool m_use_smooth_quantization;
 
 protected:
 
 BEGIN_MESSAGE_MAP
-	//add message handler for WM_DROPFILES
-	// NOTE: All of the TWM* types are in messages.hpp!
-	VCL_MESSAGE_HANDLER(WM_DROPFILES, TWMDropFiles, WMDropFile)
+  //add message handler for WM_DROPFILES
+  // NOTE: All of the TWM* types are in messages.hpp!
+  VCL_MESSAGE_HANDLER(WM_DROPFILES, TWMDropFiles, WMDropFile)
 END_MESSAGE_MAP(TComponent)
 
-	TStringList* __fastcall GetCatalogSampleData(void);
-	TStringList* __fastcall GetCatalogProgramData(void);
-	Byte* __fastcall GetTempArray(void);
-	UInt32 __fastcall GetBaudRate(void);
-	void __fastcall SetBaudRate(UInt32 value);
+  TStringList* __fastcall GetCatalogSampleData(void);
+  TStringList* __fastcall GetCatalogProgramData(void);
+  Byte* __fastcall GetTempArray(void);
+  UInt32 __fastcall GetBaudRate(void);
+  void __fastcall SetBaudRate(UInt32 value);
 
 public:    // User declarations
-	__fastcall TFormMain(TComponent* Owner);
+  __fastcall TFormMain(TComponent* Owner);
 
-	void __fastcall DelayGpTimer(int iTime);
+  void __fastcall DelayGpTimer(int iTime);
   int __fastcall WaitTxCom(int iTime, int count=0);
 
-	bool __fastcall comws(int count, Byte* ptr, bool bDelay);
+  bool __fastcall comws(int count, Byte* ptr, bool bDelay);
 
-	int __fastcall LoadProgramToTempArray(int progIndex);
-	int __fastcall LoadSampParmsToTempArray(int iSampIdx);
-	int __fastcall LoadOverallSettingsToTempArray(void);
-	int __fastcall GetCatalog(bool bPrint=false, bool bDelay=false);
+  int __fastcall LoadProgramToTempArray(int progIndex);
+  int __fastcall LoadSampParmsToTempArray(int iSampIdx);
+  int __fastcall LoadOverallSettingsToTempArray(void);
+  int __fastcall GetCatalog(bool bPrint=false, bool bDelay=false);
 
   // this is a "high-level" busy flag - test, set and clear it from
   // the UI level... such as a menu or button click!
   // General rule: you can call SysUtil method IsBusy() for a high
   // level menu-hook, but don't set/clear the busy flag there if inner-levels
   // already set/clear the flag!
-	__property int BusyCount = {read = m_busyCount, write = m_busyCount};
+  __property int BusyCount = {read = m_busyCount, write = m_busyCount};
 
-	__property TStringList* CatalogSampleData = {read = GetCatalogSampleData};
-	__property TStringList* CatalogProgramData = {read = GetCatalogProgramData};
-	__property Byte* TempArray = {read = GetTempArray};
-	__property UInt32 BaudRate = {read = GetBaudRate, write = SetBaudRate};
+  __property TStringList* CatalogSampleData = {read = GetCatalogSampleData};
+  __property TStringList* CatalogProgramData = {read = GetCatalogProgramData};
+  __property Byte* TempArray = {read = GetTempArray};
+  __property UInt32 BaudRate = {read = GetBaudRate, write = SetBaudRate};
 };
 
 extern PACKAGE TFormMain *FormMain;
