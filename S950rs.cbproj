@@ -138,11 +138,10 @@
         <LinkPackageStatics>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</LinkPackageStatics>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <VerInfo_MajorVer>2</VerInfo_MajorVer>
-        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=2.0.64.0;InternalName=;LegalCopyright=2019;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=2.0.64.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=;SpecialBuild=</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=2.0.0.0;InternalName=;LegalCopyright=2019;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=2.0.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=;SpecialBuild=</VerInfo_Keys>
         <Icon_MainIcon>src\s9.ico</Icon_MainIcon>
         <VerInfo_MinorVer>0</VerInfo_MinorVer>
         <IncludePath>..\..\AsyncPro-master\source\hpp\Win32\Release;$(IncludePath)</IncludePath>
-        <VerInfo_Release>64</VerInfo_Release>
         <AppDPIAwarenessMode>PerMonitor</AppDPIAwarenessMode>
         <BT_BuildType>Debug</BT_BuildType>
     </PropertyGroup>

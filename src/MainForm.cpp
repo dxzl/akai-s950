@@ -1040,7 +1040,17 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         return false;
       }
 
+      // strip out " (12-bit mono)" if it was added when the wav file was
+      // saved from the machine...
+      int pos = sName.Pos(WAV_NAME_WARNING);
+      if (pos > 1)
+      {
+        int len = strlen(WAV_NAME_WARNING);
+        sName = sName.SubString(1, pos-1) + sName.SubString(pos+len, sName.Length());
+      }
+
       // Form a max 10 char sample name from the file's name
+      // (up to the .ext) and pad out with spaces
       int lenName = sName.Length();
       bool bStop = false;
       for (int ii = 1; ii <= MAX_NAME_S900; ii++)
@@ -1048,10 +1058,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         if (!bStop && (ii > lenName || sName[ii] == '.'))
           bStop = true;
 
-        if (bStop)
-          newname[ii - 1] = ' ';
-        else
-          newname[ii - 1] = sName[ii];
+        newname[ii - 1] = bStop ? ' ' : sName[ii];
       }
       // terminate it
       newname[MAX_NAME_S900] = '\0';
@@ -2704,7 +2711,7 @@ bool __fastcall TFormMain::DoSaveDialog(String &sName)
   try
   {
     SaveDialog1->Title = "Save a sample as .wav or " + String(AKIEXT) + " file...";
-    SaveDialog1->DefaultExt = "aki";
+    SaveDialog1->DefaultExt = "wav";
     SaveDialog1->Filter = "Akai files (*" + String(AKIEXT) + ")|*" +
                         String(AKIEXT) + "|WAV files (*.wav)|*.wav" +
                                       "|All files (*.*)|*.*";
@@ -2715,7 +2722,9 @@ bool __fastcall TFormMain::DoSaveDialog(String &sName)
       << ofNoReadOnlyReturn;
 
     // Use the sample-name in the list as the file-name
-    SaveDialog1->FileName = sName.TrimRight();
+    // add WAV_NAME_WARNING for a .wav file - we then strip it off
+    // files sent to the machine
+    SaveDialog1->FileName = sName.TrimRight() + WAV_NAME_WARNING;
 
     if (SaveDialog1->Execute())
     {
@@ -3332,6 +3341,7 @@ void __fastcall TFormMain::PutFiles(void)
   for (int ii = 0; ii < count; ii++)
   {
     String sFile = m_slFilePaths->Strings[ii];
+
     String Ext = ExtractFileExt(sFile).LowerCase();
 
     if (Ext == ".prg")
@@ -3339,7 +3349,7 @@ void __fastcall TFormMain::PutFiles(void)
       sPrgFilePath = sFile;
       progFileCounter++;
     }
-    else
+    else // .wav or .aki
     {
       if (!PutSample(sFile))
         break;
@@ -3973,9 +3983,9 @@ void __fastcall TFormMain::MainMenuHelpClick(TObject *Sender)
   " menu. The editor adds a keygroup for each sample currently on the"
   " machine.\n\n"
   "A single .prg file can hold multiple S900/S950 programs.\n\n"
-  "Since Akai-specific sample parameters cannot be stored in a"
-  " .wav file, you must read your samples from the machine and store them"
-  " as .aki files in order to retain the sample parameters.\n\n"
+  "Akai-specific sample parameters can now be stored in a .wav"
+  " file. You may read your samples from the machine and store them"
+  " as either 12-bit mono .wav files or as custom-format .aki files.\n\n"
   "This program automatically adjusts the number of bits per sample and"
   " normalizes the sample.\n\n"
   "The S900/S950 samplers record at 12 bits resolution and play back at 14 bits"
