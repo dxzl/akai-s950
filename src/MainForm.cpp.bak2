@@ -112,7 +112,7 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
     m_hedr_size = HEDRSIZ;
     m_ack_size = ACKSIZ;
 
-    //printm(VERSION_STR);
+    printm(VERSION_STR);
     printm("For connection tips, click \"Menu\" and select \"About\"...");
   }
   __finally
@@ -133,8 +133,6 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
   MenuAutomaticallyRenameSample->Checked = m_auto_rename;
   MenuUseHWFlowControlBelow50000Baud->Checked = m_force_hwflow;
   SetMenuItems();
-
-  Caption = "Akai S900/S950 (rs232) " + String(VERSION_STR);
 
   SetComPort(m_baud);
 
@@ -786,7 +784,7 @@ int __fastcall TFormMain::get_samp_data(PSTOR* ps, long lFileHandle, bool bIsWav
         if (count > total_words)
           writct -= (int)(count - total_words) * target_bytes_per_word;
 
-        // write to file (samples in rbuf are little-endian)
+        // write to file (samples in rbuf are little-endian
         if (FileWrite(lFileHandle, rbuf, writct) < 0)
         {
           printm("error writing sample data to file! (block=" +
@@ -905,15 +903,14 @@ int __fastcall TFormMain::get_data_block(Byte* dest, int sampler_bytes_per_word,
       {
         int shift_count = bits_per_word - (jj * 7); // (each midi-byte has only 7 bits used)
 
-        Byte b = *cp++;
-        UInt32 val = (UInt32)b;
-        checksum ^= b;
+        UInt32 val = *cp;
+        checksum ^= *cp++;
 
         UInt32 or_val;
         if (shift_count >= 0)
-          or_val = (UInt32)(val << shift_count);
+          or_val = (val << shift_count);
         else
-          or_val = (UInt32)(val >> -shift_count);
+          or_val = (val >> -shift_count);
 
         acc |= or_val;
       }
@@ -928,7 +925,7 @@ int __fastcall TFormMain::get_data_block(Byte* dest, int sampler_bytes_per_word,
       // write the sample-word in little-endian order for RIFF
       for (int jj = 0; jj < target_bytes_per_word; jj++)
       {
-        *dest++ = (Byte)acc;
+        *dest++ = (acc & 0xff);
         acc >>= 8;
       }
     }
@@ -1043,17 +1040,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         return false;
       }
 
-      // strip out " (12-bit mono)" if it was added when the wav file was
-      // saved from the machine...
-      int pos = sName.Pos(WAV_NAME_WARNING);
-      if (pos > 1)
-      {
-        int len = strlen(WAV_NAME_WARNING);
-        sName = sName.SubString(1, pos-1) + sName.SubString(pos+len, sName.Length());
-      }
-
       // Form a max 10 char sample name from the file's name
-      // (up to the .ext) and pad out with spaces
       int lenName = sName.Length();
       bool bStop = false;
       for (int ii = 1; ii <= MAX_NAME_S900; ii++)
@@ -1061,7 +1048,10 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         if (!bStop && (ii > lenName || sName[ii] == '.'))
           bStop = true;
 
-        newname[ii - 1] = bStop ? ' ' : sName[ii];
+        if (bStop)
+          newname[ii - 1] = ' ';
+        else
+          newname[ii - 1] = sName[ii];
       }
       // terminate it
       newname[MAX_NAME_S900] = '\0';
@@ -1366,9 +1356,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
               iEnd = ps.sampleCount;
 
             if (pSmpl->loopCount == 1)
-              printm("(found 1 loop)");
+              printm("found 1 loop!");
             else
-              printm("(found " + String(pSmpl->loopCount) + " loops (we only use the first one))");
+              printm("found " + String(pSmpl->loopCount) + " loops! (we only use the first one)");
              printm("loop start: " + String(iStart) + ", loop end: " + String(iEnd));
 
             // swap if reversed
@@ -2714,7 +2704,7 @@ bool __fastcall TFormMain::DoSaveDialog(String &sName)
   try
   {
     SaveDialog1->Title = "Save a sample as .wav or " + String(AKIEXT) + " file...";
-    SaveDialog1->DefaultExt = "wav";
+    SaveDialog1->DefaultExt = "aki";
     SaveDialog1->Filter = "Akai files (*" + String(AKIEXT) + ")|*" +
                         String(AKIEXT) + "|WAV files (*.wav)|*.wav" +
                                       "|All files (*.*)|*.*";
@@ -2725,9 +2715,7 @@ bool __fastcall TFormMain::DoSaveDialog(String &sName)
       << ofNoReadOnlyReturn;
 
     // Use the sample-name in the list as the file-name
-    // add WAV_NAME_WARNING for a .wav file - we then strip it off
-    // files sent to the machine
-    SaveDialog1->FileName = sName.TrimRight() + WAV_NAME_WARNING;
+    SaveDialog1->FileName = sName.TrimRight();
 
     if (SaveDialog1->Execute())
     {
@@ -3344,7 +3332,6 @@ void __fastcall TFormMain::PutFiles(void)
   for (int ii = 0; ii < count; ii++)
   {
     String sFile = m_slFilePaths->Strings[ii];
-
     String Ext = ExtractFileExt(sFile).LowerCase();
 
     if (Ext == ".prg")
@@ -3352,7 +3339,7 @@ void __fastcall TFormMain::PutFiles(void)
       sPrgFilePath = sFile;
       progFileCounter++;
     }
-    else // .wav or .aki
+    else
     {
       if (!PutSample(sFile))
         break;
@@ -3980,7 +3967,7 @@ void __fastcall TFormMain::MainMenuHelpClick(TObject *Sender)
   "WAV File uploader for the Akai S900/S950 digital sampler.\n\n"
   "Select multiple .wav or .aki sample files and a single .prg programs file"
   " and drag-drop them as a group onto the main window to upload"
-  " them to your Akai S900/S950 digital sampler.\n\n"
+  " them into your Akai S900/S950 digital sampler.\n\n"
   "You can generate a program to go with your .wav files by first uploading"
   " all .wav files to the machine, then choose \"Make/Edit Program\" from the"
   " menu. The editor adds a keygroup for each sample currently on the"
@@ -3992,7 +3979,7 @@ void __fastcall TFormMain::MainMenuHelpClick(TObject *Sender)
   "This program automatically adjusts the number of bits per sample and"
   " normalizes the sample.\n\n"
   "The S900/S950 samplers record at 12 bits resolution and play back at 14 bits"
-  " resolution, so some clarity may be lost for 16 or 24 bit wav files.\n\n";
+  " resolution, so some clarity may be lost for your 16 or 24 bit wav files.\n\n";
   ShowMessage(s);
 }
 //---------------------------------------------------------------------------

@@ -159,7 +159,6 @@ object FormProgram: TFormProgram
     Height = 41
     Align = alBottom
     TabOrder = 1
-    ExplicitTop = 220
     object ButtonSend: TButton
       Left = 97
       Top = 6
@@ -207,7 +206,6 @@ object FormProgram: TFormProgram
     Align = alClient
     Caption = 'Panel3'
     TabOrder = 2
-    ExplicitHeight = 147
     object SG: TStringGrid
       Left = 1
       Top = 1
@@ -221,7 +219,6 @@ object FormProgram: TFormProgram
       Options = [goFixedVertLine, goVertLine, goHorzLine, goRangeSelect, goRowMoving, goEditing, goAlwaysShowEditor, goFixedHotTrack]
       TabOrder = 0
       OnMouseDown = SGMouseDown
-      ExplicitHeight = 145
       ColWidths = (
         100
         100)

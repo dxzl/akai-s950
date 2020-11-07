@@ -24,7 +24,7 @@
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version 2.1, November 6, 2020"
+#define VERSION_STR "Version 2.0, March 20, 2019"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS950"
@@ -73,10 +73,6 @@
 #define MAGIC_NUM_AKI 453782108 // magic number identifies .aki file
 
 #define AKIEXT ".aki"
-
-// add this to saved wav file-names. then strip it off again when drag-dropping
-// or sending wav files
-#define WAV_NAME_WARNING " (12-bit mono)"
 
 // S950 sample header storage
 #define HEDRSIZ 19  // starts with BEX but no EEX

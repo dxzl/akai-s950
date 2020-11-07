@@ -1,7 +1,7 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <ProjectGuid>{E99CFC5A-45B4-4971-AB28-347B417A3E25}</ProjectGuid>
-        <ProjectVersion>18.5</ProjectVersion>
+        <ProjectVersion>18.8</ProjectVersion>
         <FrameworkType>VCL</FrameworkType>
         <AppType>Application</AppType>
         <MainSource>src\S950rs.cpp</MainSource>
@@ -138,12 +138,14 @@
         <LinkPackageStatics>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</LinkPackageStatics>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <VerInfo_MajorVer>2</VerInfo_MajorVer>
-        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=2.0.0.0;InternalName=;LegalCopyright=2019;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=2.0.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=;SpecialBuild=</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=2.1.0.0;InternalName=;LegalCopyright=2020;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=2.1.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=</VerInfo_Keys>
         <Icon_MainIcon>src\s9.ico</Icon_MainIcon>
-        <VerInfo_MinorVer>0</VerInfo_MinorVer>
+        <VerInfo_MinorVer>1</VerInfo_MinorVer>
         <IncludePath>..\..\AsyncPro-master\source\hpp\Win32\Release;$(IncludePath)</IncludePath>
         <AppDPIAwarenessMode>PerMonitor</AppDPIAwarenessMode>
         <BT_BuildType>Debug</BT_BuildType>
+        <VerInfo_PreRelease>false</VerInfo_PreRelease>
+        <VerInfo_Special>false</VerInfo_Special>
     </PropertyGroup>
     <ItemGroup>
         <CppCompile Include="src\ListBoxForm.cpp">
@@ -195,8 +197,8 @@
             <BuildOrder>8</BuildOrder>
         </CppCompile>
         <FormResources Include="src\SampParmsForm.dfm"/>
-        <FormResources Include="src\ListBoxForm.dfm"/>
         <FormResources Include="src\MainForm.dfm"/>
+        <FormResources Include="src\ListBoxForm.dfm"/>
         <FormResources Include="src\OverallSettingsForm.dfm"/>
         <FormResources Include="src\ProgramsForm.dfm"/>
         <BuildConfiguration Include="Release">
@@ -225,10 +227,7 @@
                     <ProjectProperties Name="VerifyPackages">True</ProjectProperties>
                     <ProjectProperties Name="IndexFiles">False</ProjectProperties>
                 </ProjectProperties>
-                <Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\bcboffice2k260.bpl">Embarcadero C++Builder Office 2000 Servers Package</Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\bcbofficexp260.bpl">Embarcadero C++Builder Office XP Servers Package</Excluded_Packages>
-                </Excluded_Packages>
+                <Excluded_Packages/>
             </CPlusPlusBuilder.Personality>
             <Platforms>
                 <Platform value="Win32">True</Platform>

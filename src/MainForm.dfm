@@ -3,7 +3,7 @@ object FormMain: TFormMain
   Top = 0
   ActiveControl = Memo1
   Caption = 'Akai S900/S950 (rs232)'
-  ClientHeight = 202
+  ClientHeight = 247
   ClientWidth = 670
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -61,13 +61,13 @@ object FormMain: TFormMain
     Left = 0
     Top = 0
     Width = 137
-    Height = 202
+    Height = 247
     Align = alLeft
     TabOrder = 0
-    ExplicitHeight = 191
+    ExplicitHeight = 142
     DesignSize = (
       137
-      202)
+      247)
     object ComboBoxRs232: TComboBox
       Left = 1
       Top = 2
@@ -97,33 +97,33 @@ object FormMain: TFormMain
       Left = 1
       Top = 29
       Width = 135
-      Height = 172
+      Height = 217
       Anchors = [akLeft, akTop, akBottom]
       ItemHeight = 13
       TabOrder = 1
       OnClick = ListBox1Click
-      ExplicitHeight = 161
+      ExplicitHeight = 112
     end
   end
   object Panel1: TPanel
     Left = 137
     Top = 0
     Width = 533
-    Height = 202
+    Height = 247
     Align = alClient
     TabOrder = 1
-    ExplicitHeight = 191
+    ExplicitHeight = 142
     object Memo1: TMemo
       Tag = 2
       Left = 1
       Top = 1
       Width = 531
-      Height = 200
+      Height = 245
       Align = alClient
       ReadOnly = True
       ScrollBars = ssVertical
       TabOrder = 0
-      ExplicitHeight = 189
+      ExplicitHeight = 140
     end
   end
   object OpenDialog1: TOpenDialog
