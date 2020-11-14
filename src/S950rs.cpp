@@ -1,5 +1,4 @@
 //---------------------------------------------------------------------------
-
 #include <vcl.h>
 #include "MainForm.h"
 #pragma hdrstop
@@ -8,8 +7,8 @@
 #include <Vcl.Styles.hpp>
 #include <Vcl.Themes.hpp>
 USEFORM("SampParmsForm.cpp", FormEditSampParms);
-USEFORM("MainForm.cpp", FormMain);
 USEFORM("ListBoxForm.cpp", FormListBox);
+USEFORM("MainForm.cpp", FormMain);
 USEFORM("OverallSettingsForm.cpp", FormOverallSettings);
 USEFORM("ProgramsForm.cpp", FormProgram);
 //---------------------------------------------------------------------------
@@ -22,7 +21,7 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 		TStyleManager::TrySetStyle("Sapphire Kamri");
          Application->Title = "Akai S900/S950 (rs232)";
          Application->CreateForm(__classid(TFormMain), &FormMain);
-		Application->Run();
+     Application->Run();
 	}
 	catch (Exception &exception)
 	{

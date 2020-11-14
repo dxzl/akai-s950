@@ -24,7 +24,7 @@
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version 2.1, November 6, 2020"
+#define VERSION_STR "Version 2.2"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS950"

@@ -345,7 +345,7 @@ int __fastcall TFormMain::GetSample(String sPath, int iSamp)
     }
   }
 
-  return 0;
+  return iError; // bug 11/14/2020 was returning 0
 }
 //---------------------------------------------------------------------------
 // returns the file-size or negative if error
