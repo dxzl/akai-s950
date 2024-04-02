@@ -4,7 +4,9 @@ It can also save samples from your machine to a custom file-format. And it can s
 S900/S950 programs (patches). Works with all Windows versions (as far as I know). Requires a USB to RS232
 adaptor and a DB9 to DB25 cable. You may also need a null-modem adaptor (that's always been a source of confusion!).
 
-This project builds with Embarcadero RAD Studio 10.2 (Tokyo)
+If you just want the Windows exe file click here: https://github.com/dxzl/akai-s950/releases
+
+The project compiles with Embarcadero RAD Studio 10.2 (Tokyo) or higher.
 
 Free compiler: [Embarcadero C++ Builder 10.2 Tokyo Starter Edition](https://www.embarcadero.com/products/cbuilder/starter/promotional-download)
 
@@ -38,8 +40,4 @@ To build S900rs.exe, open S950rs.cbproj in RAD Studio C++ Builder, File->Open Pr
 
   2. Click Project->Build s950rs
   
-Project web-site:
-
-http://s900.yahcolorize.com
-
 Contact: dxzl@live.com
