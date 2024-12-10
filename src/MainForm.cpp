@@ -105,7 +105,7 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
       m_force_hwflow = false;
     }
 
-    ComboBoxRs232->Enabled = true;
+    ComboBoxBaudRate->Enabled = true;
 
     m_data_size = DATA_PACKET_SIZE;
     m_data_size += DATA_PACKET_OVERHEAD;
@@ -2798,8 +2798,7 @@ void __fastcall TFormMain::MenuAutomaticallyRenameSampleClick(
 void __fastcall TFormMain::MenuUseHWFlowControlBelow50000BaudClick(
   TObject *Sender)
 {
-  MenuUseHWFlowControlBelow50000Baud->Checked =
-    !MenuUseHWFlowControlBelow50000Baud->Checked;
+  MenuUseHWFlowControlBelow50000Baud->Checked = !MenuUseHWFlowControlBelow50000Baud->Checked;
   m_force_hwflow = MenuUseHWFlowControlBelow50000Baud->Checked;
 
   // reset port if below 50000
@@ -3589,7 +3588,7 @@ void __fastcall TFormMain::DelayGpTimer(int iTime)
 // starts a repeating, one-second up-timer for global member var m_elapsedSeconds
 void __fastcall TFormMain::StartElapsedSecondsTimer(void)
 {
-   Timer1->Enabled = false; // stop timer (just in-case!)
+  Timer1->Enabled = false; // stop timer (just in-case!)
   m_elapsedSeconds = 0;
   Timer1->Interval = ONESECTIMEOUT; // set time in ms TO 1 SECOND
   Timer1->OnTimer = Timer1OneSecTimeout; // set handler
@@ -3653,14 +3652,36 @@ int __fastcall TFormMain::WaitTxCom(int iTime, int count)
   return 0;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormMain::ComboBoxRs232Change(TObject *Sender)
+void __fastcall TFormMain::MenuChangeComPortClick(TObject *Sender)
 {
-  SetComPort(ComboBoxRs232->Text.ToIntDef(DEF_RS232_BAUD_RATE));
+  if (IsBusy()){
+    ShowMessage("Aborting... try \"Change COM Port\" again!");
+    m_abort = true;
+    return;
+  }
+
+  Timer1->Enabled = false;
+  Timer1->OnTimer = NULL;
+  m_gpTimeout = false;
+  m_busyCount = 0;
+  SetComPort(m_baud);
+  ApdComPort1->Open = true;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFormMain::ComboBoxRs232Select(TObject *Sender)
+void __fastcall TFormMain::ComboBoxBaudRateChange(TObject *Sender)
 {
-  SetComPort(ComboBoxRs232->Text.ToIntDef(DEF_RS232_BAUD_RATE));
+  if (IsBusy())
+    return;
+
+  SetComPort(ComboBoxBaudRate->Text.ToIntDef(DEF_RS232_BAUD_RATE));
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::ComboBoxBaudRateSelect(TObject *Sender)
+{
+  if (IsBusy())
+    return;
+
+  SetComPort(ComboBoxBaudRate->Text.ToIntDef(DEF_RS232_BAUD_RATE));
   Memo1->SetFocus();
 }
 //---------------------------------------------------------------------------
@@ -3796,7 +3817,7 @@ int __fastcall TFormMain::SetComPort(int baud)
 {
   try
   {
-    ComboBoxRs232->OnChange = NULL;
+    ComboBoxBaudRate->OnChange = NULL;
 
     try
     {
@@ -3833,7 +3854,7 @@ int __fastcall TFormMain::SetComPort(int baud)
       ApdComPort1->Parity = pNone;
       ApdComPort1->AutoOpen = true;
 
-      ComboBoxRs232->Text = String(baud);
+      ComboBoxBaudRate->Text = String(baud);
 
       m_baud = baud;
     }
@@ -3844,7 +3865,7 @@ int __fastcall TFormMain::SetComPort(int baud)
   }
   __finally
   {
-    ComboBoxRs232->OnChange = ComboBoxRs232Change;
+    ComboBoxBaudRate->OnChange = ComboBoxBaudRateChange;
   }
     return 0;
 }
@@ -3996,5 +4017,4 @@ void __fastcall TFormMain::MainMenuHelpClick(TObject *Sender)
   ShowMessage(s);
 }
 //---------------------------------------------------------------------------
-
 

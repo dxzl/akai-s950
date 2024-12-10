@@ -3,8 +3,8 @@ object FormMain: TFormMain
   Top = 0
   ActiveControl = Memo1
   Caption = 'Akai S900/S950 (rs232)'
-  ClientHeight = 247
-  ClientWidth = 670
+  ClientHeight = 243
+  ClientWidth = 668
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -48,27 +48,24 @@ object FormMain: TFormMain
     FFC007FFFFE00FFFFFF0000000000000000000000000}
   KeyPreview = True
   Menu = MainMenu1
-  OldCreateOrder = False
   Position = poDesktopCenter
   OnClose = FormClose
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnKeyDown = FormKeyDown
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object Panel2: TPanel
     Left = 0
     Top = 0
     Width = 137
-    Height = 247
+    Height = 243
     Align = alLeft
     TabOrder = 0
-    ExplicitHeight = 142
     DesignSize = (
       137
-      247)
-    object ComboBoxRs232: TComboBox
+      243)
+    object ComboBoxBaudRate: TComboBox
       Left = 1
       Top = 2
       Width = 132
@@ -78,8 +75,8 @@ object FormMain: TFormMain
       ParentShowHint = False
       ShowHint = True
       TabOrder = 0
-      OnChange = ComboBoxRs232Change
-      OnSelect = ComboBoxRs232Select
+      OnChange = ComboBoxBaudRateChange
+      OnSelect = ComboBoxBaudRateSelect
       Items.Strings = (
         '300'
         '600'
@@ -97,33 +94,30 @@ object FormMain: TFormMain
       Left = 1
       Top = 29
       Width = 135
-      Height = 217
+      Height = 213
       Anchors = [akLeft, akTop, akBottom]
       ItemHeight = 13
       TabOrder = 1
       OnClick = ListBox1Click
-      ExplicitHeight = 112
     end
   end
   object Panel1: TPanel
     Left = 137
     Top = 0
-    Width = 533
-    Height = 247
+    Width = 531
+    Height = 243
     Align = alClient
     TabOrder = 1
-    ExplicitHeight = 142
     object Memo1: TMemo
       Tag = 2
       Left = 1
       Top = 1
-      Width = 531
-      Height = 245
+      Width = 529
+      Height = 241
       Align = alClient
       ReadOnly = True
       ScrollBars = ssVertical
       TabOrder = 0
-      ExplicitHeight = 140
     end
   end
   object OpenDialog1: TOpenDialog
@@ -186,7 +180,7 @@ object FormMain: TFormMain
       object MenuUseHWFlowControlBelow50000Baud: TMenuItem
         Caption = 'Use hardware flow-control below 50,000 baud'
         ShortCut = 16504
-        OnClick = MenuUseRightChanForStereoSamplesClick
+        OnClick = MenuUseHWFlowControlBelow50000BaudClick
       end
       object N5: TMenuItem
         Caption = '-'
@@ -208,6 +202,11 @@ object FormMain: TFormMain
       end
       object N4: TMenuItem
         Caption = '-'
+      end
+      object MenuChangeComPort: TMenuItem
+        Caption = 'Change COM port'
+        ShortCut = 16496
+        OnClick = MenuChangeComPortClick
       end
       object MenuAbout: TMenuItem
         Caption = '&About'

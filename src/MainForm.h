@@ -24,7 +24,7 @@
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version 2.2"
+#define VERSION_STR "Version 2.3"
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS950"
@@ -297,7 +297,7 @@ class TFormMain : public TForm
 {
 __published:  // IDE-managed Components
   TPanel *Panel2;
-    TComboBox *ComboBoxRs232;
+	TComboBox *ComboBoxBaudRate;
     TListBox *ListBox1;
     TOpenDialog *OpenDialog1;
     TSaveDialog *SaveDialog1;
@@ -323,6 +323,7 @@ __published:  // IDE-managed Components
   TMenuItem *MainMenuHelp;
   TMenuItem *MenuEditOverallSettings;
   TApdComPort *ApdComPort1;
+	TMenuItem *MenuChangeComPort;
 
     void __fastcall MenuGetCatalogClick(TObject *Sender);
     void __fastcall MenuPutSampleClick(TObject *Sender);
@@ -335,16 +336,17 @@ __published:  // IDE-managed Components
     void __fastcall ListBox1Click(TObject *Sender);
   void __fastcall MenuAboutClick(TObject *Sender);
     void __fastcall FormCreate(TObject *Sender);
-    void __fastcall ComboBoxRs232Change(TObject *Sender);
+    void __fastcall ComboBoxBaudRateChange(TObject *Sender);
   void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
     void __fastcall FormShow(TObject *Sender);
     void __fastcall FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift);
-    void __fastcall ComboBoxRs232Select(TObject *Sender);
+    void __fastcall ComboBoxBaudRateSelect(TObject *Sender);
   void __fastcall FormDestroy(TObject *Sender);
     void __fastcall MenuMakeOrEditProgramClick(TObject *Sender);
     void __fastcall MenuEditSampleParametersClick(TObject *Sender);
   void __fastcall MainMenuHelpClick(TObject *Sender);
   void __fastcall MenuEditOverallSettingsClick(TObject *Sender);
+	void __fastcall MenuChangeComPortClick(TObject *Sender);
 
 private:  // User declarations
   void __fastcall Timer1FileDropTimeout(TObject *Sender);
