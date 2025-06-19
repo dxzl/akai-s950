@@ -25,16 +25,17 @@ namespace S9Utils
   Byte __fastcall decodeDB(Byte* source);
   void __fastcall decodeDB(char* dest, Byte* source, int numchars);
 
-  void __fastcall encodeDD(UInt32 value, Byte* tp);
-  UInt32 __fastcall decodeDD(Byte* tp);
+  void __fastcall encodeDD(uint32_t value, Byte* tp);
+  uint32_t __fastcall decodeDD(Byte* tp);
 
-  void __fastcall encodeDW(UInt32 value, Byte* tp);
-  UInt32 __fastcall decodeDW(Byte* tp);
+  void __fastcall encodeDW(uint32_t value, Byte* tp);
+  uint32_t __fastcall decodeDW(Byte* tp);
 
-  void __fastcall encodeTB(UInt32 value, Byte* tp);
-  UInt32 __fastcall decodeTB(Byte* tp);
+  void __fastcall encodeTB(uint32_t value, Byte* tp);
+  uint32_t __fastcall decodeTB(Byte* tp);
 
   void __fastcall compute_checksum(int min_index, int max_index, BYTE* buf);
+  void __fastcall print_ps_info(PSTOR* ps, bool bPrintUnused= false);
   void __fastcall display_hex(Byte buf[], int count);
   void __fastcall printm(String message);
 

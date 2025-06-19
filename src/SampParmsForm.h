@@ -68,6 +68,7 @@ __published:  // IDE-managed Components
   TLabel *LabelLoopTime;
   TLabel *LabelLoopLength;
   TLabel *LabelSampleTime;
+  TLabel *LabelBitsPerSample;
   void __fastcall HelpClick(TObject *Sender);
   void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
   void __fastcall ButtonCloseClick(TObject *Sender);
@@ -94,7 +95,7 @@ private:  // User declarations
   int __fastcall SendParmsToMachine(int iSampIdx);
   int __fastcall ParmsToGui(int iMode);
   int __fastcall ParmsFromGui(void);
-  int __fastcall ParmsToArray(UInt16 index);
+  int __fastcall ParmsToArray(uint16_t index);
   int __fastcall ParmsFromArray(void);
   int __fastcall LoadSampParmsFromMachine(int iSampIdx);
   int __fastcall LoadSampParmsFromFile(void);

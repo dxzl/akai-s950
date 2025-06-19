@@ -2020,11 +2020,11 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, long &lFileHand
     {
       // Seek: Offset, Mode 0=beginning, 1=current pos, 2=end
       FileSeek(lFileHandle, 0, 0); // reset
-      UInt32 magicNum;
+      uint32_t magicNum;
       FileRead(lFileHandle, &magicNum, UINT32SIZE);
       if (magicNum != MAGIC_NUM_PRG)
         return -2; // not a .prg file
-      UInt32 numProgs;
+      uint32_t numProgs;
       FileRead(lFileHandle, &numProgs, UINT32SIZE);
       if (numProgs == 0)
         return -3; // no programs to delete
@@ -2482,18 +2482,18 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(long lFileHandle, TStringList* s
     return -2;
 
   Byte* buf = NULL;
-  UInt32 numProgs = 0; // need this in __finally
+  uint32_t numProgs = 0; // need this in __finally
 
   try
   {
     try
     {
-      UInt32 iFileLength = FileSeek(lFileHandle, 0, 2); // seek to end
+      uint32_t iFileLength = FileSeek(lFileHandle, 0, 2); // seek to end
 
-      // seek/read the stored file-length (__int32 at end of the file)
+      // seek/read the stored file-length (int32_t at end of the file)
       FileSeek(lFileHandle, -UINT32SIZE, 2);
-      UInt32 storedFileLength;
-      UInt32 bytesRead = FileRead(lFileHandle, &storedFileLength, UINT32SIZE);
+      uint32_t storedFileLength;
+      uint32_t bytesRead = FileRead(lFileHandle, &storedFileLength, UINT32SIZE);
 
       if (bytesRead != UINT32SIZE)
         return -3;
@@ -2504,7 +2504,7 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(long lFileHandle, TStringList* s
       FileSeek(lFileHandle, 0, 0); // back to start
 
       // read the magic number
-      UInt32 my_magic; // uniquely identifies a .prg file
+      uint32_t my_magic; // uniquely identifies a .prg file
       bytesRead = FileRead(lFileHandle, &my_magic, UINT32SIZE);
 
       if (bytesRead != UINT32SIZE)
@@ -2526,7 +2526,7 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(long lFileHandle, TStringList* s
         return 0; // return "no error" - allow 0 programs...
 
       // read each program in file
-      for (UInt32 ii = 0; ii < numProgs; ii++)
+      for (uint32_t ii = 0; ii < numProgs; ii++)
       {
         Application->ProcessMessages();
 
@@ -2536,7 +2536,7 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(long lFileHandle, TStringList* s
         // read program-size from file.
         // a program in the file is already formatted for the S950 and
         // includes the BEX, checksum and EEX.
-        UInt32 progSize;
+        uint32_t progSize;
         bytesRead = FileRead(lFileHandle, &progSize, UINT32SIZE);
         if (bytesRead != UINT32SIZE)
           return -9;

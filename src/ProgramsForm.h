@@ -206,36 +206,36 @@ typedef struct
   Byte FilterAdsrReleaseTime; // 0-99, 20
   Byte VelXfadeFiftyPercent; // 0-127, 64
   Byte KyUndef1;
-  UInt16 KyUndef2;
+  uint16_t KyUndef2;
   Int16 SoftSampTransposeOffset; // Signed, units of 1/16 semitone, 0
   Byte SoftSampFilter; // 0-99, 99 gives highest cuttoff, 99
   signed char SoftSampLoudness; // 0-255, signed +/- 50 units of .375dB, 0
   char LoudSampleName[MAX_NAME_S900+1]; // 10 chars
-  UInt32 KyUndef3;
-  UInt32 KyUndef4;
+  uint32_t KyUndef3;
+  uint32_t KyUndef4;
   Int16 LoudSampTransposeOffset; // Signed, units of 1/16 semitone, 0
   Byte LoudSampFilter; // 0-99, 99 gives highest cuttoff, 99
   signed char LoudSampLoudness; // 0-255, signed +/- 50 units of .375dB, 0
-  UInt16 KyUndef5;
+  uint16_t KyUndef5;
 } KEYGROUP;
 //---------------------------------------------------------------------------
 typedef struct
 {
   char ProgName[MAX_NAME_S900+1]; // 10 chars "DEFAULT PR"
-  UInt32 PrUndef1;
-  UInt16 PrUndef2;
+  uint32_t PrUndef1;
+  uint16_t PrUndef2;
   Int16 KeyTilt; // Key vs Loudness -50 to +50
-  UInt16 PrUndef3;
+  uint16_t PrUndef3;
   Byte PrUndef4;
   Byte PosXfade; // positional crossfade 0=disable 1=enable
   Byte PrReser1; // 255
   Byte NumKeygroups; // Number of keygroups 1-31
-  UInt16 PrUndef5;
+  uint16_t PrUndef5;
   Byte MidiPgmNumber; // Midi program number 0-127
   Byte EnableMidiPgmNumber; // Enable the above midi # if 255, disable with 0 (0 on S900)
-  UInt16 PrReser2; // 0
-  UInt32 PrReser3; // 0
-  UInt32 PrReser4; // 0
+  uint16_t PrReser2; // 0
+  uint32_t PrReser3; // 0
+  uint32_t PrReser4; // 0
 } PRGHEDR;
 //---------------------------------------------------------------------------
 class TFormProgram : public TForm

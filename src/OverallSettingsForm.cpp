@@ -188,7 +188,7 @@ int __fastcall TFormOverallSettings::SendToMachine(void)
     try
     {
       // Save the machine's baud-rate that's working right now...
-      UInt32 OldBaudRate = OverallSettings.BaudRate;
+      uint32_t OldBaudRate = OverallSettings.BaudRate;
 
       int iError = FromGui(); // Load OverallSettings struct from GUI
 

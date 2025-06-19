@@ -165,6 +165,11 @@ object FormMain: TFormMain
       object N3: TMenuItem
         Caption = '-'
       end
+      object MenuMax12BitsPerSample: TMenuItem
+        Caption = 'Send as 12-bits per sample, not 14'
+        ShortCut = 16501
+        OnClick = MenuMax12BitsPerSampleClick
+      end
       object MenuUseRightChanForStereoSamples: TMenuItem
         Caption = 'Use right channel for stereo WAVs'
         Checked = True
@@ -218,6 +223,10 @@ object FormMain: TFormMain
       Caption = 'Help'
       ShortCut = 112
       OnClick = MainMenuHelpClick
+    end
+    object MenuClear: TMenuItem
+      Caption = 'Clear'
+      OnClick = MenuClearClick
     end
   end
   object Timer1: TTimer

@@ -35,9 +35,6 @@ __fastcall TFormMain::TFormMain(TComponent* Owner)
   printm("\r\nWARNING: sizeof(S950CAT) != 12\r\n"
     "TO DEVELOPER: sizeof(S950CAT) MUST be " + String(12) + " bytes!");
 #endif
-#if TESTING
-  printm("\r\nWARNING: TEST VERSION!!!!");
-#endif
   // use the following # for PSTOR_STRUCT_SIZ in MainForm.h!
   //printm("sizeof(PSTOR):" + String(sizeof(PSTOR)));
 }
@@ -86,6 +83,7 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
         pReg->ReadSetting(S9_REGKEY_USE_RIGHT_CHAN, m_use_right_chan, true);
         pReg->ReadSetting(S9_REGKEY_AUTO_RENAME, m_auto_rename, true);
         pReg->ReadSetting(S9_REGKEY_FORCE_HWFLOW, m_force_hwflow, false);
+        pReg->ReadSetting(S9_REGKEY_SEND_AS_12_BITS, m_send_as_12_bits, false);
       }
       else
       {
@@ -94,6 +92,7 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
         m_use_right_chan = true;
         m_auto_rename = true;
         m_force_hwflow = false;
+        m_send_as_12_bits=false;
       }
     }
     catch (...)
@@ -103,6 +102,7 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
       m_use_right_chan = true;
       m_auto_rename = true;
       m_force_hwflow = false;
+      m_send_as_12_bits=false;
     }
 
     ComboBoxBaudRate->Enabled = true;
@@ -132,6 +132,7 @@ void __fastcall TFormMain::FormCreate(TObject *Sender)
   MenuUseRightChanForStereoSamples->Checked = m_use_right_chan;
   MenuAutomaticallyRenameSample->Checked = m_auto_rename;
   MenuUseHWFlowControlBelow50000Baud->Checked = m_force_hwflow;
+  MenuMax12BitsPerSample->Checked = m_send_as_12_bits;
   SetMenuItems();
 
   Caption = "Akai S900/S950 (rs232) " + String(VERSION_STR);
@@ -183,6 +184,7 @@ void __fastcall TFormMain::FormClose(TObject *Sender, TCloseAction &Action)
       pReg->WriteSetting(S9_REGKEY_USE_RIGHT_CHAN, m_use_right_chan);
       pReg->WriteSetting(S9_REGKEY_AUTO_RENAME, m_auto_rename);
       pReg->WriteSetting(S9_REGKEY_FORCE_HWFLOW, m_force_hwflow);
+      pReg->WriteSetting(S9_REGKEY_SEND_AS_12_BITS, m_send_as_12_bits);
     }
   }
   __finally
@@ -286,6 +288,12 @@ int __fastcall TFormMain::GetSample(String sPath, int iSamp)
       decode_sample_info(&ps);
 
       print_ps_info(&ps); // display info in window
+      
+#if DIAGNOSTIC_MODE
+      printm("\nsamp_parms[" + String(PARMSIZ) + "]:\n");
+      display_hex(samp_parms, PARMSIZ);
+      printm("");
+#endif
 
       String sExt = ExtractFileExt(sPath).LowerCase();
 
@@ -351,7 +359,7 @@ int __fastcall TFormMain::GetSample(String sPath, int iSamp)
 // returns the file-size or negative if error
 int __fastcall TFormMain::GetAsAkiFile(long lFileHandle, int iSamp, PSTOR* ps)
 {
-  UInt32 my_magic = MAGIC_NUM_AKI;
+  uint32_t my_magic = MAGIC_NUM_AKI;
   int fileSize = 0;
 
   try
@@ -395,12 +403,12 @@ int __fastcall TFormMain::GetAsWavFile(long lFileHandle, int iSamp, PSTOR* ps)
     // 8-11 "WAVE"
     // 12-15 "fmt "
     // 16-19 size of fmt block - 16
-    // 20-21 AudioFormat 1 (uncompressed pcm) (__int16)
-    // 22-23 NumChannels 1 (mono) (__int16)
-    // 24-27 SampleFreq ???? (__int32)
-    // 28-31 FrameRate (SampleRate * BitsPerSample * NumChannels) / 8 (__int32)
-    // 32-33 BytesPerFrame (NumChannels * BitsPerSample/8), 2 (__int16)
-    // 34-35 BitsPerSample 16 (__int16)
+    // 20-21 AudioFormat 1 (uncompressed pcm) (int16_t)
+    // 22-23 NumChannels 1 (mono) (int16_t)
+    // 24-27 SampleFreq ???? (int32_t)
+    // 28-31 FrameRate (SampleRate * BitsPerSample * NumChannels) / 8 (int32_t)
+    // 32-33 BytesPerFrame (NumChannels * BitsPerSample/8), 2 (int16_t)
+    // 34-35 BitsPerSample 16 (int16_t)
     // 36-39 "data"
     // 40-43 # bytes of data (sample words * 2)
     // 44-45 (sample word 1 of N)
@@ -538,9 +546,9 @@ int __fastcall TFormMain::GetAsWavFile(long lFileHandle, int iSamp, PSTOR* ps)
     }
     fileSize += sizeof(SMPLDATA);
 
-    FileSeek(lFileHandle, (int)sizeof(UInt32), 0); // point to fileSizeMinusEight
-    UInt32 iTemp = fileSize - 8;
-    if (FileWrite(lFileHandle, &iTemp, sizeof(UInt32)) < 0)
+    FileSeek(lFileHandle, (int)sizeof(uint32_t), 0); // point to fileSizeMinusEight
+    uint32_t iTemp = fileSize - 8;
+    if (FileWrite(lFileHandle, &iTemp, sizeof(uint32_t)) < 0)
     {
       printm("error writing file-size!");
       return -1;
@@ -561,98 +569,100 @@ void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
   // FROM AKAI EXCLUSIVE SAMPLE PARAMETERS... (do this before decoding header)
 
   // clear spare-byte fields
-  for (int ii = 0; ii < PSTOR_SPARE_COUNT; ii++)
-    ps->spares[ii] = (Byte)0;
-  ps->spareint1 = 0;
-  ps->spareint2 = (Byte)0;
-  ps->sparechar1 = (Byte)0;
-  ps->sparechar2 = (Byte)0;
+  ps->spareDB1 = 0; // 1 byte
 
   // ASCII sample name
-  AsciiStrDecode(ps->name, &samp_parms[7]);
+  AsciiStrDecode(ps->name, &samp_parms[7]); // 10 bytes => 14 byte null terminated string
 
   // undefined
-  // ps->undef_dd = decodeDD((Byte*)&samp_parms[27]); // 8
+  ps->undefinedDD_27 = decodeDD((uint8_t*)&samp_parms[27]); // 8=>4
 
   // undefined
-  // ps->undef_dw = decodeDW((Byte*)&samp_parms[35]); // 4
+  ps->undefinedDW_35 = decodeDW((uint8_t*)&samp_parms[35]); // 4=>2
 
   // number of words in sample (for velocity-crossfade it's the sum of soft and loud parts)
-  ps->sampleCount = decodeDD(&samp_parms[39]); // 8
+  ps->sampleCount = decodeDD(&samp_parms[39]); // 8=>4
 
   // original sample rate in Hz
-  ps->freq = decodeDW(&samp_parms[47]); // 4
-
+  ps->freq = decodeDW(&samp_parms[47]); // 4=>2
+  
   // nominal pitch in 1/16 semitone, C3=960
-  ps->pitch = decodeDW(&samp_parms[51]); // 4
+  ps->pitch = decodeDW(&samp_parms[51]); // 4=>2
 
   // loudness offset (signed) nominal pitch in 1/16 semitone, C3=960
-  ps->loudnessoffset = decodeDW(&samp_parms[55]); // 4
+  ps->loudnessoffset = decodeDW(&samp_parms[55]); // 4=>2
 
   // replay mode 'A', 'L' or 'O' (alternating, looping or one-shot)
   // (samp_hedr[18] also has sample's loop mode: 0=looping, 1=alternating
   // or one-shot if loop-length < MINLOOP)
-  ps->loopmode = decodeDB(&samp_parms[59]); // 2
+  ps->loopmode = decodeDB(&samp_parms[59]); // 2=>1
 
   // 61,62 DB reserved
-  //ps->reserved = decodeDB(&samp_parms[61]); // 2
+  ps->reservedDB_61 = decodeDB(&samp_parms[61]); // 2=>1
 
   // 63-70 DD end point relative to start of sample (1800 default for TONE sample)
-  ps->endpoint = decodeDD(&samp_parms[63]);
+  ps->endpoint = decodeDD(&samp_parms[63]); // 8=>4
 
   // 71-78 DD first replay point relative to start of sample (default is 0)
-  ps->startpoint = decodeDD(&samp_parms[71]);
+  ps->startpoint = decodeDD(&samp_parms[71]); // 8=>4
 
   // 79-86 DD length of looping or alternating part
-  ps->looplen = decodeDD(&samp_parms[79]);
+  ps->looplen = decodeDD(&samp_parms[79]); // 8=>4
 
   // 87-90 DW reserved
+  ps->reservedDW_87 = decodeDW(&samp_parms[87]); // 4=>2
 
   // 91,92 DB type of sample 0=normal, 255=velocity crossfade
-  bool xfade = (decodeDB(&samp_parms[91]) == (Byte)255); // 2
+  bool xfade = (decodeDB(&samp_parms[91]) == 255); // 2=>1
 
   // 93,94 DB sample waveform 'N'=normal, 'R'=reversed
-  bool reversed = (decodeDB(&samp_parms[93]) == 'R'); // 2
+  bool reversed = (decodeDB(&samp_parms[93]) == 'R'); // 2=>1
 
   ps->flags = 0;
   if (xfade)
-    ps->flags |= (Byte)1;
+    ps->flags |= 1;
   if (reversed)
-    ps->flags |= (Byte)2;
+    ps->flags |= 2;
   //if (???)
-  //  ps->flags |= (Byte)4;
+  //  ps->flags |= 4;
   //if (???)
-  //  ps->flags |= (Byte)8;
+  //  ps->flags |= 8;
   //if (???)
-  //  ps->flags |= (Byte)16;
+  //  ps->flags |= 16;
   //if (???)
-  //  ps->flags |= (Byte)32;
+  //  ps->flags |= 32;
   //if (???)
-  //  ps->flags |= (Byte)64;
+  //  ps->flags |= 64;
   //if (???)
-  //  ps->flags |= (Byte)128;
+  //  ps->flags |= 128;
 
   // 95-126 (4 DDs) undefined
+  ps->undefinedDD_95 = decodeDD((uint8_t*)&samp_parms[95]); // 8=>4
+  
+  // these two have data (for the S950) but - it is not documented...
+  ps->undefinedDD_103 = decodeDD((uint8_t*)&samp_parms[103]); // 8=>4
+  ps->undefinedDD_111 = decodeDD((uint8_t*)&samp_parms[111]); // 8=>4
+  ps->undefinedDD_119 = decodeDD((uint8_t*)&samp_parms[119]); // 8=>4
 
   // FROM SAMPLE HEADER...
 
   // bits per sample-word (S900 transmits 12 but can accept 8-14)
   // S950 can accept 16 but not serially, only from S1000 disk????
-  ps->bits_per_word = (UInt16)samp_hedr[5]; // 4
+  ps->bits_per_word = (uint16_t)samp_hedr[5]; // 4=>2
 
   // sampling period in nS 15259-500000
-  ps->period = decodeTB(&samp_hedr[6]); // 3
+  ps->period = decodeTB(&samp_hedr[6]); // 3=>(21-bits)(stored here as 32 bit int)
 
   // NOW USING VALUES IN samp_parms FOR ITEMS BELOW!!!!!!!!!!!!!!!!!!
 
   // number of sample words 200-475020
-  // ps->sampleCount = decodeTB((Byte*)&samp_hedr[9]); // 3
+  // ps->sampleCount = decodeTB((uint8_t*)&samp_hedr[9]); // 3
 
   // loop start point (non-looping mode if >= endidx-5)
-  // int startpoint = decodeTB((Byte*)&samp_hedr[12]); // 3
+  // int startpoint = decodeTB((uint8_t*)&samp_hedr[12]); // 3
 
   // loop end point (S950/S900 takes this as end point of the sample)
-  // int loopend = decodeTB((Byte*)&samp_hedr[15]); // 3
+  // int loopend = decodeTB((uint8_t*)&samp_hedr[15]); // 3
 
   // ps->startidx = startpoint;
   // ps->endidx = loopend;
@@ -663,7 +673,7 @@ void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
   //if (ps->endidx-ps->loopidx < MINLOOP)
   //    ps->looping = 'O';
   //else
-  //    ps->looping = (samp_hedr[18] & (Byte)0x01) : 'A' : 'L';
+  //    ps->looping = (samp_hedr[18] & (uint8_t)0x01) : 'A' : 'L';
 }
 //---------------------------------------------------------------------------
 // get a sample's header info into the global m_temp_array
@@ -690,24 +700,20 @@ int __fastcall TFormMain::get_comm_samp_hedr(int samp)
   return 0;
 }
 //---------------------------------------------------------------------------
-// receive sample data blocks and write them to a file, print a progress display
-// all functions here print their own error messages ao you can just
-// look for a return value of 0 for success.
-// returns -1 if error or if 0 bytes received
-// returns the # bytes written if success
+// receive sample data blocks and write them to a file, print a progress display all functions
+// here print their own error messages ao you can just look for a return value of 0 for success.
+// returns -1 if error or if 0 bytes received, returns the # bytes written if success
 int __fastcall TFormMain::get_samp_data(PSTOR* ps, long lFileHandle, bool bIsWavFile)
 {
-  // always 120 byte packets (plus block-count and checksum), S900 is
-  // max 60 2-byte words in 14-bits and S950 is max 40 3-byte words in 16-bits
-  // (but the S950 seems NOT to be able to receive 16-bit samples as it
-  // turns out though the manual says it can process 16-bits from disk???)
-  // (The S900/S950 protocol was designed to be compliant with the Prophet 2000
-  // which is supposed to handle 16-bit sample packets as 40 3-byte words or
-  // 20 4-byte words... (only the lower 7-bits of each byte is usable))
+  // always 120 byte packets (plus block-count and checksum), S900 is max 60 2-byte words in 14-bits
+  // and S950 "should be" max 40 3-byte words in 16-bits (but the S950 seems NOT to be able to receive
+  // 16-bit samples as it turns out though the manual says it can process 16-bits from disk???)(Confirmed
+  // June/2025 S950, like the S900 sends max 12-bits serially! It can receive max 14-bits serially))
+  // (The S900/S950 protocol was designed to be compliant with the Prophet 2000 which is supposed to handle
+  // 16-bit sample packets as 40 3-byte words or 20 4-byte words... (only the lower 7-bits of each byte is usable))
   //
-  // we receive any # bits per word and properly format it as 40 or 60
-  // 16-bit 2's compliment sample-words in rbuf
-  Byte* rbuf = NULL;
+  // we receive any # bits per word and properly format it as 40 or 60 16-bit 2's compliment sample-words in rbuf
+  uint8_t* rbuf = NULL;
 
   int bytesWritten = 0;
 
@@ -742,7 +748,7 @@ int __fastcall TFormMain::get_samp_data(PSTOR* ps, long lFileHandle, bool bIsWav
       int target_bytes_per_word = bits_per_word / 8;
       if (bits_per_word % 8)
         target_bytes_per_word++;
-      rbuf = new Byte[sampler_words_per_packet*target_bytes_per_word];
+      rbuf = new uint8_t[sampler_words_per_packet*target_bytes_per_word];
 
       printm("bits per sample-word: " + String(bits_per_word));
       printm("raw bytes per word from sampler: " + String(sampler_bytes_per_word));
@@ -814,7 +820,7 @@ int __fastcall TFormMain::get_samp_data(PSTOR* ps, long lFileHandle, bool bIsWav
       // if an odd # bytes was written, must pad with 0
       if (bIsWavFile && (bytesWritten & 1))
       {
-        Byte temp = 0;
+        uint8_t temp = 0;
         if (FileWrite(lFileHandle, &temp, 1) < 0)
         {
           printm("error writing padding-byte to file!");
@@ -845,7 +851,7 @@ int __fastcall TFormMain::get_samp_data(PSTOR* ps, long lFileHandle, bool bIsWav
 //
 // # words per 120 byte block is generally 60 8-14 bit samples
 // or 40 15-21 bit samples... could be 20 22-28 bit samples
-int __fastcall TFormMain::get_data_block(Byte* dest, int sampler_bytes_per_word, int target_bytes_per_word,
+int __fastcall TFormMain::get_data_block(uint8_t* dest, int sampler_bytes_per_word, int target_bytes_per_word,
     int sampler_words_per_packet, int bits_per_word, int packet_count, bool bIsWavFile)
 {
   int bc = packet_count+1; // display 1 greater...
@@ -865,15 +871,15 @@ int __fastcall TFormMain::get_data_block(Byte* dest, int sampler_bytes_per_word,
       return -1;
     }
 
-    Byte *cp;
-    Byte checksum = 0;
+    uint8_t *cp;
+    uint8_t checksum = 0;
 
     cp = m_temp_array + 1;
 
-    __int32 baseline = (__int32)(1 << (bits_per_word - 1));
+    int32_t baseline = (int32_t)(1 << (bits_per_word - 1));
 
     // process m_temp_array into a data buffer and validate checksum
-    // (NOTE: tricky little algorithm I came up with that handles
+    // (NOTE: tricky little algorithm [Scott M. Swift] came up with that handles
     // data bytes that come in like the following:
     //
     // ps->bits_per_word == 16 bits
@@ -899,21 +905,21 @@ int __fastcall TFormMain::get_data_block(Byte* dest, int sampler_bytes_per_word,
     {
       // Samples sent by S900/S950 are only 12-bits. This algorithm can handle
       // up to 32-bit decoding as-is...
-      __int32 acc = 0;
+      int32_t acc = 0;
 
       for (int jj = 1; jj <= sampler_bytes_per_word; jj++)
       {
         int shift_count = bits_per_word - (jj * 7); // (each midi-byte has only 7 bits used)
 
-        Byte b = *cp++;
-        UInt32 val = (UInt32)b;
+        uint8_t b = *cp++;
+        uint32_t val = (uint32_t)b;
         checksum ^= b;
 
-        UInt32 or_val;
+        uint32_t or_val;
         if (shift_count >= 0)
-          or_val = (UInt32)(val << shift_count);
+          or_val = (uint32_t)(val << shift_count);
         else
-          or_val = (UInt32)(val >> -shift_count);
+          or_val = (uint32_t)(val >> -shift_count);
 
         acc |= or_val;
       }
@@ -928,7 +934,7 @@ int __fastcall TFormMain::get_data_block(Byte* dest, int sampler_bytes_per_word,
       // write the sample-word in little-endian order for RIFF
       for (int jj = 0; jj < target_bytes_per_word; jj++)
       {
-        *dest++ = (Byte)acc;
+        *dest++ = (uint8_t)acc;
         acc >>= 8;
       }
     }
@@ -957,8 +963,8 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
     return false;
 
   // vars released in __finally block
-  Byte *fileBuf = NULL;
-  Byte *tbuf = NULL;
+  uint8_t *fileBuf = NULL;
+  uint8_t *tbuf = NULL;
   int iFileHandle = 0;
 
   try
@@ -974,7 +980,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
       int iBytesRead;
       int sampIndex;
       PSTOR ps = { 0 };
-      Byte newname[MAX_NAME_S900 + 1];
+      uint8_t newname[MAX_NAME_S900 + 1];
 
       if (sFilePath.IsEmpty() || !FileExists(sFilePath))
       {
@@ -1005,7 +1011,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         return false;
       }
 
-      fileBuf = new Byte[iFileLength + 1];
+      fileBuf = new uint8_t[iFileLength + 1];
 
       if (fileBuf == NULL)
       {
@@ -1068,7 +1074,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
       printm("rs232 baud-rate: " + String(m_baud));
 
-      int machine_max_bits_per_word = S900_BITS_PER_WORD;
+      int machine_max_bits_per_word = m_send_as_12_bits ? 12 : MAX_SERIAL_BITS_PER_WORD;
 
       int sampler_bytes_per_word = machine_max_bits_per_word / 7;
 
@@ -1089,17 +1095,17 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
       // transmit buffer (allow for checksum and block number, 122 bytes)
       // (127 bytes if sample-dump standard mode)
-      tbuf = new Byte[m_data_size];
+      tbuf = new uint8_t[m_data_size];
 
       // preload the data packet buffer with sample-dump-standard
       // constants if SDS was selected from menu...
       // For SDS, the checksum is the running XOR of all the data after
       // the SYSEX byte, up to but not including the checksum itself.
       // F0 7E cc 02 kk <120 bytes> mm F7
-      Byte initial_checksum = 0;
+      uint8_t initial_checksum = 0;
 
-      Byte *ptbuf; // transmit buffer pointer
-      Byte checksum;
+      uint8_t *ptbuf; // transmit buffer pointer
+      uint8_t checksum;
       int blockct;
 
       // flag set if we receive a not-acknowledge on any data-packet
@@ -1129,7 +1135,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           return false;
         }
 
-        int file_size = *(__int32*)&fileBuf[4];
+        int file_size = *(int32_t*)&fileBuf[4];
         if (file_size + 8 != iBytesRead)
         {
           printm("bad file (3), (file_size = " +
@@ -1145,9 +1151,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         }
 
         // Search file for "fmt " block
-        Byte* headerPtr = fileBuf;
+        uint8_t* headerPtr = fileBuf;
         // NOTE: the FindSubsection will return headerPtr by reference!
-        __int32 headerSize = FindSubsection(headerPtr, "fmt ", iBytesRead);
+        int32_t headerSize = FindSubsection(headerPtr, "fmt ", iBytesRead);
         if (headerSize < 0)
         {
           printm("bad file (4) [no \'fmt \' sub-section!]");
@@ -1165,9 +1171,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         // Search file for "data" block
         // (Left-channel data typically begins after the header
         // at 12 + 4 + 4 + 16 + 4 + 4 - BUT - could be anywhere...)
-        Byte* dataPtr = fileBuf;
+        uint8_t* dataPtr = fileBuf;
         // NOTE: the FindSubsection will return dataPtr by reference!
-        __int32 dataLength = FindSubsection(dataPtr, "data", iBytesRead);
+        int32_t dataLength = FindSubsection(dataPtr, "data", iBytesRead);
         if (dataLength < 0)
         {
           printm("bad file (4) [no \'data\' sub-section!]");
@@ -1183,7 +1189,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         // why the file may appear 1 byte over-size for 8-bit mono)
         printm("data-section length (in bytes): " + String(dataLength));
 
-        int AudioFormat = *(__int16*)(&headerPtr[0]);
+        int AudioFormat = *(int16_t*)(&headerPtr[0]);
         if (AudioFormat != 1) // we can't handle compressed WAV-files
         {
           printm("cannot read this WAV file-type " +
@@ -1191,17 +1197,17 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           return false;
         }
 
-        int NumChannels = *(__int16*)(&headerPtr[2]);
+        int NumChannels = *(int16_t*)(&headerPtr[2]);
         printm("number of channels: " + String(NumChannels));
 
-        int SampleRate = *(__int32*)(&headerPtr[4]);
+        int SampleRate = *(int32_t*)(&headerPtr[4]);
         printm("sample rate: " + String(SampleRate));
 
         // BytesPerFrame: Number of bytes per frame
-        int BytesPerFrame = *(__int16*)(&headerPtr[12]);
+        int BytesPerFrame = *(int16_t*)(&headerPtr[12]);
         printm("bytes per frame: " + String(BytesPerFrame));
 
-        int BitsPerWord = *(__int16*)(&headerPtr[14]);
+        int BitsPerWord = *(int16_t*)(&headerPtr[14]);
         printm("bits per sample: " + String(BitsPerWord));
         if (BitsPerWord < 8 || BitsPerWord > 64)
         {
@@ -1245,15 +1251,30 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         }
 
         // Need to populate a PSTOR structure for S950
+        
+        //---------- set spare/reserved/undefined fields (they default to 0 above...) --------------
+        // clear spare-byte fields
+        //ps.spareDB1 = 0; // 1 byte
+        //ps.spareDW1 = 0; // 2 bytes
+        // these fields are reserved/undefined in the S900, unknown for the S950
+        //ps.undefinedDW_35 = 0;
+        //ps.reservedDB_61 = 0;
+        //ps.reservedDW_87 = 0;
+        //ps.undefinedDD_27 = 0;
+        //ps.undefinedDD_95 = 0;
+        //ps.undefinedDD_103 = 0;
+        //ps.undefinedDD_111 = 0; // 0x80000000 1/2 semitone (50 cents) (semitone pitch for what?)
+        //ps.undefinedDD_119 = 0; // 1 (fine pitch for what?)
+        //------------------------------------------------------------------------------------------
+        
         ps.startpoint = 0; // first replay point for looping (4 bytes)
-        //ps.endpoint = TotalFrames - 1; // end of play index (4 bytes)
         ps.endpoint = TotalFrames; // end of play index (4 bytes)
         ps.looplen = ps.endpoint; // loop length (4 bytes)
 
-        UInt32 tempfreq = SampleRate;
+        uint32_t tempfreq = SampleRate;
         if (tempfreq > 49999)
           tempfreq = 49999;
-        ps.freq = (UInt32)tempfreq; // sample freq. in Hz (4 bytes)
+        ps.freq = (uint16_t)tempfreq; // sample freq. in Hz (4 bytes)
 
         ps.pitch = 960; // pitch - units = 1/16 semitone (4 bytes) (middle C)
         ps.sampleCount = TotalFrames; // total number of words in sample (4 bytes)
@@ -1263,7 +1284,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         // (this will be the bits-per-word of the sample residing on the machine)
         // (DO THIS BEFORE SETTING shift_count!)
         ps.bits_per_word =
-          (UInt16)((BitsPerWord > machine_max_bits_per_word) ?
+          (uint16_t)((BitsPerWord > machine_max_bits_per_word) ?
             machine_max_bits_per_word : BitsPerWord);
 
         // positive result is the amount of right shift needed (if any)
@@ -1275,10 +1296,6 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
         AsciiStrCpyTrimRight(ps.name, newname);
 
-        // clear spares
-        for (int ii = 0; ii < PSTOR_SPARE_COUNT; ii++)
-          ps.spares[ii] = 0;
-
         ps.loudnessoffset = 0;
 
         // set alternating/reverse flags "normal"
@@ -1287,13 +1304,13 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         ps.loopmode = 'O'; // (1 byte) (one-shot)
 
         // Search file for "cue " block
-        Byte* tempPtr = fileBuf;
+        uint8_t* tempPtr = fileBuf;
         // NOTE: the FindSubsection will return tempPtr by reference!
         // cueChunkSize does not include the first 8 bytes!
-        __int32 cueChunkSize = FindSubsection(tempPtr, "cue ", iBytesRead);
+        int32_t cueChunkSize = FindSubsection(tempPtr, "cue ", iBytesRead);
         // we allow a CUECHUNK with just one CUEPOINT, hence subtracting off
         // one of the 2 CUEPOINT structs defined in CUECHUNK
-        if (cueChunkSize >= (__int32)(sizeof(CUECHUNK)-sizeof(CUEPOINT)-8))
+        if (cueChunkSize >= (int32_t)(sizeof(CUECHUNK)-sizeof(CUEPOINT)-8))
         {
           CUECHUNK* pCue = (CUECHUNK*)(tempPtr-8); // obtain a pointer to the struct
 
@@ -1304,7 +1321,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             {
               printm("(found " + String(pCue->cuePointsCount) + " cue-points)");
 
-              UInt32 iEnd = pCue->cuePoints[pCue->cuePointsCount-1].frameOffset;
+              uint32_t iEnd = pCue->cuePoints[pCue->cuePointsCount-1].frameOffset;
 
               if (iEnd <= ps.sampleCount)
               {
@@ -1316,7 +1333,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
               printm("(found 1 cue-point)");
 
             // this uses ps.endpoint to do limit-checking... so do after endpoint
-            UInt32 iStart = pCue->cuePoints[0].frameOffset;
+            uint32_t iStart = pCue->cuePoints[0].frameOffset;
 
             if (iStart <= ps.sampleCount && iStart <= ps.endpoint)
             {
@@ -1330,10 +1347,10 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         tempPtr = fileBuf;
         // NOTE: the FindSubsection will return tempPtr by reference!
         // smplChunkSize does not include the first 8 bytes!
-        __int32 smplChunkSize = FindSubsection(tempPtr, "smpl", iBytesRead);
+        int32_t smplChunkSize = FindSubsection(tempPtr, "smpl", iBytesRead);
 
         // we will look at the data if it's got at least the regular chunk info + one loop...
-        if (smplChunkSize >= (__int32)(sizeof(SMPLCHUNKHEDR)+sizeof(SMPLLOOP)-8))
+        if (smplChunkSize >= (int32_t)(sizeof(SMPLCHUNKHEDR)+sizeof(SMPLLOOP)-8))
         {
           SMPLCHUNKHEDR* pSmpl = (SMPLCHUNKHEDR*)(tempPtr-8); // obtain a pointer to the struct
 
@@ -1353,14 +1370,14 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           if (pSmpl->loopCount >= 1 && pSmpl->samplerDataSize >= sizeof(SMPLLOOP))
           {
             // get a pointer to the first loop-point
-            SMPLLOOP* pLoop = (SMPLLOOP*)(&pSmpl->samplerDataSize + sizeof(UInt32));
+            SMPLLOOP* pLoop = (SMPLLOOP*)(&pSmpl->samplerDataSize + sizeof(uint32_t));
 
-            UInt32 iStart = pLoop->start;
+            uint32_t iStart = pLoop->start;
 
             if (iStart > ps.sampleCount)
               iStart = ps.sampleCount;
 
-            UInt32 iEnd = pLoop->end;
+            uint32_t iEnd = pLoop->end;
 
             if (iEnd > ps.sampleCount)
               iEnd = ps.sampleCount;
@@ -1374,12 +1391,12 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             // swap if reversed
             if (iStart > iEnd)
             {
-              UInt32 iTemp = iStart;
+              uint32_t iTemp = iStart;
               iStart = iEnd;
               iEnd = iTemp;
             }
 
-            UInt32 iLoopLen = (iEnd > iStart) ? iEnd-iStart : 0;
+            uint32_t iLoopLen = (iEnd > iStart) ? iEnd-iStart : 0;
 
             // 5-point minimum on S900 loop-length...
             if (iLoopLen >= MINLOOP && ps.sampleCount >= MINLOOP && iLoopLen <= ps.sampleCount)
@@ -1397,9 +1414,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                                                                   sizeof(SMPLDATA))
             {
               // additional check
-              if (smplChunkSize == (__int32)(sizeof(SMPLCHUNKHEDR)+pSmpl->samplerDataSize-8))
+              if (smplChunkSize == (int32_t)(sizeof(SMPLCHUNKHEDR)+pSmpl->samplerDataSize-8))
               {
-                SMPLDATA* pSmplData = (SMPLDATA*)((Byte*)pSmpl +
+                SMPLDATA* pSmplData = (SMPLDATA*)((uint8_t*)pSmpl +
                         sizeof(SMPLCHUNKHEDR) + (pSmpl->loopCount*sizeof(SMPLLOOP)));
 
                 if (pSmplData->magic == MAGIC_NUM_AKI)
@@ -1415,12 +1432,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         }
 
         // find the sample's index on the target machine
-#if !TESTING
         if ((sampIndex = FindIndex(ps.name)) < 0)
           return false;
-#else
-        sampIndex = 0;
-#endif
+
         // encode samp_hedr and samp_parms arrays
         encode_sample_info(sampIndex, &ps);
 
@@ -1431,19 +1445,19 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         if (NumChannels > 1 && m_use_right_chan)
           dataPtr += BytesPerWord;
 
-        __int64 wav_baseline = (1L << (BitsPerWord - 1L));
-        __int64 target_baseline = (1L << (ps.bits_per_word - 1L));
-        __int64 ob_target_max = (1L << ps.bits_per_word) - 1L;
-        __int64 signed_target_max = target_baseline - 1;
-        __int64 signed_target_min = -signed_target_max;
+        int64_t wav_baseline = (1L << (BitsPerWord - 1L));
+        int64_t target_baseline = (1L << (ps.bits_per_word - 1L));
+        int64_t ob_target_max = (1L << ps.bits_per_word) - 1L;
+        int64_t signed_target_max = target_baseline - 1;
+        int64_t signed_target_min = -signed_target_max;
 
-        __int64 my_max = signed_target_min;
-        __int64 my_min = signed_target_max;
+        int64_t my_max = signed_target_min;
+        int64_t my_min = signed_target_max;
 
         // the largest magnitude (pos or neg) point in this wav
         // (needed to compute a scale-factor to map the wav to
         // the target # bits)
-        unsigned __int64 maxAbsAcc = 0;
+        uint64_t maxAbsAcc = 0;
 
         // init progress display
         int divisor = (ps.sampleCount <= 19200) ? 8 : 32;
@@ -1491,7 +1505,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             printm("computing largest absolute sample value (wait...)");
 
           int FrameCounter = 0;
-          Byte* dp = dataPtr;
+          uint8_t* dp = dataPtr;
 
           // for each frame in WAV-file (one-sample of 1-8 bytes...)
           for (;;)
@@ -1523,11 +1537,11 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             if (passes == 1)
             {
               // reset transmit buffer pointer
-              tbuf[0] = (Byte)(blockct & 0x7f); // queue the block #
+              tbuf[0] = (uint8_t)(blockct & 0x7f); // queue the block #
               ptbuf = &tbuf[1];
             }
 
-            register __int64 acc; // sample accumulator (must be signed!)
+            register int64_t acc; // sample accumulator (must be signed!)
 
             for (int ii = 0; ii < words_per_block; ii++)
             {
@@ -1644,7 +1658,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
                         bool bRoundUp = acc & 1; // need to round up?
 
-                                     // discard msb of discarded bits...
+                        // discard msb of discarded bits...
                         acc >>= 1;
 
                         if (bRoundUp && acc != ob_target_max)
@@ -1657,7 +1671,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
               // save sample in 122-byte tbuf
               if (passes == 1)
-                queue((__int32)acc, ptbuf, sampler_bytes_per_word,
+                queue((int32_t)acc, ptbuf, sampler_bytes_per_word,
                   ps.bits_per_word, checksum); // returns ptbuf by-reference!
 
               dp += BytesPerFrame; // Next frame
@@ -1693,7 +1707,6 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                 if (countSent < ps.sampleCount)
                 {
                   ps.sampleCount = countSent;
-                  //ps.endpoint = ps.sampleCount - 1;
                   ps.endpoint = ps.sampleCount;
                   ps.looplen = ps.endpoint;
                   ps.startpoint = 0;
@@ -1750,7 +1763,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
         printm("Read " + String(iBytesRead) + " bytes");
 
-        UInt32 my_magic;
+        uint32_t my_magic;
 
         memcpy(&my_magic, &fileBuf[0], UINT32SIZE);
 
@@ -1783,16 +1796,12 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           printm("reducing bits per word in " + String(AKIEXT) +
            " file from " + String(ps.bits_per_word) + " to " +
             String(machine_max_bits_per_word) + "!");
-          ps.bits_per_word = (UInt16)machine_max_bits_per_word;
+          ps.bits_per_word = (uint16_t)machine_max_bits_per_word;
         }
 
         // find the sample's index on the target machine
-#if !TESTING
         if ((sampIndex = FindIndex(ps.name)) < 0)
           return false;
-#else
-        sampIndex = 0;
-#endif
 
         // encode samp_hedr and samp_parms arrays
         encode_sample_info(sampIndex, &ps);
@@ -1816,11 +1825,11 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         if (get_ack(0) < 0)
           return false;
 
-        __int32 baseline = (__int16)(1 << (ps.bits_per_word - 1));
+        int32_t baseline = (int16_t)(1 << (ps.bits_per_word - 1));
 
-        UInt16 max_val = (UInt16)((1 << ps.bits_per_word) - 1);
+        uint16_t max_val = (uint16_t)((1 << ps.bits_per_word) - 1);
 
-        Byte* ptr = (Byte*)&fileBuf[AKI_FILE_HEADER_SIZE + UINT32SIZE];
+        uint8_t* ptr = (uint8_t*)&fileBuf[AKI_FILE_HEADER_SIZE + UINT32SIZE];
         int ReadCounter = AKI_FILE_HEADER_SIZE + UINT32SIZE; // We already processed the header
 
         blockct = 0;
@@ -1842,7 +1851,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           checksum = initial_checksum; // init checksum
 
           // reset transmit buffer pointer
-          tbuf[0] = (Byte)(blockct & 0x7f); // queue the block #
+          tbuf[0] = (uint8_t)(blockct & 0x7f); // queue the block #
           ptbuf = &tbuf[1];
 
           // Send data and checksum (send 0 if at end-of-file to pad
@@ -1852,7 +1861,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           // pad last block with 0's if end of file
           for (int ii = 0; ii < words_per_block; ii++)
           {
-            register __int32 acc = 0;
+            register int32_t acc = 0;
             if (ReadCounter < iBytesRead)
             {
               // read little-endian bytes_per_word bytes of sample-word
@@ -1922,7 +1931,6 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             if (countSent < ps.sampleCount)
             {
               ps.sampleCount = countSent;
-              //ps.endpoint = ps.sampleCount - 1;
               ps.endpoint = ps.sampleCount;
               ps.looplen = ps.endpoint;
               ps.startpoint = 0;
@@ -1947,11 +1955,10 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
       }
 
       // write the EEX (no delay)
-      Byte temp = EEX;
+      uint8_t temp = EEX;
       if (!comws(1, &temp, false))
         return false;
 
-#if !TESTING
       // do renaming unless NAK packet was received while in midi Tx
       // (in that case we have no way of knowing exactly which packet
       // failed so we can't change samp_parms correctly... oh well...)
@@ -1960,7 +1967,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         // look up new sample in catalog, when you write a new sample it
         // shows up as "00", "01", "02"
 
-        Byte locstr[3];
+        uint8_t locstr[3];
         sprintf(locstr, "%02d", sampIndex);
 
         sampIndex = findidx(locstr);
@@ -1994,10 +2001,6 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         if (!bSendAborted)
           printm("sample written ok!");
       }
-#else
-      if (!bSendAborted)
-        printm("sample written ok!");
-#endif
     }
     catch (...)
     {
@@ -2026,7 +2029,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 }
 //---------------------------------------------------------------------------
 // return true if send fails
-bool __fastcall TFormMain::send_packet(Byte *tbuf, int blockct)
+bool __fastcall TFormMain::send_packet(uint8_t *tbuf, int blockct)
 {
   for(int ii = 0; ii < PACKET_RETRY_COUNT; ii++)
   {
@@ -2064,19 +2067,19 @@ bool __fastcall TFormMain::send_packet(Byte *tbuf, int blockct)
 // Checksum in/out is by-reference as is the ptbuf pointer
 // Algorithm handles 32-bit samples as-is but we will only ever feed it
 // 14-bits (how sad!)
-void __fastcall TFormMain::queue(__int32 acc, Byte* &ptbuf,
-         int sampler_bytes_per_word, int bits_per_word, Byte &checksum)
+void __fastcall TFormMain::queue(int32_t acc, uint8_t* &ptbuf,
+         int sampler_bytes_per_word, int bits_per_word, uint8_t &checksum)
 {
   for (int ii = 1; ii <= sampler_bytes_per_word; ii++)
   {
     int shift_count = bits_per_word - (ii * 7);
 
-    Byte out_val;
+    uint8_t out_val;
 
     if (shift_count >= 0)
-      out_val = (Byte)(acc >> shift_count);
+      out_val = (uint8_t)(acc >> shift_count);
     else
-      out_val = (Byte)(acc << -shift_count);
+      out_val = (uint8_t)(acc << -shift_count);
 
     out_val &= 0x7f; // mask msb to 0
 
@@ -2087,7 +2090,7 @@ void __fastcall TFormMain::queue(__int32 acc, Byte* &ptbuf,
 }
 //---------------------------------------------------------------------------
 // puts PSTOR struct (ps) info into samp_parms[] and samp_hedr[] arrays
-void __fastcall TFormMain::encode_sample_info(UInt16 index, PSTOR* ps)
+void __fastcall TFormMain::encode_sample_info(uint16_t index, PSTOR* ps)
 {
   //
   // SAMPLE PARAMETERS 129 bytes (do this before encoding header)
@@ -2101,15 +2104,15 @@ void __fastcall TFormMain::encode_sample_info(UInt16 index, PSTOR* ps)
   samp_parms[2] = 0; // midi chan
   samp_parms[3] = SPRM;
   samp_parms[4] = S900_ID;
-  samp_parms[5] = (Byte)(index & 0x7f);
-  samp_parms[6] = (Byte)((index>>7) & 0x7f); // reserved
+  samp_parms[5] = (uint8_t)(index & 0x7f);
+  samp_parms[6] = (uint8_t)((index>>7) & 0x7f); // reserved
 
   // copy ASCII sample name, pad with blanks and terminate
   AsciiStrEncode(&samp_parms[7], ps->name); // 20
 
-   // unused bytes
-   // 27-34  DD Undefined
-   // 35-38  DW Undefined
+  // undefined, 27-38, 12 bytes
+  encodeDD(ps->undefinedDD_27, &samp_parms[27]); // 27-34  DD Undefined
+  encodeDW(ps->undefinedDW_35, &samp_parms[35]); // 35-38  DW Undefined
 
   // number of sample words
   encodeDD(ps->sampleCount, &samp_parms[39]); // 8
@@ -2128,7 +2131,7 @@ void __fastcall TFormMain::encode_sample_info(UInt16 index, PSTOR* ps)
   // or one-shot if loop-length < MINLOOP)
   encodeDB(ps->loopmode, &samp_parms[59]); // 2
 
-  encodeDB(0, &samp_parms[61]); // reserved 2
+  encodeDB(ps->reservedDB_61, &samp_parms[61]); // reserved 2
 
   // end point relative to start of sample
   encodeDD(ps->endpoint, &samp_parms[63]); // 8
@@ -2145,18 +2148,23 @@ void __fastcall TFormMain::encode_sample_info(UInt16 index, PSTOR* ps)
   // length of looping or alternating part (default is 45 for TONE sample)
   encodeDD(ps->looplen, &samp_parms[79]); // 8
 
-  encodeDW(0, &samp_parms[87]); // reserved 4
+  encodeDW(ps->reservedDW_87, &samp_parms[87]); // reserved 4
 
   // 91,92 DB type of sample 0=normal, 255=velocity crossfade
-  Byte c_temp = (Byte)((ps->flags & (Byte)1) ? 255 : 0);
+  uint8_t c_temp = (uint8_t)((ps->flags & 1) ? 255 : 0);
   encodeDB(c_temp, &samp_parms[91]);
 
   // 93,94 DB waveform type 'N'=normal, 'R'=reversed
-  c_temp = (ps->flags & (Byte)2) ? 'R' : 'N';
+  c_temp = (ps->flags & 2) ? 'R' : 'N';
   encodeDB(c_temp, &samp_parms[93]); // 2
 
-  // unused bytes
-  // 95-126  4 DDs Undefined 32
+  // 95-102, 1 DDs Undefined, 8 bytes (no space to save in PSTOR so putting in member variables)
+  encodeDD(ps->undefinedDD_95, &samp_parms[95]); // 95-102 DD Undefined (8 bytes)
+
+  // 103-126, 3 DDs Undefined, 24 bytes (saving in PSTOR)
+  encodeDD(ps->undefinedDD_103, &samp_parms[103]); // 119-126 DD Undefined (8 bytes)
+  encodeDD(ps->undefinedDD_111, &samp_parms[111]); // 111-118 DD Undefined (8 bytes)
+  encodeDD(ps->undefinedDD_119, &samp_parms[119]); // 119-126 DD Undefined (8 bytes)
 
   // checksum is exclusive or of 7-126 (120 bytes)
   // and the value is put in index 127
@@ -2176,11 +2184,11 @@ void __fastcall TFormMain::encode_sample_info(UInt16 index, PSTOR* ps)
   samp_hedr[1] = SYSTEM_COMMON_NONREALTIME_ID;
   int idx = 2;
   samp_hedr[idx++] = SD;
-  samp_hedr[idx++] = (Byte)(index & 0x7f);
-  samp_hedr[idx++] = (Byte)((index>>7) & 0x7f); // MSB samp idx always 0 for S900
+  samp_hedr[idx++] = (uint8_t)(index & 0x7f);
+  samp_hedr[idx++] = (uint8_t)((index>>7) & 0x7f); // MSB samp idx always 0 for S900
 
   // bits per word
-  samp_hedr[idx++] = (Byte)ps->bits_per_word;
+  samp_hedr[idx++] = (uint8_t)ps->bits_per_word;
 
   // sampling period
   encodeTB(ps->period, &samp_hedr[idx]); // 3
@@ -2201,13 +2209,14 @@ void __fastcall TFormMain::encode_sample_info(UInt16 index, PSTOR* ps)
 
   // use ps->looping mode 'A', 'L' or 'O' (alternating, looping or one-shot)
   // to set samp_hedr[18], loop mode: 0=looping, 1=alternating
-  samp_hedr[idx] = (Byte)((ps->loopmode == 'A') ? 1 : 0);
+  // NOTE: one-shot if loop-length is smaller than 5
+  samp_hedr[idx] = (uint8_t)((ps->loopmode == 'A') ? 1 : 0);
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormMain::send_samp_parms(unsigned index)
 {
-  samp_parms[5] = (Byte)(index & 0x7f);
-  samp_parms[6] = (Byte)((index>>7) & 0x7f);
+  samp_parms[5] = (uint8_t)(index & 0x7f);
+  samp_parms[6] = (uint8_t)((index>>7) & 0x7f);
 
   // transmit sample parameters (after 25ms delay)
   if (!comws(PARMSIZ, samp_parms, true))
@@ -2287,7 +2296,7 @@ bool __fastcall TFormMain::catalog(bool print)
 //---------------------------------------------------------------------------
 // Receive data routines
 //---------------------------------------------------------------------------
-int __fastcall TFormMain::receive(int count, bool displayHex)
+int __fastcall TFormMain::receive(int count)
 // set count 0 to receive a complete message (EEX required)
 // set count -1 to receive a partial message of unknown size
 // set "count" to return either when a specific # bytes is received
@@ -2295,7 +2304,7 @@ int __fastcall TFormMain::receive(int count, bool displayHex)
 //
 // returns 0 if success, -1 if failure message printed, -2 if timeout
 {
-  Byte tempc;
+  uint8_t tempc;
   bool have_bex = false;
 
   m_rxByteCount = 0;
@@ -2358,10 +2367,10 @@ int __fastcall TFormMain::receive(int count, bool displayHex)
           m_temp_array[m_rxByteCount++] = tempc;
 
           if (tempc == EEX ||
-              (count > 0 && m_rxByteCount >= (UInt32)count))
+              (count > 0 && m_rxByteCount >= (uint32_t)count))
             return 0;
         }
-        ApdComPort1->ProcessCommunications(); // what the heck! :-)
+        ApdComPort1->ProcessCommunications(); // keep the serial communications library running...
       }
       else
       {
@@ -2388,42 +2397,7 @@ int __fastcall TFormMain::receive(int count, bool displayHex)
 //---------------------------------------------------------------------------
 // Misc methods
 //---------------------------------------------------------------------------
-void __fastcall TFormMain::print_ps_info(PSTOR* ps)
-{
-  printm("");
-  printm("Output Parameters:");
-  printm("sample length (in words): " + String(ps->sampleCount));
-  printm("end point: " + String(ps->endpoint));
-  printm("frequency (hertz): " + String(ps->freq));
-  printm("pitch: " + String(ps->pitch));
-  printm("period (nanoseconds): " + String((UInt32)ps->period));
-  printm("bits per word: " + String(ps->bits_per_word));
-  printm("start point: " + String(ps->startpoint));
-  printm("loop length: " + String(ps->looplen));
-
-  if (ps->flags & (Byte)1)
-    printm("velocity crossfade: on");
-  else
-    printm("velocity crossfade: off");
-
-  if (ps->flags & (Byte)2)
-    printm("reverse waveform: yes");
-  else
-    printm("reverse waveform: no");
-
-  if (ps->loopmode == 'O')
-    printm("looping mode: one-shot");
-  else if (ps->loopmode == 'L')
-    printm("looping mode: looping");
-  else if (ps->loopmode == 'A')
-    printm("looping mode: alternating");
-  else
-    printm("looping mode: unknown");
-
-  printm("sample name: \"" + String(ps->name) + "\""); // show any spaces
-}
-//---------------------------------------------------------------------------
-int __fastcall TFormMain::FindIndex(Byte* pName)
+int __fastcall TFormMain::FindIndex(uint8_t* pName)
 {
   // now we need to set "samp index"
   int sampIndex = findidx(pName);
@@ -2447,7 +2421,7 @@ int __fastcall TFormMain::FindIndex(Byte* pName)
   return sampIndex;
 }
 //---------------------------------------------------------------------------
-int __fastcall TFormMain::findidx(Byte* sampName)
+int __fastcall TFormMain::findidx(uint8_t* sampName)
 // returns the 0-based sample index if a match is found
 // -1 = catalog error
 // -2 = no samples on machine
@@ -2465,7 +2439,7 @@ int __fastcall TFormMain::findidx(Byte* sampName)
       return -2; // no samples on machine
 
     // make a right-trimmed copy of name
-    Byte newName[MAX_NAME_S900 + 1];
+    uint8_t newName[MAX_NAME_S900 + 1];
 
     AsciiStrCpyTrimRight(newName, sampName);
 
@@ -2482,7 +2456,7 @@ int __fastcall TFormMain::findidx(Byte* sampName)
 }
 //---------------------------------------------------------------------------
 // return true if match
-bool __fastcall TFormMain::bytewisecompare(Byte* buf1, Byte* buf2, int maxLen)
+bool __fastcall TFormMain::bytewisecompare(uint8_t* buf1, uint8_t* buf2, int maxLen)
 {
   for (int ii = 0; ii < maxLen; ii++)
   {
@@ -2533,16 +2507,16 @@ int __fastcall TFormMain::GetFileNames(void)
 // as a reference: fileBuffer
 //
 // On entry, set fileBuffer to the start of the file-buffer
-__int32 __fastcall TFormMain::FindSubsection(Byte* &fileBuffer, char* chunkName, UINT fileLength)
+int32_t __fastcall TFormMain::FindSubsection(uint8_t* &fileBuffer, char* chunkName, UINT fileLength)
 {
   try
   {
     // bypass the first 12-bytes "RIFFnnnnWAVE" at the file's beginning...
-    Byte* chunkPtr = fileBuffer + 12;
+    uint8_t* chunkPtr = fileBuffer + 12;
 
-    Byte* pMax = fileBuffer + fileLength;
+    uint8_t* pMax = fileBuffer + fileLength;
 
-    UInt32 chunkLength;
+    uint32_t chunkLength;
 
     // Search file for named chunk
     for (;;)
@@ -2552,7 +2526,7 @@ __int32 __fastcall TFormMain::FindSubsection(Byte* &fileBuffer, char* chunkName,
         return -2;
 
       // chunkLength does not include the first 8 bytes of the chunk!
-      chunkLength = *(UInt32*)(chunkPtr + 4);
+      chunkLength = *(uint32_t*)(chunkPtr + 4);
 
       // WAV file chuncks are on even-byte boundaries. if the # bytes is
       // odd, a padding byte should have been added that's not included
@@ -2795,6 +2769,13 @@ void __fastcall TFormMain::MenuAutomaticallyRenameSampleClick(
   m_auto_rename = MenuAutomaticallyRenameSample->Checked;
 }
 //---------------------------------------------------------------------------
+void __fastcall TFormMain::MenuMax12BitsPerSampleClick(TObject *Sender)
+{
+  // Toggle checked state on click
+  MenuMax12BitsPerSample->Checked = !MenuMax12BitsPerSample->Checked;
+  m_send_as_12_bits = MenuMax12BitsPerSample->Checked;
+}
+//---------------------------------------------------------------------------
 void __fastcall TFormMain::MenuUseHWFlowControlBelow50000BaudClick(
   TObject *Sender)
 {
@@ -2807,18 +2788,18 @@ void __fastcall TFormMain::MenuUseHWFlowControlBelow50000BaudClick(
 }
 //---------------------------------------------------------------------------
 // custom .prg file-format:
-// magic number 639681490             4 byte __int32
-// number of programs                 4 byte __int32
+// magic number 639681490             4 byte int32_t
+// number of programs                 4 byte int32_t
 //
 // next is a variable number of programs:
-// number of bytes in program N       4 byte __int32
+// number of bytes in program N       4 byte int32_t
 // program N data including BEX, checksum and EEX
 // (each program has a 83 byte header including BEX, then a variable number of
 // keygroups, then a checksum byte and an EEX)
 // (each keygroup is 140 bytes)
 // (the number of keygroups in a program is a DB at header index 53, 54)
 //
-// this file's size in bytes          4 byte __int32
+// this file's size in bytes          4 byte int32_t
 void __fastcall TFormMain::MenuGetProgramsClick(TObject *Sender)
 {
   // don't allow multiple button presses
@@ -2910,11 +2891,11 @@ int __fastcall TFormMain::GetPrograms(String sFilePath)
       printm("reading " + String(m_numProgEntries) +
                       " programs from S950/S900...");
 
-      __int32 totalBytesWritten = 0;
-      __int32 bytesWritten;
+      int32_t totalBytesWritten = 0;
+      int32_t bytesWritten;
 
       // write the magic number
-      UInt32 my_magic = MAGIC_NUM_PRG; // uniquely identifies a .prg file
+      uint32_t my_magic = MAGIC_NUM_PRG; // uniquely identifies a .prg file
       totalBytesWritten += UINT32SIZE;
       bytesWritten = FileWrite(iFileHandle, &my_magic, UINT32SIZE);
 
@@ -3006,7 +2987,7 @@ int __fastcall TFormMain::LoadProgramToTempArray(int progIndex)
     }
 
     // size of this program
-    __int32 progSize = m_rxByteCount;
+    int32_t progSize = m_rxByteCount;
 
     if (progSize < PROGHEADERSIZ + PROGKEYGROUPSIZ + 2)
     {
@@ -3038,7 +3019,7 @@ int __fastcall TFormMain::LoadProgramToTempArray(int progIndex)
     }
 
     // compute checksum
-    Byte checksum = 0;
+    uint8_t checksum = 0;
     for (int jj = 7; jj < progSize - 2; jj++)
       checksum ^= m_temp_array[jj];
 
@@ -3066,18 +3047,18 @@ int __fastcall TFormMain::LoadProgramToTempArray(int progIndex)
 }
 //---------------------------------------------------------------------------
 // custom .prg file-format:
-// magic number 639681490             4 byte __int32
-// number of programs                 4 byte __int32
+// magic number 639681490             4 byte int32_t
+// number of programs                 4 byte int32_t
 //
 // next is a variable number of programs:
-// number of bytes in program N       4 byte __int32
+// number of bytes in program N       4 byte int32_t
 // program N data including BEX, checksum and EEX
 // (each program has a 83 byte header including BEX, then a variable number of
 // keygroups, then a checksum byte and an EEX)
 // (each keygroup is 140 bytes)
 // (the number of keygroups in a program is a DB at header index 53, 54)
 //
-// this file's size in bytes          4 byte __int32
+// this file's size in bytes          4 byte int32_t
 void __fastcall TFormMain::PutPrograms(String sFilePath)
 {
   // don't allow multiple button presses
@@ -3093,8 +3074,8 @@ void __fastcall TFormMain::PutPrograms(String sFilePath)
   }
 
   bool bError = false;
-  Byte* buf = NULL;
-  UInt32 numProgs = 0; // need this in __finally
+  uint8_t* buf = NULL;
+  uint32_t numProgs = 0; // need this in __finally
 
   try
   {
@@ -3105,12 +3086,12 @@ void __fastcall TFormMain::PutPrograms(String sFilePath)
       // one way transfer, no incoming handshake
       ApdComPort1->FlushOutBuffer();
 
-      UInt32 iFileLength = FileSeek(lFileHandle, 0, 2); // seek to end
+      uint32_t iFileLength = FileSeek(lFileHandle, 0, 2); // seek to end
 
-      // seek/read the stored file-length (__int32 at end of the file)
+      // seek/read the stored file-length (int32_t at end of the file)
       FileSeek(lFileHandle, (int)(iFileLength - UINT32SIZE), 0);
-      UInt32 storedFileLength;
-      UInt32 bytesRead = FileRead(lFileHandle, &storedFileLength, UINT32SIZE);
+      uint32_t storedFileLength;
+      uint32_t bytesRead = FileRead(lFileHandle, &storedFileLength, UINT32SIZE);
 
       if (bytesRead != UINT32SIZE)
       {
@@ -3129,7 +3110,7 @@ void __fastcall TFormMain::PutPrograms(String sFilePath)
       FileSeek(lFileHandle, 0, 0); // back to start
 
       // read the magic number
-      UInt32 my_magic; // uniquely identifies a .prg file
+      uint32_t my_magic; // uniquely identifies a .prg file
       bytesRead = FileRead(lFileHandle, &my_magic, UINT32SIZE);
 
       if (bytesRead != UINT32SIZE)
@@ -3168,8 +3149,8 @@ void __fastcall TFormMain::PutPrograms(String sFilePath)
       // allocate memory for largest program with up to 64 keygroups
       // a single program has PRGHEADERSIZ + (X*PROGKEYGROUPSIZ) + 2 for
       // checksum and EEX bytes
-      UInt32 bufSize = PROGHEADERSIZ + (MAX_KEYGROUPS*PROGKEYGROUPSIZ) + 2;
-      buf = new Byte[bufSize];
+      uint32_t bufSize = PROGHEADERSIZ + (MAX_KEYGROUPS*PROGKEYGROUPSIZ) + 2;
+      buf = new uint8_t[bufSize];
 
       if (buf == NULL)
       {
@@ -3181,14 +3162,14 @@ void __fastcall TFormMain::PutPrograms(String sFilePath)
       String dots; // progress display
 
              // request each program and add it to file on the fly
-      for (UInt32 ii = 0; ii < numProgs; ii++)
+      for (uint32_t ii = 0; ii < numProgs; ii++)
       {
         Application->ProcessMessages();
 
         // read program-size from file.
         // a program in the file is already formatted for the S950 and
         // includes the BEX, checksum and EEX.
-        UInt32 progSize;
+        uint32_t progSize;
         bytesRead = FileRead(lFileHandle, &progSize, UINT32SIZE);
 
         if (bytesRead != UINT32SIZE)
@@ -3376,14 +3357,14 @@ void __fastcall TFormMain::PutFiles(void)
 // chan defaults to 0 (midi channel 1)
 bool __fastcall TFormMain::exmit(int samp, int mode, bool bDelay)
 {
-  Byte midistr[8];
+  uint8_t midistr[8];
 
   midistr[0] = BEX;
   midistr[1] = AKAI_ID;
   midistr[2] = 0; // midi channel
-  midistr[3] = (Byte)mode;
+  midistr[3] = (uint8_t)mode;
   midistr[4] = S900_ID;
-  midistr[5] = (Byte)samp;
+  midistr[5] = (uint8_t)samp;
   midistr[6] = 0;
   midistr[7] = EEX;
 
@@ -3393,13 +3374,13 @@ bool __fastcall TFormMain::exmit(int samp, int mode, bool bDelay)
 // SDS: F0 7E cc 03 ss ss F7
 bool __fastcall TFormMain::cxmit(int samp, int mode, bool bDelay)
 {
-  Byte midistr[7];
+  uint8_t midistr[7];
 
   midistr[0] = BEX;
   midistr[1] = SYSTEM_COMMON_NONREALTIME_ID;
-  midistr[2] = (Byte)mode;
-  midistr[3] = (Byte)samp; // lsb samp
-  midistr[4] = (Byte)(samp >> 8); // msb samp
+  midistr[2] = (uint8_t)mode;
+  midistr[3] = (uint8_t)samp; // lsb samp
+  midistr[4] = (uint8_t)(samp >> 8); // msb samp
   midistr[5] = EEX;
 
   return comws(6, midistr, bDelay);
@@ -3409,11 +3390,11 @@ bool __fastcall TFormMain::cxmit(int samp, int mode, bool bDelay)
 // blockct is only used for sample-dump standard to ACK the block just received
 bool __fastcall TFormMain::chandshake(int mode, int blockct)
 {
-  Byte midistr[ACKSIZ];
+  uint8_t midistr[ACKSIZ];
 
   midistr[0] = BEX;
   midistr[1] = SYSTEM_COMMON_NONREALTIME_ID;
-  midistr[2] = (Byte)mode;
+  midistr[2] = (uint8_t)mode;
   midistr[ACKSIZ-1] = EEX;
 
   return comws(ACKSIZ, midistr, false); // no delay
@@ -3421,7 +3402,7 @@ bool __fastcall TFormMain::chandshake(int mode, int blockct)
 //---------------------------------------------------------------------------
 // opens midi In/Out automatically or flushes RS232 In/Out buffers
 // returns true if success, false if fail
-bool __fastcall TFormMain::comws(int count, Byte* ptr, bool bDelay)
+bool __fastcall TFormMain::comws(int count, uint8_t* ptr, bool bDelay)
 {
   // this delay is necessary to give the older-technology S900/S950 time
   // to digest any previous commands such as sending a program, a sample
@@ -3502,7 +3483,7 @@ int __fastcall TFormMain::get_ack(int blockct)
   if (m_rxByteCount == (unsigned int)m_ack_size)
   {
     int idx = 2; // point to the ACKS/NAKS/ASD
-    Byte c = m_temp_array[idx];
+    uint8_t c = m_temp_array[idx];
 
     if (c == ACKS)
       return 0; // ok!
@@ -3525,7 +3506,7 @@ int __fastcall TFormMain::get_ack(int blockct)
       return -1;
     }
 
-    printm("bad acknowledge, unknown code! (block=" + String(blockct) + ", code=" + String((UInt32)c) + ")");
+    printm("bad acknowledge, unknown code! (block=" + String(blockct) + ", code=" + String((uint32_t)c) + ")");
     return -1;
   }
 
@@ -3890,8 +3871,8 @@ int __fastcall TFormMain::LoadSampParmsToTempArray(int iSampIdx)
     if (m_rxByteCount != PARMSIZ)
       return -4;
 
-    Byte* cp = m_temp_array + 7; // point past header to actual parameters
-    Byte checksum = 0;
+    uint8_t* cp = m_temp_array + 7; // point past header to actual parameters
+    uint8_t checksum = 0;
 
     // checksum of buffer minus 7-byte header and checksum and EEX
     for (int ii = 0; ii < PARMSIZ - 9; ii++)
@@ -3928,8 +3909,8 @@ int __fastcall TFormMain::LoadOverallSettingsToTempArray(void)
     if (m_rxByteCount != OSSIZ)
       return -4;
 
-    Byte* cp = m_temp_array + 7; // point past header to actual settings
-    Byte checksum = 0;
+    uint8_t* cp = m_temp_array + 7; // point past header to actual settings
+    uint8_t checksum = 0;
 
     // checksum of buffer minus 7-byte header and checksum and EEX
     for (int ii = 0; ii < OSSIZ - 9; ii++)
@@ -3949,18 +3930,18 @@ int __fastcall TFormMain::LoadOverallSettingsToTempArray(void)
 // Property getters/setters
 //---------------------------------------------------------------------------
 // value is the desired baud-rate,  9600, 57600, Etc.
-void __fastcall TFormMain::SetBaudRate(UInt32 value)
+void __fastcall TFormMain::SetBaudRate(uint32_t value)
 {
   SetComPort(value);
 }
 //---------------------------------------------------------------------------
 // Return the actual baud rate from the hardware
-UInt32 __fastcall TFormMain::GetBaudRate(void)
+uint32_t __fastcall TFormMain::GetBaudRate(void)
 {
   return ApdComPort1->Baud;
 }
 //---------------------------------------------------------------------------
-Byte* __fastcall TFormMain::GetTempArray(void)
+uint8_t* __fastcall TFormMain::GetTempArray(void)
 {
   return &m_temp_array[0];
 }
@@ -4015,6 +3996,11 @@ void __fastcall TFormMain::MainMenuHelpClick(TObject *Sender)
   "The S900/S950 samplers record at 12 bits resolution and play back at 14 bits"
   " resolution, so some clarity may be lost for 16 or 24 bit wav files.\n\n";
   ShowMessage(s);
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::MenuClearClick(TObject *Sender)
+{
+  Memo1->Clear();
 }
 //---------------------------------------------------------------------------
 

@@ -18,13 +18,11 @@
 
 // defines
 //---------------------------------------------------------------------------
-// set true to debug max-sample computation for scale-factor for PutSample()
-#define TESTING false
-//---------------------------------------------------------------------------
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version 2.3"
+#define VERSION_STR "Version 2.4"
+#define DIAGNOSTIC_MODE false
 //---------------------------------------------------------------------------
 
 #define REGISTRY_KEY "\\Software\\Discrete-Time Systems\\AkaiS950"
@@ -37,6 +35,7 @@
 #define S9_REGKEY_USE_RIGHT_CHAN "UseRightChan"
 #define S9_REGKEY_AUTO_RENAME "AutoRename"
 #define S9_REGKEY_FORCE_HWFLOW "ForceHWFlowControl"
+#define S9_REGKEY_SEND_AS_12_BITS "SendAs12Bits"
 
 #define LOAD 1
 #define SAVE 2
@@ -61,8 +60,7 @@
 #define DATA_PACKET_OVERHEAD 2  // block-counter (7-bits) and checksum
 #define SDS_DATA_PACKET_OVERHEAD 7  // BEX, 7E, cc, 02, block-counter (7-bits), checksum and EEX
 
-#define S900_BITS_PER_WORD 14
-#define S950_BITS_PER_WORD 16
+#define MAX_SERIAL_BITS_PER_WORD 14
 
 // S950 sample parameters size
 #define PARMSIZ (122+7)
@@ -88,8 +86,8 @@
 // packet retry count
 #define PACKET_RETRY_COUNT 3
 
-#define UINT16SIZE ((int)sizeof(UInt16))
-#define UINT32SIZE ((int)sizeof(UInt32))
+#define UINT16SIZE ((int)sizeof(uint16_t))
+#define UINT32SIZE ((int)sizeof(uint32_t))
 
 // system exclusive
 #define BEX  (0xf0)  // beginning of exclusive
@@ -187,30 +185,36 @@ typedef struct
 // Note: sizeof(PSTOR) is 72, but the original
 // program stored the header as 68 bytes (in an AKI file...)
 
-#define PSTOR_SPARE_COUNT 12
 #define PSTOR_NAME_COUNT (MAX_NAME_S900+4)
 
 // AKI_FILE_HEADER_SIZE (sizeof(PSTOR))(MUST BE 72 bytes!!!!)
 // make sure it is always 72 because we directly encode/decode
 // it in a .AKI sample file!
+// NOTE: Reason you can't change the order and size of things is that there are many users of this
+// program through the years who have .aki sample files that will break if this is changed!!!!
+// (otherwise I would move freq/pitch together and make a DD for m_u32_undef95!)
 typedef struct
 {
   // parameter storage, file storage header
-  UInt32 startpoint; // first replay (loop) index (4 bytes)
-  UInt32 endpoint; // end of play point (4 bytes)
-  UInt32 looplen; // loop length relative to startidx (4 bytes)
-  UInt32 freq; // sample freq. in Hz (4 bytes)
-  UInt32 pitch; // pitch - units = 1/16 semitone (4 bytes)
-  UInt32 sampleCount; // total number of words in sample (4 bytes)
-  UInt32 period; // sample period in nanoseconds (4 bytes)
-  UInt32 spareint1; // (4 bytes)
-  UInt16 bits_per_word; // (2 bytes)
+  uint32_t startpoint; // first replay (loop) index (4 bytes)
+  uint32_t endpoint; // end of play point (4 bytes)
+  uint32_t looplen; // loop length relative to startidx (4 bytes)
+  uint16_t freq; // sample freq. in Hz (2 bytes)
+  uint16_t reservedDW_87; // DW at offset 87 in samp_parms (2 bytes)
+  uint16_t pitch; // pitch - units = 1/16 semitone (2 bytes)
+  uint16_t undefinedDW_35; // DW at offset 35 in samp_parms (2 bytes)
+  uint32_t sampleCount; // total number of words in sample (4 bytes)
+  uint32_t period; // sample period in nanoseconds (4 bytes)
+  uint32_t undefinedDD_95;
+  uint16_t bits_per_word; // (2 bytes)
   char name[PSTOR_NAME_COUNT]; // ASCII sample name (14 bytes)
-  Byte spares[PSTOR_SPARE_COUNT]; // unused bytes (12 bytes)
-  __int32 spareint2; // signed value (4 bytes)
-  __int32 loudnessoffset; // signed value (4 bytes)
-  Byte sparechar1; // (1 byte)
-  Byte sparechar2; // (1 byte)
+  int32_t undefinedDD_27; // DD at offset 27 in samp_parms (4 bytes)
+  int32_t undefinedDD_103; // DD at offset 103 in samp_parms (4 bytes)
+  int32_t undefinedDD_111; // DD at offset 111 in samp_parms (4 bytes)
+  int32_t undefinedDD_119; // DD at offset 119 in samp_parms (4 bytes)
+  int32_t loudnessoffset; // signed value (4 bytes)
+  Byte spareDB1; // (1 byte)
+  Byte reservedDB_61; // (1 byte)
   Byte flags; // (1 byte) (bit 0 = vel. xfade, bit 1 = reverse-waveform)
   Byte loopmode; // (1 byte) 'O' one-shot, 'A' alternateing, 'L' looping
 } PSTOR; // sizeof(PSTOR) must always be 72 bytes!
@@ -219,76 +223,76 @@ typedef struct
 typedef struct
 {
   char chunkTag[4]; // "RIFF"
-  UInt32 fileSizeMinusEight;
+  uint32_t fileSizeMinusEight;
   char wave[4]; // "WAVE"
   char fmt[4]; // "fmt "
-  UInt32 fmtSectionSize; // 16
-  UInt16 audioFormat; // 1 (umcompressed pcm)
-  UInt16 numChannels; // 1 (mono)
-  UInt32 sampleFreq;
-  UInt32 frameRate; // (SampleFreq * BitsPerSample * NumChannels) / 8
-  UInt16 bytesPerFrame; // 2
-  UInt16 bitsPerSample; // 12 for the S900/S950
+  uint32_t fmtSectionSize; // 16
+  uint16_t audioFormat; // 1 (umcompressed pcm)
+  uint16_t numChannels; // 1 (mono)
+  uint32_t sampleFreq;
+  uint32_t frameRate; // (SampleFreq * BitsPerSample * NumChannels) / 8
+  uint16_t bytesPerFrame; // 2
+  uint16_t bitsPerSample; // 12 for the S900/S950
   char data[4]; // "data"
-  UInt32 dataSize; // # sample words * bytesPerFrame
+  uint32_t dataSize; // # sample words * bytesPerFrame
 } WAVHEDR; // 44 bytes
 
 // a SMPLCHUNK can have 0-N of these... (we need only one)
 typedef struct
 {
-  UInt32 cuePointId; // 0 (could refer to a particular cue point Id), "loop"
-  UInt32 type; // 0=forward, 1=alternate, 2=reverse (for the loop, not the sample)
-  UInt32 start; // (sample's end-index - loop-length) * 2 bytes per frame
-  UInt32 end; // sample's end-index * 2 bytes per frame
-  UInt32 fraction; // 0
-  UInt32 playCount; // 0 (endless)
+  uint32_t cuePointId; // 0 (could refer to a particular cue point Id), "loop"
+  uint32_t type; // 0=forward, 1=alternate, 2=reverse (for the loop, not the sample)
+  uint32_t start; // (sample's end-index - loop-length) * 2 bytes per frame
+  uint32_t end; // sample's end-index * 2 bytes per frame
+  uint32_t fraction; // 0
+  uint32_t playCount; // 0 (endless)
 } SMPLLOOP; // 24 bytes
 
 // we tack this on in a "smpl" chunk, after any loops (same size as a 24-byte SMPLLOOP)
 typedef struct
 {
-  UInt32 magic; // set this to MAGIC_NUM_AKI (identifies it as "uniquely ours")
+  uint32_t magic; // set this to MAGIC_NUM_AKI (identifies it as "uniquely ours")
   Byte flags;
   Byte loudnessoffset;
-  UInt16 spare1;
-  UInt32 spare2;
-  UInt32 spare3;
-  UInt32 spare4;
-  UInt32 spare5;
+  uint16_t spare1;
+  uint32_t spare2;
+  uint32_t spare3;
+  uint32_t spare4;
+  uint32_t spare5;
 } SMPLDATA; // 24 bytes
 
 // generic digital-sampler chunk
 typedef struct
 {
   char chunkTag[4]; // "smpl"
-  UInt32 chunkSize; // 60
-  UInt32 Manufacturer; // 0
-  UInt32 Product; // 0
-  UInt32 SamplePeriod; // 0
-  UInt32 MIDIUnityNote; // (60 for middle-C)
-  UInt32 MIDIPitchFraction; // 0
-  UInt32 SMPTEFormat; // 0
-  UInt32 SMPTEOffset; // 0
-  UInt32 loopCount; // 1
-  UInt32 samplerDataSize; // sizeof(SMPLOOP) + sizeof(UInt32) + sizeof(PSTOR)
+  uint32_t chunkSize; // 60
+  uint32_t Manufacturer; // 0
+  uint32_t Product; // 0
+  uint32_t SamplePeriod; // 0
+  uint32_t MIDIUnityNote; // (60 for middle-C)
+  uint32_t MIDIPitchFraction; // 0
+  uint32_t SMPTEFormat; // 0
+  uint32_t SMPTEOffset; // 0
+  uint32_t loopCount; // 1
+  uint32_t samplerDataSize; // sizeof(SMPLOOP) + sizeof(uint32_t) + sizeof(PSTOR)
 } SMPLCHUNKHEDR; // 44 bytes
 
 // a CUECHUNK can have 0-N of these... (we need only one)
 typedef struct {
   char cuePointID[4]; // a unique ID for the Cue Point. "strt" "end "
-  UInt32 playOrderPosition; // Unsigned 4-byte little endian int: If a Playlist chunk is present in the Wave file, this the sample number at which this cue point will occur during playback of the entire play list as defined by the play list's order.  **Otherwise set to same as sample offset??***  Set to 0 when there is no playlist.
+  uint32_t playOrderPosition; // Unsigned 4-byte little endian int: If a Playlist chunk is present in the Wave file, this the sample number at which this cue point will occur during playback of the entire play list as defined by the play list's order.  **Otherwise set to same as sample offset??***  Set to 0 when there is no playlist.
   char dataChunkID[4]; // Unsigned 4-byte little endian int: The ID of the chunk containing the sample data that corresponds to this cue point.  If there is no playlist, this should be 'data'.
-  UInt32 chunkStart; // Unsigned 4-byte little endian int: The byte offset into the Wave List Chunk of the chunk containing the sample that corresponds to this cue point. This is the same chunk described by the Data Chunk ID value. If no Wave List Chunk exists in the Wave file, this value is 0.
-  UInt32 blockStart; // Unsigned 4-byte little endian int: The byte offset into the "data" or "slnt" Chunk to the start of the block containing the sample. The start of a block is defined as the first byte in uncompressed PCM wave data or the last byte in compressed wave data where decompression can begin to find the value of the corresponding sample value.
-  UInt32 frameOffset; // Unsigned 4-byte little endian int: The offset into the block (specified by Block Start) for the sample that corresponds to the cue point.
+  uint32_t chunkStart; // Unsigned 4-byte little endian int: The byte offset into the Wave List Chunk of the chunk containing the sample that corresponds to this cue point. This is the same chunk described by the Data Chunk ID value. If no Wave List Chunk exists in the Wave file, this value is 0.
+  uint32_t blockStart; // Unsigned 4-byte little endian int: The byte offset into the "data" or "slnt" Chunk to the start of the block containing the sample. The start of a block is defined as the first byte in uncompressed PCM wave data or the last byte in compressed wave data where decompression can begin to find the value of the corresponding sample value.
+  uint32_t frameOffset; // Unsigned 4-byte little endian int: The offset into the block (specified by Block Start) for the sample that corresponds to the cue point.
 } CUEPOINT; // 24 bytes
 
 // holds our start-point
 typedef struct
 {
   char chunkID[4]; // String: Must be "cue " (0x63756520).
-  UInt32 chunkDataSize; // Unsigned 4-byte little endian int: Byte count for the remainder of the chunk: 4 (size of cuePointsCount) + (24 (size of CuePoint struct) * number of CuePoints).
-  UInt32 cuePointsCount; // Unsigned 4-byte little endian int: Length of cuePoints[].
+  uint32_t chunkDataSize; // Unsigned 4-byte little endian int: Byte count for the remainder of the chunk: 4 (size of cuePointsCount) + (24 (size of CuePoint struct) * number of CuePoints).
+  uint32_t cuePointsCount; // Unsigned 4-byte little endian int: Length of cuePoints[].
   CUEPOINT cuePoints[2];
 } CUECHUNK; // 60 bytes
 
@@ -315,15 +319,17 @@ __published:  // IDE-managed Components
     TMenuItem *MenuUseRightChanForStereoSamples;
     TMenuItem *MenuAutomaticallyRenameSample;
     TMenuItem *MenuUseHWFlowControlBelow50000Baud;
+    TMenuItem *MenuMax12BitsPerSample;
     TMenuItem *N4;
-  TMenuItem *MenuAbout;
+    TMenuItem *MenuAbout;
     TMenuItem *MenuMakeOrEditProgram;
     TMenuItem *N5;
     TMenuItem *MenuEditSampleParameters;
-  TMenuItem *MainMenuHelp;
-  TMenuItem *MenuEditOverallSettings;
-  TApdComPort *ApdComPort1;
-	TMenuItem *MenuChangeComPort;
+    TMenuItem *MainMenuHelp;
+    TMenuItem *MenuEditOverallSettings;
+    TApdComPort *ApdComPort1;
+	  TMenuItem *MenuChangeComPort;
+  TMenuItem *MenuClear;
 
     void __fastcall MenuGetCatalogClick(TObject *Sender);
     void __fastcall MenuPutSampleClick(TObject *Sender);
@@ -347,6 +353,8 @@ __published:  // IDE-managed Components
   void __fastcall MainMenuHelpClick(TObject *Sender);
   void __fastcall MenuEditOverallSettingsClick(TObject *Sender);
 	void __fastcall MenuChangeComPortClick(TObject *Sender);
+  void __fastcall MenuMax12BitsPerSampleClick(TObject *Sender);
+  void __fastcall MenuClearClick(TObject *Sender);
 
 private:  // User declarations
   void __fastcall Timer1FileDropTimeout(TObject *Sender);
@@ -374,18 +382,17 @@ private:  // User declarations
   int __fastcall SetComPort(int baud);
   int __fastcall GetFileNames(void);
   bool __fastcall DoSaveDialog(String &sName);
-  __int32 __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
-  void __fastcall encode_sample_info(UInt16 index, PSTOR* ps);
+  int32_t __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
+  void __fastcall encode_sample_info(uint16_t index, PSTOR* ps);
   void __fastcall decode_sample_info(PSTOR* ps);
 
   bool __fastcall bytewisecompare(Byte* buf1, Byte* buf2, int maxLen);
   int __fastcall findidx(Byte* sampName);
-  void __fastcall queue(__int32 acc, Byte* &ptbuf,
+  void __fastcall queue(int32_t acc, Byte* &ptbuf,
       int sampler_bytes_per_word, int bits_per_word, Byte &checksum);
   void __fastcall send_samp_parms(unsigned index);
   bool __fastcall send_packet(Byte* tbuf, int blockct);
-  void __fastcall print_ps_info(PSTOR* ps);
-  int __fastcall receive(int count, bool displayHex=false);
+  int __fastcall receive(int count);
   bool __fastcall catalog(bool print);
 
   bool __fastcall chandshake(int mode, int blockct=0);
@@ -410,8 +417,7 @@ private:  // User declarations
   Byte samp_hedr[HEDRSIZ];
   unsigned m_rxByteCount;
   int m_numSampEntries, m_numProgEntries, m_elapsedSeconds, m_busyCount;
-  bool m_gpTimeout, m_inBufferFull;
-  bool m_abort;
+  bool m_gpTimeout, m_inBufferFull, m_abort;
 
   // holds the processed catalog info
   CAT PermSampArray[MAX_SAMPS];
@@ -422,7 +428,7 @@ private:  // User declarations
   // settings vars
   int m_baud, m_data_size, m_hedr_size, m_ack_size;
   bool m_use_right_chan, m_auto_rename, m_force_hwflow;
-  bool m_use_smooth_quantization;
+  bool m_send_as_12_bits, m_use_smooth_quantization;
 
 protected:
 
@@ -435,8 +441,8 @@ END_MESSAGE_MAP(TComponent)
   TStringList* __fastcall GetCatalogSampleData(void);
   TStringList* __fastcall GetCatalogProgramData(void);
   Byte* __fastcall GetTempArray(void);
-  UInt32 __fastcall GetBaudRate(void);
-  void __fastcall SetBaudRate(UInt32 value);
+  uint32_t __fastcall GetBaudRate(void);
+  void __fastcall SetBaudRate(uint32_t value);
 
 public:    // User declarations
   __fastcall TFormMain(TComponent* Owner);
@@ -461,7 +467,7 @@ public:    // User declarations
   __property TStringList* CatalogSampleData = {read = GetCatalogSampleData};
   __property TStringList* CatalogProgramData = {read = GetCatalogProgramData};
   __property Byte* TempArray = {read = GetTempArray};
-  __property UInt32 BaudRate = {read = GetBaudRate, write = SetBaudRate};
+  __property uint32_t BaudRate = {read = GetBaudRate, write = SetBaudRate};
 };
 
 extern PACKAGE TFormMain *FormMain;

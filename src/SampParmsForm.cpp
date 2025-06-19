@@ -59,7 +59,6 @@ void __fastcall TFormEditSampParms::ButtonCloseClick(TObject *Sender)
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormEditSampParms::ButtonRefreshSamplesListClick(TObject *Sender)
-
 {
   // don't allow multiple button presses
   if (IsBusy())
@@ -298,11 +297,17 @@ int __fastcall TFormEditSampParms::ParmsToGui(int iMode)
       else
         RadioGroupWaveForm->ItemIndex = 0; // normal
 
+      // print into main window, including unused and reserved locations...
+      FormMain->Memo1->Clear();
+      print_ps_info(&m_ps, true);
+
+      LabelBitsPerSample->Caption = "Bits-per-sample: " + String(m_ps.bits_per_word);
+      LabelBitsPerSample->Tag = m_ps.bits_per_word;
       LabelSampleRate->Caption = "Sample Rate: " + String(m_ps.freq) + " Hz";
       LabelSampleRate->Tag = m_ps.freq; // save the raw # in Tag
       LabelSampleLength->Caption = "Sample Length: " + String(m_ps.sampleCount);
       LabelSampleLength->Tag = m_ps.sampleCount; // save the raw # in Tag
-      UInt32 iPeriod = 1.0e9 / (double)m_ps.freq; // in nanoseconds
+      uint32_t iPeriod = 1.0e9 / (double)m_ps.freq; // in nanoseconds
        LabelSampleTime->Caption = "Time (mS): " + String(m_ps.endpoint*iPeriod/1.0e6);
 
       // Set up the trackbars and associated edit-controls
@@ -485,7 +490,7 @@ int __fastcall TFormEditSampParms::ParmsFromGui(void)
 }
 //---------------------------------------------------------------------------
 // put ps (PSTOR struct) into m_samp_parms raw transmit array
-int __fastcall TFormEditSampParms::ParmsToArray(UInt16 index)
+int __fastcall TFormEditSampParms::ParmsToArray(uint16_t index)
 {
   try
   {
@@ -507,9 +512,11 @@ int __fastcall TFormEditSampParms::ParmsToArray(UInt16 index)
     // copy ASCII sample name, pad with blanks and terminate
     AsciiStrEncode(&m_samp_parms[7], m_ps.name);
 
-     // unused bytes
-     // 27-34  DD Undefined
-     // 35-38  DW Undefined
+    // undefined, 27-34, 8 bytes
+    encodeDD(m_ps.undefinedDD_27, &m_samp_parms[27]); // 27-34  DD Undefined
+
+    // undefined, 35-38, 4 bytes
+    encodeDW(m_ps.undefinedDW_35, &m_samp_parms[35]); // 35-38  DW Undefined
 
     // number of sample words
     encodeDD(m_ps.sampleCount, &m_samp_parms[39]); // 8
@@ -528,7 +535,7 @@ int __fastcall TFormEditSampParms::ParmsToArray(UInt16 index)
     // or one-shot if loop-length < 5)
     encodeDB(m_ps.loopmode, &m_samp_parms[59]); // 2
 
-    encodeDB(0, &m_samp_parms[61]); // reserved 2
+    encodeDB(m_ps.reservedDB_61, &m_samp_parms[61]); // reserved 2
 
     // end point relative to start of sample
     encodeDD(m_ps.endpoint, &m_samp_parms[63]); // 8
@@ -543,7 +550,7 @@ int __fastcall TFormEditSampParms::ParmsToArray(UInt16 index)
     // length of looping or alternating part (default is 45 for TONE sample)
     encodeDD(m_ps.looplen, &m_samp_parms[79]); // 8
 
-    encodeDW(0, &m_samp_parms[87]); // reserved 4
+    encodeDW(m_ps.reservedDW_87, &m_samp_parms[87]); // reserved 4
 
     // 91,92 DB type of sample 0=normal, 255=velocity crossfade
     Byte c_temp = (Byte)((m_ps.flags & (Byte)1) ? 255 : 0);
@@ -553,8 +560,13 @@ int __fastcall TFormEditSampParms::ParmsToArray(UInt16 index)
     c_temp = (m_ps.flags & (Byte)2) ? 'R' : 'N';
     encodeDB(c_temp, &m_samp_parms[93]); // 2
 
-    // unused bytes
-    // 95-126  4 DDs Undefined 32
+    // 95-102, 1 DDs Undefined, 8 bytes (no space to save in PSTOR so putting in member variables)
+    encodeDD(m_ps.undefinedDD_95, &m_samp_parms[95]); // 95-102 DD Undefined (8 bytes)
+
+    // 103-126, 3 DDs Undefined, 24 bytes (saving in PSTOR)
+    encodeDD(m_ps.undefinedDD_103, &m_samp_parms[103]); // 119-126 DD Undefined (8 bytes)
+    encodeDD(m_ps.undefinedDD_111, &m_samp_parms[111]); // 111-118 DD Undefined (8 bytes)
+    encodeDD(m_ps.undefinedDD_119, &m_samp_parms[119]); // 119-126 DD Undefined (8 bytes)
 
     // checksum is exclusive or of 7-126 (120 bytes)
     // and the value is put in index 127
@@ -578,30 +590,25 @@ int __fastcall TFormEditSampParms::ParmsFromArray(void)
     // FROM AKAI EXCLUSIVE SAMPLE PARAMETERS... (do this before decoding header)
 
     // clear spare-byte fields
-    for (int ii = 0; ii < PSTOR_SPARE_COUNT; ii++)
-      m_ps.spares[ii] = (Byte)0;
-    m_ps.spareint1 = 0;
-    m_ps.spareint2 = (Byte)0;
-    m_ps.sparechar1 = (Byte)0;
-    m_ps.sparechar2 = (Byte)0;
+    m_ps.spareDB1 = 0; // 1 byte
 
     // ASCII sample name
     AsciiStrDecode(m_ps.name, &m_samp_parms[7]);
 
     // undefined
-    // m_ps.undef_dd = decodeDD((Byte*)&m_samp_parms[27]); // 8
+    m_ps.undefinedDD_27 = decodeDD(&m_samp_parms[27]); // 8=>4
 
     // undefined
-    // m_ps.undef_dw = decodeDW((Byte*)&m_samp_parms[35]); // 4
+    m_ps.undefinedDW_35 = decodeDW(&m_samp_parms[35]); // 4=>2
 
     // number of words in sample (for velocity-crossfade it's the sum of soft and loud parts)
     m_ps.sampleCount = decodeDD(&m_samp_parms[39]); // 8
 
     // original sample rate in Hz
-    m_ps.freq = decodeDW(&m_samp_parms[47]); // 4
+    m_ps.freq = decodeDW(&m_samp_parms[47]); // 4=>2
 
     // nominal pitch in 1/16 semitone, C3=960
-    m_ps.pitch = decodeDW(&m_samp_parms[51]); // 4
+    m_ps.pitch = decodeDW(&m_samp_parms[51]); // 4=>2
 
     // loudness offset (signed) nominal pitch in 1/16 semitone, C3=960
     m_ps.loudnessoffset = decodeDW(&m_samp_parms[55]); // 4
@@ -612,7 +619,7 @@ int __fastcall TFormEditSampParms::ParmsFromArray(void)
     m_ps.loopmode = decodeDB(&m_samp_parms[59]); // 2
 
     // 61,62 DB reserved
-    //m_ps.reserved = decodeDB(&m_samp_parms[61]); // 2
+    m_ps.reservedDB_61 = decodeDB(&m_samp_parms[61]); // 2
 
     // 63-70 DD end point relative to start of sample (1800 default for TONE sample)
     m_ps.endpoint = decodeDD(&m_samp_parms[63]);
@@ -624,6 +631,7 @@ int __fastcall TFormEditSampParms::ParmsFromArray(void)
     m_ps.looplen = decodeDD(&m_samp_parms[79]);
 
     // 87-90 DW reserved
+    m_ps.reservedDW_87 = decodeDW(&m_samp_parms[87]); // 4
 
     // 91,92 DB type of sample 0=normal, 255=velocity crossfade
     bool xfade = (decodeDB(&m_samp_parms[91]) == (Byte)255); // 2
@@ -650,13 +658,16 @@ int __fastcall TFormEditSampParms::ParmsFromArray(void)
     //  m_ps.flags |= (Byte)128;
 
     // 95-126 (4 DDs) undefined
+    m_ps.undefinedDD_95 = decodeDD((Byte*)&m_samp_parms[95]); // 8=>4
 
-    // FROM SAMPLE HEADER... (NOT USED HERE!)
-    // These fields are written when a .aki file is created (in MainForm.cpp).
-    // We don't have access to them when simply editing the sample parameters
-    // obtained from the machine. SO DO NOT USE!
-    m_ps.bits_per_word = 0;
-    m_ps.period = 0;
+    // these two have data (for the S950) but - it is not documented...
+    m_ps.undefinedDD_103 = decodeDD((Byte*)&m_samp_parms[103]); // 8
+    m_ps.undefinedDD_111 = decodeDD((Byte*)&m_samp_parms[111]); // 8
+    m_ps.undefinedDD_119 = decodeDD((Byte*)&m_samp_parms[119]); // 8
+
+    // FROM SAMPLE HEADER... (which we don't have... so we'll improvise)
+    m_ps.bits_per_word = MAX_SERIAL_BITS_PER_WORD;
+    m_ps.period = 1.0e9 / (double)m_ps.freq; // sample period in nanoseconds (8 bytes);
 
     return 0;
   }
@@ -745,7 +756,7 @@ int __fastcall TFormEditSampParms::SaveSampParmsToFile(void)
         return -3;
 
       // .aki file
-      UInt32 iMagicNumber;
+      uint32_t iMagicNumber;
       int byteCount = FileRead(lFileHandle, &iMagicNumber, UINT32SIZE);
       if (byteCount < UINT32SIZE)
         return -4;
@@ -819,7 +830,7 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromFile(void)
       ButtonSendOrSave->Enabled = false;
 
       // .aki file
-      UInt32 iMagicNumber;
+      uint32_t iMagicNumber;
       int bytesRead = FileRead(lFileHandle, &iMagicNumber, UINT32SIZE);
       if (bytesRead < UINT32SIZE)
         return -3;
@@ -947,6 +958,7 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromMachine(int iSampIdx)
 // We set the Min/Max of the TUpDown and TTrackBar controls when new sample
 // parameters are displayed via ParmsToGui()
 //---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
 void __fastcall TFormEditSampParms::TBStartChange(TObject *Sender)
 {
   if (TBStart->Max == 0) return;
@@ -969,6 +981,7 @@ void __fastcall TFormEditSampParms::TBStartChange(TObject *Sender)
 
   EnableEvents();
 }
+//---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 void __fastcall TFormEditSampParms::UpDownStartChangingEx(TObject *Sender, bool &AllowChange,
           int NewValue, TUpDownDirection Direction)
@@ -1018,6 +1031,7 @@ void __fastcall TFormEditSampParms::TBEndChange(TObject *Sender)
   EnableEvents();
 }
 //---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
 void __fastcall TFormEditSampParms::UpDownEndChangingEx(TObject *Sender, bool &AllowChange,
           int NewValue, TUpDownDirection Direction)
 {
@@ -1065,6 +1079,7 @@ void __fastcall TFormEditSampParms::TBLoopChange(TObject *Sender)
 
   EnableEvents();
 }
+//---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 void __fastcall TFormEditSampParms::UpDownLoopChangingEx(TObject *Sender, bool &AllowChange,
           int NewValue, TUpDownDirection Direction)
@@ -1118,7 +1133,7 @@ void __fastcall TFormEditSampParms::ComputeTimes(void)
   // m_ps.period and m_ps.bits_per_word are 0ed out since we don't have
   // access to the actual sample
 
-  UInt32 iPeriod = 1.0e9 / (double)m_ps.freq; // in nanoseconds
+  uint32_t iPeriod = 1.0e9 / (double)m_ps.freq; // in nanoseconds
 
   // times are originally in nanoseconds so convert to milliseconds
 //  LabelStartTime->Caption = Format("%-.3g", ARRAYOFCONST((TBStart->Position*iPeriod/1.0e6)));

@@ -39,7 +39,7 @@ typedef struct
   bool bRxLoudCtrl7; // (0)
   bool bCtrlByRs232; // (0) Midi/Rs232 select
   Byte PitchWheelRange; // (7) semitones up or down +/- 7 is default (0-127)
-  UInt32 BaudRate; // (960) 9600
+  uint32_t BaudRate; // (960) 9600
 } OS;
 //---------------------------------------------------------------------------
 class TFormOverallSettings : public TForm

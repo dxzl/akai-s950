@@ -193,7 +193,7 @@
         <OutputExt>exe</OutputExt>
         <LinkPackageStatics>rtl.lib;vcl.lib;AsyncProCR.lib;vclx.lib</LinkPackageStatics>
         <VerInfo_MajorVer>2</VerInfo_MajorVer>
-        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=2.3.0.0;InternalName=;LegalCopyright=2020;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=2.3.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=Discrete-Time Systems;FileDescription=$(MSBuildProjectName);FileVersion=2.4.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=S950rs.exe;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=2.4.0.0;Comments=Author: Scott Swift, Test Engineer: Oliver Tann;PrivateBuild=</VerInfo_Keys>
         <Icon_MainIcon>src\s9.ico</Icon_MainIcon>
         <IncludePath>..\..\AsyncPro-master\source\hpp\Win32\Release;$(IncludePath)</IncludePath>
         <AppDPIAwarenessMode>PerMonitor</AppDPIAwarenessMode>
@@ -201,6 +201,7 @@
         <VerInfo_PreRelease>false</VerInfo_PreRelease>
         <VerInfo_Special>false</VerInfo_Special>
         <BCC_OutputDir>.\OBJ\</BCC_OutputDir>
+        <VerInfo_MinorVer>4</VerInfo_MinorVer>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
@@ -286,8 +287,8 @@
                     <ProjectProperties Name="IndexFiles">False</ProjectProperties>
                 </ProjectProperties>
                 <Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\bcboffice2k280.bpl">Embarcadero C++Builder Office 2000 Servers Package</Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\bcbofficexp280.bpl">Embarcadero C++Builder Office XP Servers Package</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\bcboffice2k290.bpl">Embarcadero C++Builder Office 2000 Servers Package</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\bcbofficexp290.bpl">Embarcadero C++Builder Office XP Servers Package</Excluded_Packages>
                 </Excluded_Packages>
             </CPlusPlusBuilder.Personality>
             <Platforms>

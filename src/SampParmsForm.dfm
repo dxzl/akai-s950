@@ -47,13 +47,11 @@ object FormEditSampParms: TFormEditSampParms
     00000000000000000000001FF800003FFC00007FFE0000FFFF0001FFFF8003FF
     FFC007FFFFE00FFFFFF0000000000000000000000000}
   Menu = MainMenu1
-  OldCreateOrder = False
   Position = poMainFormCenter
   OnClose = FormClose
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object Panel1: TPanel
     Left = 0
@@ -62,7 +60,6 @@ object FormEditSampParms: TFormEditSampParms
     Height = 238
     Align = alClient
     TabOrder = 0
-    ExplicitHeight = 209
     object LabelEnd: TLabel
       Left = 752
       Top = 60
@@ -300,6 +297,13 @@ object FormEditSampParms: TFormEditSampParms
       Width = 83
       Height = 13
       Caption = 'Time (ms): ??????'
+    end
+    object LabelBitsPerSample: TLabel
+      Left = 7
+      Top = 59
+      Width = 91
+      Height = 13
+      Caption = 'Bits-per-sample: ??'
     end
     object ComboBoxSampNames: TComboBox
       Left = 7

@@ -265,7 +265,7 @@ void __fastcall S9Utils::encodeDB(Byte* dest, char* source, int numchars)
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::encodeDD(UInt32 value, Byte* tp)
+void __fastcall S9Utils::encodeDD(uint32_t value, Byte* tp)
 {
   for (int ii = 0; ii < 4; ii++)
   {
@@ -276,7 +276,7 @@ void __fastcall S9Utils::encodeDD(UInt32 value, Byte* tp)
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::encodeDW(UInt32 value, Byte* tp)
+void __fastcall S9Utils::encodeDW(uint32_t value, Byte* tp)
 {
   for (int ii = 0; ii < 2; ii++)
   {
@@ -287,7 +287,7 @@ void __fastcall S9Utils::encodeDW(UInt32 value, Byte* tp)
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::encodeTB(UInt32 value, Byte* tp)
+void __fastcall S9Utils::encodeTB(uint32_t value, Byte* tp)
 {
   *tp++ = (Byte)(value & 0x7f);
   value >>= 7;
@@ -317,10 +317,10 @@ void __fastcall S9Utils::decodeDB(char* dest, Byte* source, int numchars)
     *dest = '\0';
 }
 //---------------------------------------------------------------------------
-// decode a 32-bit value in 8-bytes into an __int32
-UInt32 __fastcall S9Utils::decodeDD(Byte* tp)
+// decode a 32-bit value in 8-bytes into an int32_t
+uint32_t __fastcall S9Utils::decodeDD(Byte* tp)
 {
-  UInt32 acc;
+  uint32_t acc;
 
   tp += 6;
 
@@ -337,10 +337,10 @@ UInt32 __fastcall S9Utils::decodeDD(Byte* tp)
   return acc;
 }
 //---------------------------------------------------------------------------
-// decode a 16-bit value in 4-bytes into an __int32
-UInt32 __fastcall S9Utils::decodeDW(Byte* tp)
+// decode a 16-bit value in 4-bytes into an int32_t
+uint32_t __fastcall S9Utils::decodeDW(Byte* tp)
 {
-  UInt32 acc;
+  uint32_t acc;
 
   tp += 2;
 
@@ -354,16 +354,16 @@ UInt32 __fastcall S9Utils::decodeDW(Byte* tp)
   return acc;
 }
 //---------------------------------------------------------------------------
-// decode a 21-bit value in 3-bytes into an __int32
-UInt32 __fastcall S9Utils::decodeTB(Byte* tp)
+// decode a 21-bit value in 3-bytes into an int32_t
+uint32_t __fastcall S9Utils::decodeTB(Byte* tp)
 {
-  UInt32 acc;
+  uint32_t acc;
 
   tp += 2;
 
-  acc = (UInt32)*tp--;
-  acc = (acc << 7) | (UInt32)*tp--;
-  acc = (acc << 7) | (UInt32)*tp;
+  acc = (uint32_t)*tp--;
+  acc = (acc << 7) | (uint32_t)*tp--;
+  acc = (acc << 7) | (uint32_t)*tp;
 
   return acc;
 }
@@ -475,6 +475,56 @@ bool __fastcall S9Utils::IsBusy(void)
   }
 
   return false;
+}
+//---------------------------------------------------------------------------
+void __fastcall S9Utils::print_ps_info(PSTOR* ps, bool bPrintUnused)
+{
+  printm("");
+  printm("Output Parameters:");
+  printm("sample length (in words): " + String(ps->sampleCount));
+  printm("end point: " + String(ps->endpoint));
+  printm("frequency (hertz): " + String(ps->freq));
+  printm("pitch: " + String(ps->pitch));
+  printm("period (nanoseconds): " + String((uint32_t)ps->period));
+  printm("bits per word: " + String(ps->bits_per_word));
+  printm("start point: " + String(ps->startpoint));
+  printm("loop length: " + String(ps->looplen));
+
+  if (ps->flags & (Byte)1)
+    printm("velocity crossfade: on");
+  else
+    printm("velocity crossfade: off");
+
+  if (ps->flags & (Byte)2)
+    printm("reverse waveform: yes");
+  else
+    printm("reverse waveform: no");
+
+  if (ps->loopmode == 'O')
+    printm("looping mode: one-shot");
+  else if (ps->loopmode == 'L')
+    printm("looping mode: looping");
+  else if (ps->loopmode == 'A')
+    printm("looping mode: alternating");
+  else
+    printm("looping mode: unknown");
+
+  printm("sample name: \"" + String(ps->name) + "\""); // show any spaces
+
+  if (bPrintUnused){
+    printm("");
+    printm("Undefined Parameters (saved in .aki file):");
+    printm("undefinedDD_27=" + String(ps->undefinedDD_27));
+    printm("undefinedDW_35=" + String(ps->undefinedDW_35));
+    printm("undefinedDD_95=" + String(ps->undefinedDD_95));
+    printm("undefinedDD_103=" + String(ps->undefinedDD_103));
+    printm("undefinedDD_111=" + String(ps->undefinedDD_111));
+    printm("undefinedDD_119=" + String(ps->undefinedDD_119));
+    printm("");
+    printm("Reserved Parameters (saved in .aki file):");
+    printm("reservedDB_61=" + String(ps->reservedDB_61));
+    printm("reservedDW_87=" + String(ps->reservedDW_87));
+  }
 }
 //---------------------------------------------------------------------------
 
