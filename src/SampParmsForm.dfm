@@ -383,7 +383,7 @@ object FormEditSampParms: TFormEditSampParms
     OnClick = MenuSaveClick
   end
   object MainMenu1: TMainMenu
-    Left = 408
+    Left = 288
     Top = 120
     object MenuOptions: TMenuItem
       Caption = 'Options'
@@ -406,7 +406,14 @@ object FormEditSampParms: TFormEditSampParms
     end
   end
   object OpenDialog1: TOpenDialog
-    Left = 336
-    Top = 114
+    Left = 192
+    Top = 122
+  end
+  object TimerTriggerOnSelect: TTimer
+    Enabled = False
+    Interval = 500
+    OnTimer = TimerTriggerOnSelectEvent
+    Left = 368
+    Top = 121
   end
 end

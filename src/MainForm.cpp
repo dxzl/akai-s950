@@ -1274,13 +1274,13 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         uint32_t tempfreq = SampleRate;
         if (tempfreq > 49999)
           tempfreq = 49999;
-        ps.freq = (uint16_t)tempfreq; // sample freq. in Hz (4 bytes)
+        ps.freq = (uint16_t)tempfreq; // sample freq. in Hz (2 bytes)
 
-        ps.pitch = 960; // pitch - units = 1/16 semitone (4 bytes) (middle C)
+        ps.pitch = 960; // pitch - units = 1/16 semitone (2 bytes) (middle C)
         ps.sampleCount = TotalFrames; // total number of words in sample (4 bytes)
-        ps.period = 1.0e9 / (double)ps.freq; // sample period in nanoseconds (8 bytes)
+        ps.period = (uint32_t)(1.0e9 / (double)ps.freq); // sample period in nanoseconds (4 bytes)
 
-        // 8-14 bits S900 or 8-16-bits S950
+        // 8-14 bits S900 and S950
         // (this will be the bits-per-word of the sample residing on the machine)
         // (DO THIS BEFORE SETTING shift_count!)
         ps.bits_per_word =
@@ -1290,7 +1290,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         // positive result is the amount of right shift needed (if any)
         // to down-convert the wav's # bits to the desired # bits
         // (example: Wave-file's BitsPerWord is 16 and ps.bits_per_word
-        // max is 14 bits for S900, result is "need to right-shift 2")
+        // max is 14 bits for S900 and S950, result is "need to right-shift 2")
         // (DO THIS AFTER LIMITING ps.bits_per_word TO machine_max_bits_per_word!)
         int shift_count = BitsPerWord - ps.bits_per_word;
 
@@ -2207,7 +2207,7 @@ void __fastcall TFormMain::encode_sample_info(uint16_t index, PSTOR* ps)
   encodeTB(ps->endpoint, &samp_hedr[idx]); // 3
   idx += 3;
 
-  // use ps->looping mode 'A', 'L' or 'O' (alternating, looping or one-shot)
+  // use ps->loopmode 'A', 'L' or 'O' (alternating, looping or one-shot)
   // to set samp_hedr[18], loop mode: 0=looping, 1=alternating
   // NOTE: one-shot if loop-length is smaller than 5
   samp_hedr[idx] = (uint8_t)((ps->loopmode == 'A') ? 1 : 0);

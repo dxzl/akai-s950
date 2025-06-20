@@ -72,8 +72,8 @@ void __fastcall TFormEditSampParms::ButtonRefreshSamplesListClick(TObject *Sende
     int iError = RefreshCatalog();
     if (iError < 0 && iError != -1)
       ShowMessage("Error: unable to allocate m_slSampleData/ProgramData! (code=" + String(iError) + ")");
-
-    RefreshSamplesInComboBox(0);
+    
+    RefreshSamplesInComboBox(0); // triggers ComboBoxSampNamesSelect() for index 0!
   }
   __finally
   {
@@ -138,7 +138,11 @@ int __fastcall TFormEditSampParms::RefreshSamplesInComboBox(int iSampIdx)
     if (count && iSampIdx >= 0 && iSampIdx < count)
     {
       ComboBoxSampNames->ItemIndex = iSampIdx;
-      ComboBoxSampNamesSelect(NULL); // trigger an OnSelect event (load sample)
+
+      // have to call ComboBoxSampNamesSelect() from a timer-event because otherwise there is a
+      // FormMain->BusyFlag conflict with methods calling RefreshSamplesInComboBox()!
+      TimerTriggerOnSelect->Interval = ONSELECT_DELAY_TIME;
+      TimerTriggerOnSelect->Enabled = true; // trigger a delayed OnSelect event (load sample)
     }
     else
       ComboBoxSampNames->Text = "<No Samples!>";
@@ -150,6 +154,12 @@ int __fastcall TFormEditSampParms::RefreshSamplesInComboBox(int iSampIdx)
     ShowMessage("Unexpected error, RefreshSamplesInComboBox(), please tell author!");
     return -1;
   }
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormEditSampParms::TimerTriggerOnSelectEvent(TObject *Sender)
+{
+  TimerTriggerOnSelect->Enabled = false; // we are a one-shot timer!
+  ComboBoxSampNamesSelect(NULL); // trigger an OnSelect event (load selected sample)
 }
 //---------------------------------------------------------------------------
 // Takes info in GUI, including possible new sample-name, and sends it

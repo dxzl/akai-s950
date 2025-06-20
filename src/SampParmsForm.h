@@ -20,6 +20,8 @@
 
 #define SOS_SEND "Send To Machine"
 #define SOS_SAVE "Save To File"
+
+#define ONSELECT_DELAY_TIME 500 // 500ms
 //---------------------------------------------------------------------------
 class TFormEditSampParms : public TForm
 {
@@ -69,6 +71,7 @@ __published:  // IDE-managed Components
   TLabel *LabelLoopLength;
   TLabel *LabelSampleTime;
   TLabel *LabelBitsPerSample;
+  TTimer *TimerTriggerOnSelect;
   void __fastcall HelpClick(TObject *Sender);
   void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
   void __fastcall ButtonCloseClick(TObject *Sender);
@@ -88,6 +91,7 @@ __published:  // IDE-managed Components
           TUpDownDirection Direction);
   void __fastcall MenuSaveClick(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
+  void __fastcall TimerTriggerOnSelectEvent(TObject *Sender);
 
 private:  // User declarations
   int __fastcall RefreshCatalog(void);
