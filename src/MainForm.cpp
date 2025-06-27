@@ -563,7 +563,49 @@ int __fastcall TFormMain::GetAsWavFile(long lFileHandle, int iSamp, PSTOR* ps)
   return fileSize;
 }
 //---------------------------------------------------------------------------
+// header for a floppy-disk is 1/2 the samp_parms[] array size:
+// (appears to mirror the samp_parms[] info. but in 60 bytes rather than 120!!!)
+//     10     ASCII       Filename
+//      4     undefined   0
+//      2     undefined   0
+//      4     unsigned    Number of sample words
+//      2     unsigned    Sample rate (Hz)
+//      2     unsigned    Tuning (16ths of a semitone, C3=960)
+//      2     signed      Loudness offset
+//      1     ASCII       Replay mode (O=one-shot, L=loop, A=alt)
+//      1     reserved    0
+//      4     unsigned    End marker
+//      4     unsigned    Start marker
+//      4     unsigned    Loop length
+//      2     reserved    (offset 87 in samp_parms[]) 36025 (other examples seen 46460)
+//      1     byte        0/255 Velocity crossfade/normal
+//      1     ASCII       Reverse/normal (R=reversed, N=normal)
+//      4     undefined   0
+//      4     undefined   0
+//      4     unknown     (offset 111 in samp_parms[]) 61483 (have seen 2147483648, 2481979392)
+//      4     unknown     (offset 119 in samp_parms[]) 637534208 (have seen 1, 16)
+//---------------------------------------------------------------------------
 // puts samp_parms[] and samp_hedr[] arrays info into PSTOR struct (ps)
+//
+//SNAME   DB  'nnnnnnnnnn'   Name of sample 20
+//        DD  x   Undefined 8
+//        DW  x   Undefined 4
+//SLNGTH  DD  1800  Total number of words in sample. Note that for velocity-crossfade type this will be the sum of soft and loud parts 8
+//SMRATE  DW  11773   Original sample rate in Hz (=2.5*bandwidth) 4
+//SNOMP   DW  960   Nominal pitch, unsigned in 1/16 semitones (960=C3) 4
+//SDFLDO  DW  0   Signed loudness offset 4
+//SRPLMD  DB  'L'   Replay mode: 'O/L/A'=one shot/looping/alternating 2
+//        DB  0   Reserved 2
+//SEND    DD  1800  End point relative to start of sample 8
+//SSTART  DD  0   First replay point relative to start of sample 8
+//SLOOP   DD  45  Length of loop or alternative part 8
+//        DW  x   Reserved 4
+//VC      DB  0   0/255 Velocity crossfade/normal type sample 2
+//NOREV   DB  'N'   'R/N' Sample waveform has/has not been reversed 2
+//        DD  x   Undefined 8
+//        DD  x   Undefined 8
+//        DD  x   Undefined 8
+//        DD  x   Undefined 8
 void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
 {
   // FROM AKAI EXCLUSIVE SAMPLE PARAMETERS... (do this before decoding header)
@@ -575,17 +617,17 @@ void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
   AsciiStrDecode(ps->name, &samp_parms[7]); // 10 bytes => 14 byte null terminated string
 
   // undefined
-  ps->undefinedDD_27 = decodeDD((uint8_t*)&samp_parms[27]); // 8=>4
+  ps->undefinedDD_27 = decodeDD(&samp_parms[27]); // 8=>4
 
   // undefined
-  ps->undefinedDW_35 = decodeDW((uint8_t*)&samp_parms[35]); // 4=>2
+  ps->undefinedDW_35 = decodeDW(&samp_parms[35]); // 4=>2
 
   // number of words in sample (for velocity-crossfade it's the sum of soft and loud parts)
   ps->sampleCount = decodeDD(&samp_parms[39]); // 8=>4
 
   // original sample rate in Hz
   ps->freq = decodeDW(&samp_parms[47]); // 4=>2
-  
+
   // nominal pitch in 1/16 semitone, C3=960
   ps->pitch = decodeDW(&samp_parms[51]); // 4=>2
 
@@ -637,12 +679,12 @@ void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
   //  ps->flags |= 128;
 
   // 95-126 (4 DDs) undefined
-  ps->undefinedDD_95 = decodeDD((uint8_t*)&samp_parms[95]); // 8=>4
-  
+  ps->undefinedDD_95 = decodeDD(&samp_parms[95]); // 8=>4
+
   // these two have data (for the S950) but - it is not documented...
-  ps->undefinedDD_103 = decodeDD((uint8_t*)&samp_parms[103]); // 8=>4
-  ps->undefinedDD_111 = decodeDD((uint8_t*)&samp_parms[111]); // 8=>4
-  ps->undefinedDD_119 = decodeDD((uint8_t*)&samp_parms[119]); // 8=>4
+  ps->undefinedDD_103 = decodeDD(&samp_parms[103]); // 8=>4
+  ps->undefinedDD_111 = decodeDD(&samp_parms[111]); // 8=>4
+  ps->undefinedDD_119 = decodeDD(&samp_parms[119]); // 8=>4
 
   // FROM SAMPLE HEADER...
 
@@ -656,13 +698,13 @@ void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
   // NOW USING VALUES IN samp_parms FOR ITEMS BELOW!!!!!!!!!!!!!!!!!!
 
   // number of sample words 200-475020
-  // ps->sampleCount = decodeTB((uint8_t*)&samp_hedr[9]); // 3
+  // ps->sampleCount = decodeTB(&samp_hedr[9]); // 3
 
   // loop start point (non-looping mode if >= endidx-5)
-  // int startpoint = decodeTB((uint8_t*)&samp_hedr[12]); // 3
+  // int startpoint = decodeTB(&samp_hedr[12]); // 3
 
   // loop end point (S950/S900 takes this as end point of the sample)
-  // int loopend = decodeTB((uint8_t*)&samp_hedr[15]); // 3
+  // int loopend = decodeTB(&samp_hedr[15]); // 3
 
   // ps->startidx = startpoint;
   // ps->endidx = loopend;
@@ -1259,12 +1301,12 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         // these fields are reserved/undefined in the S900, unknown for the S950
         //ps.undefinedDW_35 = 0;
         //ps.reservedDB_61 = 0;
-        //ps.reservedDW_87 = 0;
+        //ps.reservedDW_87 = 0xAEB5; // ???? taken from .s9 file
         //ps.undefinedDD_27 = 0;
         //ps.undefinedDD_95 = 0;
         //ps.undefinedDD_103 = 0;
-        //ps.undefinedDD_111 = 0; // 0x80000000 1/2 semitone (50 cents) (semitone pitch for what?)
-        //ps.undefinedDD_119 = 0; // 1 (fine pitch for what?)
+        //ps.undefinedDD_111 = 0x108E; // ???? taken from .s9 file
+        //ps.undefinedDD_119 = 0x01000000; // ???? taken from .s9 file
         //------------------------------------------------------------------------------------------
         
         ps.startpoint = 0; // first replay point for looping (4 bytes)
@@ -1280,7 +1322,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         ps.sampleCount = TotalFrames; // total number of words in sample (4 bytes)
         ps.period = (uint32_t)(1.0e9 / (double)ps.freq); // sample period in nanoseconds (4 bytes)
 
-        // 8-14 bits S900 and S950
+        // S900/S950 transmits 12 bit samples but can receive samples of 8-14 bits
         // (this will be the bits-per-word of the sample residing on the machine)
         // (DO THIS BEFORE SETTING shift_count!)
         ps.bits_per_word =
@@ -1386,7 +1428,8 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
               printm("(found 1 loop)");
             else
               printm("(found " + String(pSmpl->loopCount) + " loops (we only use the first one))");
-             printm("loop start: " + String(iStart) + ", loop end: " + String(iEnd));
+            
+            printm("loop start: " + String(iStart) + ", loop end: " + String(iEnd));
 
             // swap if reversed
             if (iStart > iEnd)
@@ -1541,7 +1584,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
               ptbuf = &tbuf[1];
             }
 
-            register int64_t acc; // sample accumulator (must be signed!)
+            int64_t acc; // sample accumulator (must be signed!)
 
             for (int ii = 0; ii < words_per_block; ii++)
             {
@@ -1602,12 +1645,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                     acc |= dp[ii];
                   }
 
-                  // right-justify so we can add baseline
-                  // (the bits in a wav are left-justified
+                  // right-justify so we can add baseline (the bits in a wav are left-justified
                   // so we must scoot them to the right!)
-                  //
-                  // NOTE: since acc is signed, the sign-bit
-                  // is preserved during the right-shift!
+                  // NOTE: since acc is signed, the sign-bit is preserved during the right-shift!
                   acc >>= (8 * BytesPerWord) - BitsPerWord;
 
                   if (passes == 2)
@@ -1654,9 +1694,9 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                       if (shift_count > 0)
                       {
                         // shift msb of discarded bits to lsb of val
-                        acc >>= shift_count - 1;
+                        acc >>= (shift_count - 1);
 
-                        bool bRoundUp = acc & 1; // need to round up?
+                        bool bRoundUp = (acc & 1); // need to round up?
 
                         // discard msb of discarded bits...
                         acc >>= 1;
@@ -1671,8 +1711,8 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
               // save sample in 122-byte tbuf
               if (passes == 1)
-                queue((int32_t)acc, ptbuf, sampler_bytes_per_word,
-                  ps.bits_per_word, checksum); // returns ptbuf by-reference!
+                queue(acc, ptbuf, sampler_bytes_per_word,
+                  ps.bits_per_word, checksum); // returns ptbuf and checksum by-reference!
 
               dp += BytesPerFrame; // Next frame
               FrameCounter++;
@@ -1788,9 +1828,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         // with a 16-bit sample saved from an S950)
         int shift_count = ps.bits_per_word - machine_max_bits_per_word;
 
-        // 2 bytes 14-bits S900 or 3 bytes 16-bits S950
-        // If the .aki file has 16-bit samples and we are sending to
-        // an S900, we need to lower the PSTOR bits_per_word to 14!
+        // For both S900/S950 max PSTOR bits_per_word is 14 (stored in two bytes)!
         if (ps.bits_per_word > machine_max_bits_per_word)
         {
           printm("reducing bits per word in " + String(AKIEXT) +
@@ -1861,7 +1899,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           // pad last block with 0's if end of file
           for (int ii = 0; ii < words_per_block; ii++)
           {
-            register int32_t acc = 0;
+            int64_t acc = 0;
             if (ReadCounter < iBytesRead)
             {
               // read little-endian bytes_per_word bytes of sample-word
@@ -1898,7 +1936,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             // convert acc (sample-word) into Akai S900/S950 raw transmit format
             // and store in tbuf for later transmission
             queue(acc, ptbuf, sampler_bytes_per_word,
-                  ps.bits_per_word, checksum); // returns ptbuf by-reference!
+                  ps.bits_per_word, checksum); // returns ptbuf and checksum by-reference!
 
             ReadCounter += file_bytes_per_word;
             ptr += file_bytes_per_word; // point to next sample-word
@@ -2067,7 +2105,7 @@ bool __fastcall TFormMain::send_packet(uint8_t *tbuf, int blockct)
 // Checksum in/out is by-reference as is the ptbuf pointer
 // Algorithm handles 32-bit samples as-is but we will only ever feed it
 // 14-bits (how sad!)
-void __fastcall TFormMain::queue(int32_t acc, uint8_t* &ptbuf,
+void __fastcall TFormMain::queue(int64_t acc, uint8_t* &ptbuf,
          int sampler_bytes_per_word, int bits_per_word, uint8_t &checksum)
 {
   for (int ii = 1; ii <= sampler_bytes_per_word; ii++)
@@ -2089,7 +2127,49 @@ void __fastcall TFormMain::queue(int32_t acc, uint8_t* &ptbuf,
   }
 }
 //---------------------------------------------------------------------------
+// header for a floppy-disk is 1/2 the samp_parms[] array size:
+// (appears to mirror the samp_parms[] info. but in 60 bytes rather than 120!!!)
+//     10     ASCII       Filename
+//      4     undefined   0
+//      2     undefined   0
+//      4     unsigned    Number of sample words
+//      2     unsigned    Sample rate (Hz)
+//      2     unsigned    Tuning (16ths of a semitone, C3=960)
+//      2     signed      Loudness offset
+//      1     ASCII       Replay mode (O=one-shot, L=loop, A=alt)
+//      1     reserved    0
+//      4     unsigned    End marker
+//      4     unsigned    Start marker
+//      4     unsigned    Loop length
+//      2     reserved    (offset 87 in samp_parms[]) 36025 (other examples seen 46460)
+//      1     byte        0/255 Velocity crossfade/normal
+//      1     ASCII       Reverse/normal (R=reversed, N=normal)
+//      4     undefined   0
+//      4     undefined   0
+//      4     unknown     (offset 111 in samp_parms[]) 61483 (have seen 2147483648, 2481979392)
+//      4     unknown     (offset 119 in samp_parms[]) 637534208 (have seen 1, 16)
+//---------------------------------------------------------------------------
 // puts PSTOR struct (ps) info into samp_parms[] and samp_hedr[] arrays
+//
+//SNAME   DB  'nnnnnnnnnn'   Name of sample 20
+//        DD  x   Undefined 8
+//        DW  x   Undefined 4
+//SLNGTH  DD  1800  Total number of words in sample. Note that for velocity-crossfade type this will be the sum of soft and loud parts 8
+//SMRATE  DW  11773   Original sample rate in Hz (=2.5*bandwidth) 4
+//SNOMP   DW  960   Nominal pitch, unsigned in 1/16 semitones (960=C3) 4
+//SDFLDO  DW  0   Signed loudness offset 4
+//SRPLMD  DB  'L'   Replay mode: 'O/L/A'=one shot/looping/alternating 2
+//        DB  0   Reserved 2
+//SEND    DD  1800  End point relative to start of sample 8
+//SSTART  DD  0   First replay point relative to start of sample 8
+//SLOOP   DD  45  Length of loop or alternative part 8
+//        DW  x   Reserved 4
+//VC      DB  0   0/255 Velocity crossfade/normal type sample 2
+//NOREV   DB  'N'   'R/N' Sample waveform has/has not been reversed 2
+//        DD  x   Undefined 8
+//        DD  x   Undefined 8
+//        DD  x   Undefined 8
+//        DD  x   Undefined 8
 void __fastcall TFormMain::encode_sample_info(uint16_t index, PSTOR* ps)
 {
   //
@@ -2162,7 +2242,7 @@ void __fastcall TFormMain::encode_sample_info(uint16_t index, PSTOR* ps)
   encodeDD(ps->undefinedDD_95, &samp_parms[95]); // 95-102 DD Undefined (8 bytes)
 
   // 103-126, 3 DDs Undefined, 24 bytes (saving in PSTOR)
-  encodeDD(ps->undefinedDD_103, &samp_parms[103]); // 119-126 DD Undefined (8 bytes)
+  encodeDD(ps->undefinedDD_103, &samp_parms[103]); // 103-110 DD Undefined (8 bytes)
   encodeDD(ps->undefinedDD_111, &samp_parms[111]); // 111-118 DD Undefined (8 bytes)
   encodeDD(ps->undefinedDD_119, &samp_parms[119]); // 119-126 DD Undefined (8 bytes)
 
@@ -2180,15 +2260,15 @@ void __fastcall TFormMain::encode_sample_info(uint16_t index, PSTOR* ps)
   memset(samp_hedr, 0, HEDRSIZ);
 
   // encode excl, syscomid, sampdump
-  samp_hedr[0] = BEX;
-  samp_hedr[1] = SYSTEM_COMMON_NONREALTIME_ID;
-  int idx = 2;
+  int idx = 0;
+  samp_hedr[idx++] = BEX;
+  samp_hedr[idx++] = SYSTEM_COMMON_NONREALTIME_ID;
   samp_hedr[idx++] = SD;
   samp_hedr[idx++] = (uint8_t)(index & 0x7f);
   samp_hedr[idx++] = (uint8_t)((index>>7) & 0x7f); // MSB samp idx always 0 for S900
 
-  // bits per word
-  samp_hedr[idx++] = (uint8_t)ps->bits_per_word;
+  // bits per word (S900 transmits 12 but can accept 8-14)
+  samp_hedr[idx++] = (uint8_t)ps->bits_per_word; // 1 byte, at offset 5
 
   // sampling period
   encodeTB(ps->period, &samp_hedr[idx]); // 3
@@ -3773,7 +3853,7 @@ void __fastcall TFormMain::MenuMakeOrEditProgramClick(TObject *Sender)
 //---------------------------------------------------------------------------
 // Public
 // Get the catalog of samples and programs from the machine.
-// The samples are in PermSampArray[] (access as TStringList using the SampleData property
+// The samples are in PermSampArray[] (access as TStringList using the CatalogSampleData property
 // Count of samples is in m_numSampEntries (access using NumProgEntries property)
 // The programs are in PermProgArray[] (access as TStringList using the ProgramData property
 // Count of programs is in m_numProgEntries (access using NumSampEntries property)
@@ -3953,6 +4033,10 @@ TStringList* __fastcall TFormMain::GetCatalogSampleData(void)
   if (sl)
   {
     CAT* p = &PermSampArray[0];
+
+    // To TEST!!!!!!!!!!!!!!!
+    //for (int ii = 0; ii < 20; ii++, p++)
+    //  sl->AddObject("ThisName" + String(ii), (TObject*)ii);
 
     for (int ii = 0; ii < m_numSampEntries; ii++, p++)
       sl->AddObject(p->name, (TObject*)p->index);

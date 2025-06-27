@@ -70,7 +70,6 @@ __published:  // IDE-managed Components
   TLabel *LabelLoopTime;
   TLabel *LabelLoopLength;
   TLabel *LabelSampleTime;
-  TLabel *LabelBitsPerSample;
   TTimer *TimerTriggerOnSelect;
   void __fastcall HelpClick(TObject *Sender);
   void __fastcall FormClose(TObject *Sender, TCloseAction &Action);
@@ -90,7 +89,6 @@ __published:  // IDE-managed Components
   void __fastcall UpDownLoopChangingEx(TObject *Sender, bool &AllowChange, int NewValue,
           TUpDownDirection Direction);
   void __fastcall MenuSaveClick(TObject *Sender);
-  void __fastcall FormShow(TObject *Sender);
   void __fastcall TimerTriggerOnSelectEvent(TObject *Sender);
 
 private:  // User declarations
@@ -110,7 +108,7 @@ private:  // User declarations
 
   TStringList* m_slSampleData;
 
-  Byte m_samp_parms[PARMSIZ]; // encoded array for midi transmission
+  uint8_t m_samp_parms[PARMSIZ]; // encoded array for midi transmission
   PSTOR m_ps; // current working sample parameters struct
 
   int m_iSource; // 0=nothing, 1=file, 2=machine

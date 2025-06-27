@@ -51,7 +51,6 @@ object FormEditSampParms: TFormEditSampParms
   OnClose = FormClose
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  OnShow = FormShow
   TextHeight = 13
   object Panel1: TPanel
     Left = 0
@@ -298,21 +297,16 @@ object FormEditSampParms: TFormEditSampParms
       Height = 13
       Caption = 'Time (ms): ??????'
     end
-    object LabelBitsPerSample: TLabel
-      Left = 7
-      Top = 59
-      Width = 91
-      Height = 13
-      Caption = 'Bits-per-sample: ??'
-    end
     object ComboBoxSampNames: TComboBox
       Left = 7
       Top = 6
       Width = 113
       Height = 21
       AutoComplete = False
+      ParentShowHint = False
+      ShowHint = False
       TabOrder = 0
-      Text = '<choose sample>'
+      Text = '<list empty>'
       OnSelect = ComboBoxSampNamesSelect
     end
     object ButtonRefreshSamplesList: TButton

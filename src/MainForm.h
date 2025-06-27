@@ -177,8 +177,8 @@ typedef struct
 // (it reflects the cat data returned by the target machine)
 typedef struct
 {
-  Byte type; // ASCII: "P" = program, "S" = sample
-  Byte index; // program/sample number (0-31)
+  uint8_t type; // ASCII: "P" = program, "S" = sample
+  uint8_t index; // program/sample number (0-31)
   char name[MAX_NAME_S900]; // program/sample name (in ASCII)
 } S950CAT;
 
@@ -213,10 +213,10 @@ typedef struct
   int32_t undefinedDD_111; // DD at offset 111 in samp_parms (4 bytes)
   int32_t undefinedDD_119; // DD at offset 119 in samp_parms (4 bytes)
   int32_t loudnessoffset; // signed value (4 bytes)
-  Byte spareDB1; // (1 byte)
-  Byte reservedDB_61; // (1 byte)
-  Byte flags; // (1 byte) (bit 0 = vel. xfade, bit 1 = reverse-waveform)
-  Byte loopmode; // (1 byte) 'O' one-shot, 'A' alternateing, 'L' looping
+  uint8_t spareDB1; // (1 byte)
+  uint8_t reservedDB_61; // (1 byte)
+  uint8_t flags; // (1 byte) (bit 0 = vel. xfade, bit 1 = reverse-waveform)
+  uint8_t loopmode; // (1 byte) 'O' one-shot, 'A' alternateing, 'L' looping
 } PSTOR; // sizeof(PSTOR) must always be 72 bytes!
 
 // 44 bytes
@@ -252,8 +252,8 @@ typedef struct
 typedef struct
 {
   uint32_t magic; // set this to MAGIC_NUM_AKI (identifies it as "uniquely ours")
-  Byte flags;
-  Byte loudnessoffset;
+  uint8_t flags;
+  uint8_t loudnessoffset;
   uint16_t spare1;
   uint32_t spare2;
   uint32_t spare3;
@@ -378,20 +378,20 @@ private:  // User declarations
   int __fastcall GetPrograms(String sFilePath);
 
   void __fastcall SetMenuItems(void);
-  int __fastcall FindIndex(Byte* pName);
+  int __fastcall FindIndex(uint8_t* pName);
   int __fastcall SetComPort(int baud);
   int __fastcall GetFileNames(void);
   bool __fastcall DoSaveDialog(String &sName);
-  int32_t __fastcall FindSubsection(Byte* &fileBuffer, char* chunkName, UINT maxBytes);
+  int32_t __fastcall FindSubsection(uint8_t* &fileBuffer, char* chunkName, UINT maxBytes);
   void __fastcall encode_sample_info(uint16_t index, PSTOR* ps);
   void __fastcall decode_sample_info(PSTOR* ps);
 
-  bool __fastcall bytewisecompare(Byte* buf1, Byte* buf2, int maxLen);
-  int __fastcall findidx(Byte* sampName);
-  void __fastcall queue(int32_t acc, Byte* &ptbuf,
-      int sampler_bytes_per_word, int bits_per_word, Byte &checksum);
+  bool __fastcall bytewisecompare(uint8_t* buf1, uint8_t* buf2, int maxLen);
+  int __fastcall findidx(uint8_t* sampName);
+  void __fastcall queue(int64_t acc, uint8_t* &ptbuf,
+      int sampler_bytes_per_word, int bits_per_word, uint8_t &checksum);
   void __fastcall send_samp_parms(unsigned index);
-  bool __fastcall send_packet(Byte* tbuf, int blockct);
+  bool __fastcall send_packet(uint8_t* tbuf, int blockct);
   int __fastcall receive(int count);
   bool __fastcall catalog(bool print);
 
@@ -401,7 +401,7 @@ private:  // User declarations
   bool __fastcall cxmit(int samp, int mode, bool bDelay);
 
   int __fastcall get_samp_data(PSTOR * ps, long lFileHandle, bool bIsWavFile);
-  int __fastcall get_data_block(Byte* dest, int sampler_bytes_per_word, int target_bytes_per_word,
+  int __fastcall get_data_block(uint8_t* dest, int sampler_bytes_per_word, int target_bytes_per_word,
       int sampler_words_per_packet, int bits_per_word, int packet_count, bool bIsWavFile);
 
   int __fastcall get_comm_samp_hedr(int samp);
@@ -410,11 +410,58 @@ private:  // User declarations
   // receive data buffer, needs to be big enough for a catalog of a
   // sampler with the max samples allowed OR large enough for
   // the largest sysex dump you expect, sample parameters, drum settings, etc.
-  Byte m_temp_array[TEMPARRAYSIZ];
+  uint8_t m_temp_array[TEMPARRAYSIZ];
 
-  // holds the Rx/Tx sample information
-  Byte samp_parms[PARMSIZ];
-  Byte samp_hedr[HEDRSIZ];
+  //---------------------------------------------------------------------------
+  // header for a floppy-disk is 1/2 the samp_parms[] array size:
+  // (appears to mirror the samp_parms[] info. but in 60 bytes rather than 120!!!)
+  //     10     ASCII       Filename
+  //      4     undefined   0
+  //      2     undefined   0
+  //      4     unsigned    Number of sample words
+  //      2     unsigned    Sample rate (Hz)
+  //      2     unsigned    Tuning (16ths of a semitone, C3=960)
+  //      2     signed      Loudness offset
+  //      1     ASCII       Replay mode (O=one-shot, L=loop, A=alt)
+  //      1     reserved    0
+  //      4     unsigned    End marker
+  //      4     unsigned    Start marker
+  //      4     unsigned    Loop length
+  //      2     reserved    (offset 87 in samp_parms[]) 36025 (other examples seen 46460)
+  //      1     byte        0/255 Velocity crossfade/normal
+  //      1     ASCII       Reverse/normal (R=reversed, N=normal)
+  //      4     undefined   0
+  //      4     undefined   0
+  //      4     unknown     (offset 111 in samp_parms[]) 61483 (have seen 2147483648, 2481979392)
+  //      4     unknown     (offset 119 in samp_parms[]) 637534208 (have seen 1, 16)
+  //---------------------------------------------------------------------------
+
+  // holds the raw Rx/Tx sample information
+  //
+  //SNAME   DB  'nnnnnnnnnn'   Name of sample 20
+  //        DD  x   Undefined 8
+  //        DW  x   Undefined 4
+  //SLNGTH  DD  1800  Total number of words in sample. Note that for velocity-crossfade type this will be the sum of soft and loud parts 8
+  //SMRATE  DW  11773   Original sample rate in Hz (=2.5*bandwidth) 4
+  //SNOMP   DW  960   Nominal pitch, unsigned in 1/16 semitones (960=C3) 4
+  //SDFLDO  DW  0   Signed loudness offset 4
+  //SRPLMD  DB  'L'   Replay mode: 'O/L/A'=one shot/looping/alternating 2
+  //        DB  0   Reserved 2
+  //SEND    DD  1800  End point relative to start of sample 8
+  //SSTART  DD  0   First replay point relative to start of sample 8
+  //SLOOP   DD  45  Length of loop or alternative part 8
+  //        DW  x   Reserved 4
+  //VC      DB  0   0/255 Velocity crossfade/normal type sample 2
+  //NOREV   DB  'N'   'R/N' Sample waveform has/has not been reversed 2
+  //        DD  x   Undefined 8
+  //        DD  x   Undefined 8
+  //        DD  x   Undefined 8
+  //        DD  x   Undefined 8
+  uint8_t samp_parms[PARMSIZ];
+
+  // header for the sample-data
+  uint8_t samp_hedr[HEDRSIZ];
+
   unsigned m_rxByteCount;
   int m_numSampEntries, m_numProgEntries, m_elapsedSeconds, m_busyCount;
   bool m_gpTimeout, m_inBufferFull, m_abort;
@@ -440,7 +487,7 @@ END_MESSAGE_MAP(TComponent)
 
   TStringList* __fastcall GetCatalogSampleData(void);
   TStringList* __fastcall GetCatalogProgramData(void);
-  Byte* __fastcall GetTempArray(void);
+  uint8_t* __fastcall GetTempArray(void);
   uint32_t __fastcall GetBaudRate(void);
   void __fastcall SetBaudRate(uint32_t value);
 
@@ -450,7 +497,7 @@ public:    // User declarations
   void __fastcall DelayGpTimer(int iTime);
   int __fastcall WaitTxCom(int iTime, int count=0);
 
-  bool __fastcall comws(int count, Byte* ptr, bool bDelay);
+  bool __fastcall comws(int count, uint8_t* ptr, bool bDelay);
 
   int __fastcall LoadProgramToTempArray(int progIndex);
   int __fastcall LoadSampParmsToTempArray(int iSampIdx);
@@ -466,7 +513,7 @@ public:    // User declarations
 
   __property TStringList* CatalogSampleData = {read = GetCatalogSampleData};
   __property TStringList* CatalogProgramData = {read = GetCatalogProgramData};
-  __property Byte* TempArray = {read = GetTempArray};
+  __property uint8_t* TempArray = {read = GetTempArray};
   __property uint32_t BaudRate = {read = GetBaudRate, write = SetBaudRate};
 };
 

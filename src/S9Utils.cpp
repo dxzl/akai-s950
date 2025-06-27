@@ -78,7 +78,7 @@ int __fastcall S9Utils::NextBlackKey(int iKey)
 //---------------------------------------------------------------------------
 // Given a key in the range 0-127, returns the -2C-+8G equavalent string
 // (11octaves*12notes)-4 = 128 total midi notes
-String __fastcall S9Utils::KeyToString(Byte key)
+String __fastcall S9Utils::KeyToString(uint8_t key)
 {
   // get the octave
   int octave = key/12 - 2;
@@ -249,67 +249,67 @@ bool __fastcall S9Utils::StrCmpCaseInsens(char* sA, char* sB, int len)
   return AnsiString(sA, len).LowerCase() == AnsiString(sB, len).LowerCase();
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::encodeDB(Byte c, Byte* dest)
+void __fastcall S9Utils::encodeDB(uint8_t c, uint8_t* dest)
 {
-  *dest++ = (c & (Byte)0x7f);
-  *dest = (Byte)((c & (Byte)0x80) ? 1 : 0);
+  *dest++ = (c & 0x7f);
+  *dest = (uint8_t)((c & 0x80) ? 1 : 0);
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::encodeDB(Byte* dest, char* source, int numchars)
+void __fastcall S9Utils::encodeDB(uint8_t* dest, char* source, int numchars)
 {
   for (int ii = 0; ii < numchars; ii++)
   {
-    *dest++ = (*source & (Byte)0x7f);
-    *dest++ = (Byte)((*source & (Byte)0x80) ? 1 : 0);
+    *dest++ = (*source & 0x7f);
+    *dest++ = (uint8_t)((*source & 0x80) ? 1 : 0);
     source++;
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::encodeDD(uint32_t value, Byte* tp)
+void __fastcall S9Utils::encodeDD(uint32_t value, uint8_t* tp)
 {
   for (int ii = 0; ii < 4; ii++)
   {
-    *tp++ = (Byte)(value & 0x7f);
+    *tp++ = (uint8_t)(value & 0x7f);
     value >>= 7;
-    *tp++ = (Byte)(value & 1);
+    *tp++ = (uint8_t)(value & 1);
     value >>= 1;
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::encodeDW(uint32_t value, Byte* tp)
+void __fastcall S9Utils::encodeDW(uint32_t value, uint8_t* tp)
 {
   for (int ii = 0; ii < 2; ii++)
   {
-    *tp++ = (Byte)(value & 0x7f);
+    *tp++ = (uint8_t)(value & 0x7f);
     value >>= 7;
-    *tp++ = (Byte)(value & 1);
+    *tp++ = (uint8_t)(value & 1);
     value >>= 1;
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::encodeTB(uint32_t value, Byte* tp)
+void __fastcall S9Utils::encodeTB(uint32_t value, uint8_t* tp)
 {
-  *tp++ = (Byte)(value & 0x7f);
+  *tp++ = (uint8_t)(value & 0x7f);
   value >>= 7;
-  *tp++ = (Byte)(value & 0x7f);
+  *tp++ = (uint8_t)(value & 0x7f);
   value >>= 7;
-  *tp = (Byte)(value & 0x7f);
+  *tp = (uint8_t)(value & 0x7f);
 }
 //---------------------------------------------------------------------------
-Byte __fastcall S9Utils::decodeDB(Byte* source)
+uint8_t __fastcall S9Utils::decodeDB(uint8_t* source)
 {
-  Byte c = *source++;
-  c |= (Byte)(*source << 7);
+  uint8_t c = *source++;
+  c |= (uint8_t)(*source << 7);
   return c;
 }
 //---------------------------------------------------------------------------
 // make sure sizeof dest buffer >= numchars+1!
-void __fastcall S9Utils::decodeDB(char* dest, Byte* source, int numchars)
+void __fastcall S9Utils::decodeDB(char* dest, uint8_t* source, int numchars)
 {
   for (int ii = 0; ii < numchars; ii++)
   {
     *dest = *source++;
-    *dest |= (Byte)(*source++ << 7);
+    *dest |= (uint8_t)(*source++ << 7);
     dest++;
   }
 
@@ -318,7 +318,7 @@ void __fastcall S9Utils::decodeDB(char* dest, Byte* source, int numchars)
 }
 //---------------------------------------------------------------------------
 // decode a 32-bit value in 8-bytes into an int32_t
-uint32_t __fastcall S9Utils::decodeDD(Byte* tp)
+uint32_t __fastcall S9Utils::decodeDD(uint8_t* tp)
 {
   uint32_t acc;
 
@@ -338,7 +338,7 @@ uint32_t __fastcall S9Utils::decodeDD(Byte* tp)
 }
 //---------------------------------------------------------------------------
 // decode a 16-bit value in 4-bytes into an int32_t
-uint32_t __fastcall S9Utils::decodeDW(Byte* tp)
+uint32_t __fastcall S9Utils::decodeDW(uint8_t* tp)
 {
   uint32_t acc;
 
@@ -355,7 +355,7 @@ uint32_t __fastcall S9Utils::decodeDW(Byte* tp)
 }
 //---------------------------------------------------------------------------
 // decode a 21-bit value in 3-bytes into an int32_t
-uint32_t __fastcall S9Utils::decodeTB(Byte* tp)
+uint32_t __fastcall S9Utils::decodeTB(uint8_t* tp)
 {
   uint32_t acc;
 
@@ -368,9 +368,9 @@ uint32_t __fastcall S9Utils::decodeTB(Byte* tp)
   return acc;
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::compute_checksum(int min_index, int max_index, BYTE* buf)
+void __fastcall S9Utils::compute_checksum(int min_index, int max_index, uint8_t* buf)
 {
-  Byte checksum;
+  uint8_t checksum;
   int ii;
 
   // checksum and store in transmission array
@@ -383,7 +383,7 @@ void __fastcall S9Utils::compute_checksum(int min_index, int max_index, BYTE* bu
 }
 //---------------------------------------------------------------------------
 // display data obtained via receive()
-void __fastcall S9Utils::display_hex(Byte buf[], int count)
+void __fastcall S9Utils::display_hex(uint8_t buf[], int count)
 {
   String sTemp;
   for (int ii = 0; ii < count; ii++)
@@ -408,7 +408,7 @@ void __fastcall S9Utils::printm(String message)
   FormMain->Memo1->Lines->Add(message);
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::AsciiStrEncode(Byte* dest, char* source)
+void __fastcall S9Utils::AsciiStrEncode(uint8_t* dest, char* source)
 {
   char locstr[MAX_NAME_S900 + 1];
   strncpy(locstr, source, MAX_NAME_S900);
@@ -420,7 +420,7 @@ void __fastcall S9Utils::AsciiStrEncode(Byte* dest, char* source)
   encodeDB(dest, locstr, MAX_NAME_S900);
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::AsciiStrDecode(char* dest, Byte* source)
+void __fastcall S9Utils::AsciiStrDecode(char* dest, uint8_t* source)
 {
   decodeDB(dest, source, MAX_NAME_S900); // 20
   trimright(dest); // trim off the blanks
@@ -432,7 +432,7 @@ void __fastcall S9Utils::AsciiStrCpyTrimRight(char* dest, char* source)
   trimright(dest);
 }
 //---------------------------------------------------------------------------
-void __fastcall S9Utils::trimright(Byte* pStr)
+void __fastcall S9Utils::trimright(uint8_t* pStr)
 {
   int len = 0;
   for (; len < MAX_NAME_S900; len++)
@@ -490,12 +490,12 @@ void __fastcall S9Utils::print_ps_info(PSTOR* ps, bool bPrintUnused)
   printm("start point: " + String(ps->startpoint));
   printm("loop length: " + String(ps->looplen));
 
-  if (ps->flags & (Byte)1)
+  if (ps->flags & 1)
     printm("velocity crossfade: on");
   else
     printm("velocity crossfade: off");
 
-  if (ps->flags & (Byte)2)
+  if (ps->flags & 2)
     printm("reverse waveform: yes");
   else
     printm("reverse waveform: no");

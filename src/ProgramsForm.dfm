@@ -46,13 +46,11 @@ object FormProgram: TFormProgram
     00000000000000000000001FF800003FFC00007FFE0000FFFF0001FFFF8003FF
     FFC007FFFFE00FFFFFF0000000000000000000000000}
   Menu = MainMenu1
-  OldCreateOrder = False
   Position = poMainFormCenter
   OnClose = FormClose
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object Panel1: TPanel
     Left = 0

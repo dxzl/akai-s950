@@ -2011,7 +2011,7 @@ void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
 // returns new file-size if success or negative error code
 int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, long &lFileHandle, int iFileOffset)
 {
-  Byte* buf = NULL;
+  uint8_t* buf = NULL;
   Int32 fileSize = 0;
 
   try
@@ -2040,7 +2040,7 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, long &lFileHand
 
       // read/write first part of file
       FileSeek(lFileHandle, 0, 0); // reset
-      buf = new Byte[iFileOffset];
+      buf = new uint8_t[iFileOffset];
       int iByteCount = FileRead(lFileHandle, buf, iFileOffset);
       if (iByteCount != iFileOffset)
         return -5;
@@ -2063,7 +2063,7 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, long &lFileHand
 
       // now we need to move data past this program into temp file...
       int iSize = iEnd-iStart;
-      buf = new Byte[iSize];
+      buf = new uint8_t[iSize];
       FileSeek(lFileHandle, iStart, 0);
       iByteCount = FileRead(lFileHandle, buf, iSize); // read second part to buf
       if (iByteCount != iSize)
@@ -2481,7 +2481,7 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(long lFileHandle, TStringList* s
   if (lFileHandle == 0)
     return -2;
 
-  Byte* buf = NULL;
+  uint8_t* buf = NULL;
   uint32_t numProgs = 0; // need this in __finally
 
   try
@@ -2546,7 +2546,7 @@ int __fastcall TFormProgram::ReadNamesInPrgFile(long lFileHandle, TStringList* s
         if (progSize > TEMPARRAYSIZ)
           return -10;
 
-        buf = new Byte[progSize];
+        buf = new uint8_t[progSize];
 
         if (buf == NULL)
           return -11;

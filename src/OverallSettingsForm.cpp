@@ -332,7 +332,7 @@ int __fastcall TFormOverallSettings::ToArray(void)
     encodeDW(OverallSettings.RxSimChan, &os[RSCHNL]);
     encodeDW(OverallSettings.RxSimKey, &os[RSKEY]);
     encodeDW(OverallSettings.RxSimVel, &os[RSVEL]);
-    Byte temp = OverallSettings.MidiChan | (OverallSettings.bOmniOn ? 128 : 0);
+    uint8_t temp = OverallSettings.MidiChan | (OverallSettings.bOmniOn ? 128 : 0);
     encodeDB(temp, &os[BASMCH]);
     temp = OverallSettings.bRxLoudCtrl7 ? 1 : 0;
     encodeDB(temp, &os[MLEN]);
@@ -375,7 +375,7 @@ int __fastcall TFormOverallSettings::FromArray(void)
     OverallSettings.RxSimKey = decodeDW(&os[RSKEY]);
     OverallSettings.RxSimVel = decodeDW(&os[RSVEL]);
 
-    Byte temp = decodeDB(&os[BASMCH]);
+    uint8_t temp = decodeDB(&os[BASMCH]);
     OverallSettings.MidiChan = (temp & 0x7f); // mask msb (flag)
     OverallSettings.bOmniOn = (temp & 0x80);
 

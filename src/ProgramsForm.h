@@ -175,46 +175,46 @@
 typedef struct
 {
   // all the Bytes are actually encoded to DB (2-bytes)
-  Byte LowerMidiKey; // 24-127, 24
-  Byte UpperMidiKey; // 24-127, 127
-  Byte VelSwThresh; // 0-128, 128
-  Byte AttackTime; // 0-99, 0
-  Byte DecayTime; //0-99, 80
-  Byte SustLevel; // 0-99, 99
-  Byte RelTime; // 0-99, 30
-  Byte FilterVelInter; // 0-99, 10
-  Byte FilterKeyTracking; // 0-99, 50
-  Byte AttackVelInter; // 0-99, 0
+  uint8_t LowerMidiKey; // 24-127, 24
+  uint8_t UpperMidiKey; // 24-127, 127
+  uint8_t VelSwThresh; // 0-128, 128
+  uint8_t AttackTime; // 0-99, 0
+  uint8_t DecayTime; //0-99, 80
+  uint8_t SustLevel; // 0-99, 99
+  uint8_t RelTime; // 0-99, 30
+  uint8_t FilterVelInter; // 0-99, 10
+  uint8_t FilterKeyTracking; // 0-99, 50
+  uint8_t AttackVelInter; // 0-99, 0
   signed char VelRelInter; // 0-255, 0, +/-50
-  Byte LoudnessVelInter; // 0-99, 30
-  Byte PitchWarpVelInter; // 0-99, 0
+  uint8_t LoudnessVelInter; // 0-99, 30
+  uint8_t PitchWarpVelInter; // 0-99, 0
   signed char PitchWarpOffset; // 0-255, 0, +/- 50
-  Byte PitchWarpRecoveryTime; // 0-99, 99
-  Byte LfoBuildTime; // 0-99, 64
-  Byte LfoRate; // 0-99, 42
-  Byte LfoDepth; // 0-99, 0
-  Byte ControlBits; // 0-transpose, 1-vel xfade, 2-vibrato desynch, 3- one-shot trigger mode, 4-velocity-release mode, 5-vel xfade curve modify, 4
-  Byte VoiceOutAssign; // 0-9 and 255, 0-mono, 8-left group (0-3), 9-right group (4-7), 255-ALL, 255
-  Byte MidiOffset; // 0-15, 0
-  Byte AftertouchDepthMod; // 0-99, 0
-  Byte ModWheelLfoDepthMod; // 0-99, 50
+  uint8_t PitchWarpRecoveryTime; // 0-99, 99
+  uint8_t LfoBuildTime; // 0-99, 64
+  uint8_t LfoRate; // 0-99, 42
+  uint8_t LfoDepth; // 0-99, 0
+  uint8_t ControlBits; // 0-transpose, 1-vel xfade, 2-vibrato desynch, 3- one-shot trigger mode, 4-velocity-release mode, 5-vel xfade curve modify, 4
+  uint8_t VoiceOutAssign; // 0-9 and 255, 0-mono, 8-left group (0-3), 9-right group (4-7), 255-ALL, 255
+  uint8_t MidiOffset; // 0-15, 0
+  uint8_t AftertouchDepthMod; // 0-99, 0
+  uint8_t ModWheelLfoDepthMod; // 0-99, 50
   signed char AdsrEnvToVcfFilter; // 0-255, 0 +/- 50
   char SoftSampleName[MAX_NAME_S900+1]; // 10 chars "TONE______"
-  Byte FilterAdsrAttackTime; // 0-99, 20
-  Byte FilterAdsrDecayTime; // 0-99, 20
-  Byte FilterAdsrSustainLevel; // 0-99, 20
-  Byte FilterAdsrReleaseTime; // 0-99, 20
-  Byte VelXfadeFiftyPercent; // 0-127, 64
-  Byte KyUndef1;
+  uint8_t FilterAdsrAttackTime; // 0-99, 20
+  uint8_t FilterAdsrDecayTime; // 0-99, 20
+  uint8_t FilterAdsrSustainLevel; // 0-99, 20
+  uint8_t FilterAdsrReleaseTime; // 0-99, 20
+  uint8_t VelXfadeFiftyPercent; // 0-127, 64
+  uint8_t KyUndef1;
   uint16_t KyUndef2;
   Int16 SoftSampTransposeOffset; // Signed, units of 1/16 semitone, 0
-  Byte SoftSampFilter; // 0-99, 99 gives highest cuttoff, 99
+  uint8_t SoftSampFilter; // 0-99, 99 gives highest cuttoff, 99
   signed char SoftSampLoudness; // 0-255, signed +/- 50 units of .375dB, 0
   char LoudSampleName[MAX_NAME_S900+1]; // 10 chars
   uint32_t KyUndef3;
   uint32_t KyUndef4;
   Int16 LoudSampTransposeOffset; // Signed, units of 1/16 semitone, 0
-  Byte LoudSampFilter; // 0-99, 99 gives highest cuttoff, 99
+  uint8_t LoudSampFilter; // 0-99, 99 gives highest cuttoff, 99
   signed char LoudSampLoudness; // 0-255, signed +/- 50 units of .375dB, 0
   uint16_t KyUndef5;
 } KEYGROUP;
@@ -226,13 +226,13 @@ typedef struct
   uint16_t PrUndef2;
   Int16 KeyTilt; // Key vs Loudness -50 to +50
   uint16_t PrUndef3;
-  Byte PrUndef4;
-  Byte PosXfade; // positional crossfade 0=disable 1=enable
-  Byte PrReser1; // 255
-  Byte NumKeygroups; // Number of keygroups 1-31
+  uint8_t PrUndef4;
+  uint8_t PosXfade; // positional crossfade 0=disable 1=enable
+  uint8_t PrReser1; // 255
+  uint8_t NumKeygroups; // Number of keygroups 1-31
   uint16_t PrUndef5;
-  Byte MidiPgmNumber; // Midi program number 0-127
-  Byte EnableMidiPgmNumber; // Enable the above midi # if 255, disable with 0 (0 on S900)
+  uint8_t MidiPgmNumber; // Midi program number 0-127
+  uint8_t EnableMidiPgmNumber; // Enable the above midi # if 255, disable with 0 (0 on S900)
   uint16_t PrReser2; // 0
   uint32_t PrReser3; // 0
   uint32_t PrReser4; // 0
@@ -367,11 +367,11 @@ private:    // User declarations
 
   // fixed size of one keygroup (one row in grid) is 140 bytes
   // DB is 2 bytes DW is 4 bytes, DD is 8 bytes, sample name is 10 DBs
-  Byte kg[PROGKEYGROUPSIZ]; // encoded array for midi transmission
+  uint8_t kg[PROGKEYGROUPSIZ]; // encoded array for midi transmission
   KEYGROUP KeyGroup; // current working keygroup struct
 
   // Programs header info
-  Byte pg[PROGHEADERSIZ]; // encoded array for midi transmission
+  uint8_t pg[PROGHEADERSIZ]; // encoded array for midi transmission
   PRGHEDR ProgramHeader; // current working program header struct
 
   int m_progIndex, m_selectCount;

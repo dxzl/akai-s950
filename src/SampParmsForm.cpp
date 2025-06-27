@@ -1,5 +1,4 @@
 //---------------------------------------------------------------------------
-
 #include <vcl.h>
 #pragma hdrstop
 
@@ -43,14 +42,8 @@ void __fastcall TFormEditSampParms::FormCreate(TObject *Sender)
   ButtonSendOrSave->Caption = SOS_SEND;
 
   m_slSampleData = NULL;
+
   ButtonRefreshSamplesListClick(NULL);
-}
-//---------------------------------------------------------------------------
-void __fastcall TFormEditSampParms::FormShow(TObject *Sender)
-{
-  // Drop the program-name list down
-  if (ComboBoxSampNames->Items->Count && !ComboBoxSampNames->DroppedDown)
-    ComboBoxSampNames->DroppedDown = true;
 }
 //---------------------------------------------------------------------------
 void __fastcall TFormEditSampParms::ButtonCloseClick(TObject *Sender)
@@ -64,15 +57,15 @@ void __fastcall TFormEditSampParms::ButtonRefreshSamplesListClick(TObject *Sende
   if (IsBusy())
     return;
 
+  FormMain->BusyCount++;
+
   try
   {
-    FormMain->BusyCount++;
-
     // refresh the catalog
     int iError = RefreshCatalog();
     if (iError < 0 && iError != -1)
       ShowMessage("Error: unable to allocate m_slSampleData/ProgramData! (code=" + String(iError) + ")");
-    
+
     RefreshSamplesInComboBox(0); // triggers ComboBoxSampNamesSelect() for index 0!
   }
   __finally
@@ -86,14 +79,6 @@ int __fastcall TFormEditSampParms::RefreshCatalog(void)
 {
   try
   {
-    // Invoke property getters in FormMain that create string-lists.
-    // (MUST delete on destroy or prior to reinvoking!)
-    if (m_slSampleData)
-      delete m_slSampleData;
-    m_slSampleData = FormMain->CatalogSampleData;
-    if (!m_slSampleData)
-      return -2;
-
     int iError = FormMain->GetCatalog();
 
     // put error-code return here so we can load test SampleData (above)
@@ -109,6 +94,14 @@ int __fastcall TFormEditSampParms::RefreshCatalog(void)
         ShowMessage("Not able to get catalog, check power and cables... (code=" + String(iError) + ")");
       return -1;
     }
+
+    // Invoke property getters in FormMain that create string-lists.
+    // (MUST delete on destroy or prior to reinvoking!)
+    if (m_slSampleData)
+      delete m_slSampleData;
+    m_slSampleData = FormMain->CatalogSampleData;
+    if (!m_slSampleData)
+      return -2;
 
     return 0;
   }
@@ -159,100 +152,92 @@ int __fastcall TFormEditSampParms::RefreshSamplesInComboBox(int iSampIdx)
 void __fastcall TFormEditSampParms::TimerTriggerOnSelectEvent(TObject *Sender)
 {
   TimerTriggerOnSelect->Enabled = false; // we are a one-shot timer!
+
+   // Drop the sample-name list down
+   if (ComboBoxSampNames->Items->Count && !ComboBoxSampNames->DroppedDown)
+     ComboBoxSampNames->DroppedDown = true;
+
   ComboBoxSampNamesSelect(NULL); // trigger an OnSelect event (load selected sample)
 }
 //---------------------------------------------------------------------------
 // Takes info in GUI, including possible new sample-name, and sends it
 int __fastcall TFormEditSampParms::SendParmsToMachine(int iSampIdx)
 {
-  // don't allow multiple button presses
-  if (IsBusy())
-    return -1;
-
   // Send samp parms to machine
   try
   {
-    FormMain->BusyCount++;
+    MenuSave->Enabled = false;
+    ButtonSendOrSave->Enabled = false;
 
-    try
+    int iError = ParmsFromGui();
+    if (iError < 0)
     {
-      MenuSave->Enabled = false;
-      ButtonSendOrSave->Enabled = false;
-
-      int iError = ParmsFromGui();
-      if (iError < 0)
+      if (iError != -1)
       {
-        if (iError != -1)
-        {
-          ShowMessage("Error in ParmsFromGui(), (code=" +
-                                                  String(iError) + ")");
-          return -1;
-        }
-        return -2;
+        ShowMessage("Error in ParmsFromGui(), (code=" +
+                                                String(iError) + ")");
+        return -1;
       }
-
-      iError = ParmsToArray(iSampIdx);
-      if (iError < 0)
-      {
-        if (iError != -1)
-        {
-          ShowMessage("Error in ParmsToArray(), (code=" +
-                                                  String(iError) + ")");
-          return -1;
-        }
-        return -3;
-      }
-
-      // transmit sample parameters (after 25ms delay)
-      if (!FormMain->comws(PARMSIZ, m_samp_parms, true))
-        return -4;
-
-      // better delay a bit...
-      FormMain->DelayGpTimer(DELAY_BETWEEN_EACH_PROGRAM_TX);
-
-      // refresh the catalog and warn user of any changes
-      iError = RefreshCatalog();
-      if (iError < 0)
-      {
-        if (iError != -1)
-          ShowMessage("unable to allocate m_slSampleData/ProgramData! (code=" + String(iError) + ")");
-        return -5;
-      }
-
-      // find the index of the new name (should equal iSampIdx, but who knows?)
-      int iNewIdx = m_slSampleData->IndexOf(String(m_ps.name));
-
-      if (iNewIdx < 0)
-      {
-        ShowMessage("can't find new sample-name in current machine-catalog!");
-        return -6;
-      }
-
-      iError = RefreshSamplesInComboBox(iNewIdx);
-      if (iError < 0)
-      {
-        if (iError != -1)
-          ShowMessage("unable to refresh samples in ComboBox! (code=" + String(iError) + ")");
-        return -7;
-      }
-
-      if (!ComboBoxSampNames->Items->Count)
-      {
-        ShowMessage("no samples on machine!");
-        return -8;
-      }
-
-      MenuSave->Enabled = true;
-      ButtonSendOrSave->Enabled = true;
+      return -2;
     }
-    catch(...)
+
+    iError = ParmsToArray(iSampIdx);
+    if (iError < 0)
     {
-      return -100;
+      if (iError != -1)
+      {
+        ShowMessage("Error in ParmsToArray(), (code=" +
+                                                String(iError) + ")");
+        return -1;
+      }
+      return -3;
     }
+
+    // transmit sample parameters (after 25ms delay)
+    if (!FormMain->comws(PARMSIZ, m_samp_parms, true))
+      return -4;
+
+    // better delay a bit...
+    FormMain->DelayGpTimer(DELAY_BETWEEN_EACH_PROGRAM_TX);
+
+    // refresh the catalog and warn user of any changes
+    iError = RefreshCatalog();
+    if (iError < 0)
+    {
+      if (iError != -1)
+        ShowMessage("unable to allocate m_slSampleData/ProgramData! (code=" + String(iError) + ")");
+      return -5;
+    }
+
+    // find the index of the new name (should equal iSampIdx, but who knows?)
+    int iNewIdx = m_slSampleData->IndexOf(String(m_ps.name));
+
+    if (iNewIdx < 0)
+    {
+      ShowMessage("can't find new sample-name in current machine-catalog!");
+      return -6;
+    }
+
+    iError = RefreshSamplesInComboBox(iNewIdx);
+    if (iError < 0)
+    {
+      if (iError != -1)
+        ShowMessage("unable to refresh samples in ComboBox! (code=" + String(iError) + ")");
+      return -7;
+    }
+
+    if (!ComboBoxSampNames->Items->Count)
+    {
+      ShowMessage("no samples on machine!");
+      return -8;
+    }
+
+    MenuSave->Enabled = true;
+    ButtonSendOrSave->Enabled = true;
   }
-  __finally
+  catch(...)
   {
-    FormMain->BusyCount--;
+    return -100;
   }
 
   return 0;
@@ -311,8 +296,6 @@ int __fastcall TFormEditSampParms::ParmsToGui(int iMode)
       FormMain->Memo1->Clear();
       print_ps_info(&m_ps, true);
 
-      LabelBitsPerSample->Caption = "Bits-per-sample: " + String(m_ps.bits_per_word);
-      LabelBitsPerSample->Tag = m_ps.bits_per_word;
       LabelSampleRate->Caption = "Sample Rate: " + String(m_ps.freq) + " Hz";
       LabelSampleRate->Tag = m_ps.freq; // save the raw # in Tag
       LabelSampleLength->Caption = "Sample Length: " + String(m_ps.sampleCount);
@@ -516,8 +499,8 @@ int __fastcall TFormEditSampParms::ParmsToArray(uint16_t index)
     m_samp_parms[2] = 0; // midi chan
     m_samp_parms[3] = SPRM;
     m_samp_parms[4] = S900_ID;
-    m_samp_parms[5] = (Byte)(index & 0x7f);
-    m_samp_parms[6] = (Byte)((index>>7) & 0x7f); // reserved
+    m_samp_parms[5] = (uint8_t)(index & 0x7f);
+    m_samp_parms[6] = (uint8_t)((index>>7) & 0x7f); // reserved
 
     // copy ASCII sample name, pad with blanks and terminate
     AsciiStrEncode(&m_samp_parms[7], m_ps.name);
@@ -563,11 +546,11 @@ int __fastcall TFormEditSampParms::ParmsToArray(uint16_t index)
     encodeDW(m_ps.reservedDW_87, &m_samp_parms[87]); // reserved 4
 
     // 91,92 DB type of sample 0=normal, 255=velocity crossfade
-    Byte c_temp = (Byte)((m_ps.flags & (Byte)1) ? 255 : 0);
+    uint8_t c_temp = (uint8_t)((m_ps.flags & 1) ? 255 : 0);
     encodeDB(c_temp, &m_samp_parms[91]);
 
     // 93,94 DB waveform type 'N'=normal, 'R'=reversed
-    c_temp = (m_ps.flags & (Byte)2) ? 'R' : 'N';
+    c_temp = (m_ps.flags & 2) ? 'R' : 'N';
     encodeDB(c_temp, &m_samp_parms[93]); // 2
 
     // 95-102, 1 DDs Undefined, 8 bytes (no space to save in PSTOR so putting in member variables)
@@ -644,36 +627,36 @@ int __fastcall TFormEditSampParms::ParmsFromArray(void)
     m_ps.reservedDW_87 = decodeDW(&m_samp_parms[87]); // 4
 
     // 91,92 DB type of sample 0=normal, 255=velocity crossfade
-    bool xfade = (decodeDB(&m_samp_parms[91]) == (Byte)255); // 2
+    bool xfade = (decodeDB(&m_samp_parms[91]) == 255); // 2
 
     // 93,94 DB sample waveform 'N'=normal, 'R'=reversed
     bool reversed = (decodeDB(&m_samp_parms[93]) == 'R'); // 2
 
     m_ps.flags = 0;
     if (xfade)
-      m_ps.flags |= (Byte)1;
+      m_ps.flags |= 1;
     if (reversed)
-      m_ps.flags |= (Byte)2;
+      m_ps.flags |= 2;
     //if (???)
-    //  m_ps.flags |= (Byte)4;
+    //  m_ps.flags |= 4;
     //if (???)
-    //  m_ps.flags |= (Byte)8;
+    //  m_ps.flags |= 8;
     //if (???)
-    //  m_ps.flags |= (Byte)16;
+    //  m_ps.flags |= 16;
     //if (???)
-    //  m_ps.flags |= (Byte)32;
+    //  m_ps.flags |= 32;
     //if (???)
-    //  m_ps.flags |= (Byte)64;
+    //  m_ps.flags |= 64;
     //if (???)
-    //  m_ps.flags |= (Byte)128;
+    //  m_ps.flags |= 128;
 
     // 95-126 (4 DDs) undefined
-    m_ps.undefinedDD_95 = decodeDD((Byte*)&m_samp_parms[95]); // 8=>4
+    m_ps.undefinedDD_95 = decodeDD((uint8_t*)&m_samp_parms[95]); // 8=>4
 
     // these two have data (for the S950) but - it is not documented...
-    m_ps.undefinedDD_103 = decodeDD((Byte*)&m_samp_parms[103]); // 8
-    m_ps.undefinedDD_111 = decodeDD((Byte*)&m_samp_parms[111]); // 8
-    m_ps.undefinedDD_119 = decodeDD((Byte*)&m_samp_parms[119]); // 8
+    m_ps.undefinedDD_103 = decodeDD((uint8_t*)&m_samp_parms[103]); // 8
+    m_ps.undefinedDD_111 = decodeDD((uint8_t*)&m_samp_parms[111]); // 8
+    m_ps.undefinedDD_119 = decodeDD((uint8_t*)&m_samp_parms[119]); // 8
 
     // FROM SAMPLE HEADER... (which we don't have... so we'll improvise)
     m_ps.bits_per_word = MAX_SERIAL_BITS_PER_WORD;
@@ -692,28 +675,27 @@ void __fastcall TFormEditSampParms::MenuSaveClick(TObject *Sender)
 {
   int iError;
 
-  if (m_iSource == SOURCE_FILE)
-  {
-    iError = SaveSampParmsToFile();
+  // don't allow multiple button presses
+  if (IsBusy())
+    return;
 
-    if (iError < 0)
+  FormMain->BusyCount++;
+
+  try{
+    if (m_iSource == SOURCE_FILE)
     {
-      if (iError != -1)
-        ShowMessage("Unable to save file: \"" +
-              m_sFilePath + "\" SaveSampParmsToFile(), (code=" +
-                                                String(iError) + ")");
+      iError = SaveSampParmsToFile();
+
+      if (iError < 0)
+      {
+        if (iError != -1)
+          ShowMessage("Unable to save file: \"" +
+                m_sFilePath + "\" SaveSampParmsToFile(), (code=" +
+                                                  String(iError) + ")");
+      }
     }
-  }
-  else if (m_iSource == SOURCE_MACHINE)
-  {
-    // don't allow multiple button presses
-    if (IsBusy())
-      return;
-
-    try
+    else if (m_iSource == SOURCE_MACHINE)
     {
-      FormMain->BusyCount++;
-
       if (m_sampIndex >= 0 && m_sampIndex < ComboBoxSampNames->Items->Count)
       {
         iError = SendParmsToMachine(m_sampIndex);
@@ -733,10 +715,10 @@ void __fastcall TFormEditSampParms::MenuSaveClick(TObject *Sender)
         }
       }
     }
-    __finally
-    {
-      FormMain->BusyCount--;
-    }
+  }
+  __finally
+  {
+    FormMain->BusyCount--;
   }
 }
 //---------------------------------------------------------------------------
@@ -874,10 +856,10 @@ void __fastcall TFormEditSampParms::ComboBoxSampNamesSelect(TObject *Sender)
   if (IsBusy())
     return;
 
+  FormMain->BusyCount++;
+
   try
   {
-    FormMain->BusyCount++;
-
     // here, the user has selected a sample from the drop-down list
     // we keep the index reported by the catalog in the Combo box's Objects property
     int idx = (int)ComboBoxSampNames->Items->Objects[ComboBoxSampNames->ItemIndex];

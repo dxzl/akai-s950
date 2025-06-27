@@ -30,15 +30,15 @@
 typedef struct
 {
   char ProgName[MAX_NAME_S900+1]; // (DEFAULT PR) 10 chars "TONE_PRGM_"
-  Byte MidiTxEx; // (0) Midi transmit channel for midi exclusive
-  Byte RxSimChan; // (1) Reception simulator
-  Byte RxSimKey; // (60) " Midi Key
-  Byte RxSimVel; // (64) " Velocity
-  Byte MidiChan; // 0
+  uint8_t MidiTxEx; // (0) Midi transmit channel for midi exclusive
+  uint8_t RxSimChan; // (1) Reception simulator
+  uint8_t RxSimKey; // (60) " Midi Key
+  uint8_t RxSimVel; // (64) " Velocity
+  uint8_t MidiChan; // 0
   bool bOmniOn; // (this flag is from the MSB of BSAMCH)
   bool bRxLoudCtrl7; // (0)
   bool bCtrlByRs232; // (0) Midi/Rs232 select
-  Byte PitchWheelRange; // (7) semitones up or down +/- 7 is default (0-127)
+  uint8_t PitchWheelRange; // (7) semitones up or down +/- 7 is default (0-127)
   uint32_t BaudRate; // (960) 9600
 } OS;
 //---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ private:  // User declarations
   TStringList* ProgramData;
 
   // Overall settings info
-  Byte os[OSSIZ]; // encoded array for overall settings
+  uint8_t os[OSSIZ]; // encoded array for overall settings
   OS OverallSettings; // current working overall settings struct
 
 public:    // User declarations
