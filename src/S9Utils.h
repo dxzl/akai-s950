@@ -34,7 +34,7 @@ namespace S9Utils
   void __fastcall encodeTB(uint32_t value, uint8_t* tp);
   uint32_t __fastcall decodeTB(uint8_t* tp);
 
-  void __fastcall compute_checksum(int min_index, int max_index, BYTE* buf);
+  void __fastcall compute_checksum(int min_index, int max_index, uint8_t* buf);
   void __fastcall print_ps_info(PSTOR* ps, bool bPrintUnused= false);
   void __fastcall display_hex(uint8_t buf[], int count);
   void __fastcall printm(String message);

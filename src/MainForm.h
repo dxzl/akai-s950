@@ -21,7 +21,7 @@
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version 2.4"
+#define VERSION_STR "Version 2.4 ALPHA_TEST A"
 #define DIAGNOSTIC_MODE false
 //---------------------------------------------------------------------------
 
@@ -383,13 +383,14 @@ private:  // User declarations
   int __fastcall GetFileNames(void);
   bool __fastcall DoSaveDialog(String &sName);
   int32_t __fastcall FindSubsection(uint8_t* &fileBuffer, char* chunkName, UINT maxBytes);
-  void __fastcall encode_sample_info(uint16_t index, PSTOR* ps);
-  void __fastcall decode_sample_info(PSTOR* ps);
+  void __fastcall encode_samp_hedr(uint16_t index, PSTOR* ps);
+  void __fastcall encode_samp_parms(uint16_t index, PSTOR* ps);
+  void __fastcall decode_samp_hedr(PSTOR* ps);
+  void __fastcall decode_samp_parms(PSTOR* ps);
 
   bool __fastcall bytewisecompare(uint8_t* buf1, uint8_t* buf2, int maxLen);
   int __fastcall findidx(uint8_t* sampName);
-  void __fastcall queue(int64_t acc, uint8_t* &ptbuf,
-      int sampler_bytes_per_word, int bits_per_word, uint8_t &checksum);
+  void __fastcall queue(int64_t acc, uint8_t* &ptbuf, int sampler_bytes_per_word, int bits_per_word, uint8_t &checksum);
   void __fastcall send_samp_parms(unsigned index);
   bool __fastcall send_packet(uint8_t* tbuf, int blockct);
   int __fastcall receive(int count);
@@ -501,6 +502,7 @@ public:    // User declarations
 
   int __fastcall LoadProgramToTempArray(int progIndex);
   int __fastcall LoadSampParmsToTempArray(int iSampIdx);
+  void __fastcall PrintLoadSampParmsErrorMessage(int iError);
   int __fastcall LoadOverallSettingsToTempArray(void);
   int __fastcall GetCatalog(bool bPrint=false, bool bDelay=false);
 

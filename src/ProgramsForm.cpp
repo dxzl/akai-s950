@@ -1712,14 +1712,14 @@ void __fastcall TFormProgram::CopyKeygroup1Click(TObject *Sender)
 //---------------------------------------------------------------------------
 // Given a +/- pitch offset in 1/16 semitone units,
 // returns the course pitch in semitones
-String __fastcall TFormProgram::GetCoarsePitch(Int16 rawPitch)
+String __fastcall TFormProgram::GetCoarsePitch(int16_t rawPitch)
 {
   return String(rawPitch/16);
 }
 //---------------------------------------------------------------------------
 // Given a +/- pitch offset in 1/16 semitone units,
 // returns the fine pitch in 1/16 semitones
-String __fastcall TFormProgram::GetFinePitch(Int16 rawPitch)
+String __fastcall TFormProgram::GetFinePitch(int16_t rawPitch)
 {
 
   return String(rawPitch%16);
@@ -1943,9 +1943,9 @@ void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
       if (iFileSize == 0)
       {
         FileSeek(lFileHandle, 0, 0); // point to start
-        Int32 magicNum = MAGIC_NUM_PRG;
+        int32_t magicNum = MAGIC_NUM_PRG;
         FileWrite(lFileHandle, &magicNum, UINT32SIZE);
-        Int32 numProgs = 0; // will be incremented when we add program(s)
+        int32_t numProgs = 0; // will be incremented when we add program(s)
         FileWrite(lFileHandle, &numProgs, UINT32SIZE);
         iFileSize = UINT32SIZE*3;
         FileWrite(lFileHandle, &iFileSize, UINT32SIZE);
@@ -2012,7 +2012,7 @@ void __fastcall TFormProgram::MenuSaveIntoPrgFileClick(TObject *Sender)
 int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, long &lFileHandle, int iFileOffset)
 {
   uint8_t* buf = NULL;
-  Int32 fileSize = 0;
+  int32_t fileSize = 0;
 
   try
   {
@@ -2050,7 +2050,7 @@ int __fastcall TFormProgram::DeletePrgFromFile(String sFilePath, long &lFileHand
       delete [] buf;
       buf = NULL;
 
-      Int32 progSize;
+      int32_t progSize;
       iByteCount = FileRead(lFileHandle, &progSize, UINT32SIZE);
       if (iByteCount != UINT32SIZE)
         return -7;
@@ -2337,7 +2337,7 @@ int __fastcall TFormProgram::ProgFromFileToGui(long lFileHandle, int iFileOffset
   try
   {
     // Read program into TempArray
-    Int32 progSize = ProgFromFileToTempArray(lFileHandle, iFileOffset);
+    int32_t progSize = ProgFromFileToTempArray(lFileHandle, iFileOffset);
     if (progSize <= 0)
       return -3;
 
@@ -2443,7 +2443,7 @@ int __fastcall TFormProgram::ProgFromFileToTempArray(long lFileHandle, int iFile
   {
     FileSeek(lFileHandle, iFileOffset, 0); // point to program
 
-    Int32 progSize;
+    int32_t progSize;
     int bytesRead = FileRead(lFileHandle, &progSize, UINT32SIZE);
 
     if (bytesRead != UINT32SIZE)

@@ -246,26 +246,7 @@ int __fastcall TFormMain::GetSample(String sPath, int iSamp)
       iError = LoadSampParmsToTempArray(iSamp);
       if (iError < 0)
       {
-        switch(iError)
-        {
-          case -2:
-              printm("transmit timeout!");
-          break;
-          case -3:
-              printm("timeout receiving sample parameters!");
-          break;
-          case -4:
-              printm("received wrong bytecount for sample parameters!");
-          break;
-          case -5:
-              printm("bad checksum for sample parameters!");
-          break;
-          case -6:
-            printm("exception in LoadSampParmsToTempArray()!");
-          break;
-          default:
-          break;
-        };
+        PrintLoadSampParmsErrorMessage(iError);
         return -1; // could not get sample parms
       }
 
@@ -285,7 +266,8 @@ int __fastcall TFormMain::GetSample(String sPath, int iSamp)
       PSTOR ps = { 0 };
 
       // fill PSTOR struct using info in samp_parms[] and samp_hedr[]...
-      decode_sample_info(&ps);
+      decode_samp_hedr(&ps);
+      decode_samp_parms(&ps);
 
       print_ps_info(&ps); // display info in window
       
@@ -585,7 +567,7 @@ int __fastcall TFormMain::GetAsWavFile(long lFileHandle, int iSamp, PSTOR* ps)
 //      4     unknown     (offset 111 in samp_parms[]) 61483 (have seen 2147483648, 2481979392)
 //      4     unknown     (offset 119 in samp_parms[]) 637534208 (have seen 1, 16)
 //---------------------------------------------------------------------------
-// puts samp_parms[] and samp_hedr[] arrays info into PSTOR struct (ps)
+// put samp_parms[] array info into PSTOR struct (ps)
 //
 //SNAME   DB  'nnnnnnnnnn'   Name of sample 20
 //        DD  x   Undefined 8
@@ -606,7 +588,8 @@ int __fastcall TFormMain::GetAsWavFile(long lFileHandle, int iSamp, PSTOR* ps)
 //        DD  x   Undefined 8
 //        DD  x   Undefined 8
 //        DD  x   Undefined 8
-void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::decode_samp_parms(PSTOR* ps)
 {
   // FROM AKAI EXCLUSIVE SAMPLE PARAMETERS... (do this before decoding header)
 
@@ -685,7 +668,11 @@ void __fastcall TFormMain::decode_sample_info(PSTOR* ps)
   ps->undefinedDD_103 = decodeDD(&samp_parms[103]); // 8=>4
   ps->undefinedDD_111 = decodeDD(&samp_parms[111]); // 8=>4
   ps->undefinedDD_119 = decodeDD(&samp_parms[119]); // 8=>4
-
+}
+//---------------------------------------------------------------------------
+// put samp_hedr[] array info into PSTOR struct (ps)
+void __fastcall TFormMain::decode_samp_hedr(PSTOR* ps)
+{
   // FROM SAMPLE HEADER...
 
   // bits per sample-word (S900 transmits 12 but can accept 8-14)
@@ -1018,11 +1005,11 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
       ListBox1->Clear();
       Memo1->Clear();
 
-      int iFileLength;
-      int iBytesRead;
-      int sampIndex;
+      int iFileLength = 0;
+      int iBytesRead = 0;
+      int sampIndex = 0;
       PSTOR ps = { 0 };
-      uint8_t newname[MAX_NAME_S900 + 1];
+      uint8_t newname[MAX_NAME_S900 + 1] = { 0 };
 
       if (sFilePath.IsEmpty() || !FileExists(sFilePath))
       {
@@ -1310,8 +1297,8 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         //------------------------------------------------------------------------------------------
         
         ps.startpoint = 0; // first replay point for looping (4 bytes)
-        ps.endpoint = TotalFrames; // end of play index (4 bytes)
-        ps.looplen = ps.endpoint; // loop length (4 bytes)
+        ps.endpoint = TotalFrames-1; // end of play index (4 bytes)
+        ps.looplen = m_auto_rename ? ps.endpoint : 0; // loop length (4 bytes)
 
         uint32_t tempfreq = SampleRate;
         if (tempfreq > 49999)
@@ -1340,10 +1327,10 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
         ps.loudnessoffset = 0;
 
-        // set alternating/reverse flags "normal"
-        ps.flags = 0;
+        // alternating/reverse = 1, normal = 0
+        ps.flags = 0; // normal play mode
 
-        ps.loopmode = 'O'; // (1 byte) (one-shot)
+        ps.loopmode = 'O'; // (1 byte) (one-shot) ('A' = alternating, 'L' = looping)
 
         // Search file for "cue " block
         uint8_t* tempPtr = fileBuf;
@@ -1365,11 +1352,13 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
               uint32_t iEnd = pCue->cuePoints[pCue->cuePointsCount-1].frameOffset;
 
-              if (iEnd <= ps.sampleCount)
+              if (iEnd < ps.sampleCount)
               {
                 printm("cue-point 2 (end): " + String(iEnd));
                 ps.endpoint = iEnd;
               }
+              else
+                printm("cue-point 2 (end) is out of range! " + String(iEnd) + " must be less than sample-count " + String(ps.sampleCount));
             }
             else
               printm("(found 1 cue-point)");
@@ -1377,11 +1366,14 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             // this uses ps.endpoint to do limit-checking... so do after endpoint
             uint32_t iStart = pCue->cuePoints[0].frameOffset;
 
-            if (iStart <= ps.sampleCount && iStart <= ps.endpoint)
+            if (iStart < ps.sampleCount && iStart < ps.endpoint)
             {
               printm("cue-point 1 (start): " + String(iStart));
               ps.startpoint = iStart;
             }
+            else
+              printm("cue-point 1 (start) is out of range! " + String(iStart) + " must be less than sample-count " +
+                                               String(ps.sampleCount) + " and less than end-point " + String(ps.endpoint));
           }
         }
 
@@ -1416,13 +1408,13 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
 
             uint32_t iStart = pLoop->start;
 
-            if (iStart > ps.sampleCount)
-              iStart = ps.sampleCount;
+            if (iStart > ps.sampleCount-1)
+              iStart = ps.sampleCount-1;
 
             uint32_t iEnd = pLoop->end;
 
-            if (iEnd > ps.sampleCount)
-              iEnd = ps.sampleCount;
+            if (iEnd > ps.sampleCount-1)
+              iEnd = ps.sampleCount-1;
 
             if (pSmpl->loopCount == 1)
               printm("(found 1 loop)");
@@ -1442,7 +1434,7 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             uint32_t iLoopLen = (iEnd > iStart) ? iEnd-iStart : 0;
 
             // 5-point minimum on S900 loop-length...
-            if (iLoopLen >= MINLOOP && ps.sampleCount >= MINLOOP && iLoopLen <= ps.sampleCount)
+            if (iLoopLen >= MINLOOP && ps.sampleCount >= MINLOOP && iLoopLen < ps.sampleCount)
             {
               ps.looplen = iLoopLen;
               // 0=forward, 1=alternate, 2=reverse (for the loop, not the sample)
@@ -1478,8 +1470,8 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         if ((sampIndex = FindIndex(ps.name)) < 0)
           return false;
 
-        // encode samp_hedr and samp_parms arrays
-        encode_sample_info(sampIndex, &ps);
+        // encode part of PSTOR struct (ps) into samp_hedr array for sample data transmission
+        encode_samp_hedr(sampIndex, &ps);
 
         print_ps_info(&ps);
 
@@ -1747,12 +1739,10 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
                 if (countSent < ps.sampleCount)
                 {
                   ps.sampleCount = countSent;
-                  ps.endpoint = ps.sampleCount;
+                  ps.endpoint = ps.sampleCount-1;
                   ps.looplen = ps.endpoint;
                   ps.startpoint = 0;
-
-                  // re-encode modified values
-                  encode_sample_info(sampIndex, &ps);
+                  
                   printm("sample length was truncated!");
                 }
 
@@ -1841,8 +1831,8 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
         if ((sampIndex = FindIndex(ps.name)) < 0)
           return false;
 
-        // encode samp_hedr and samp_parms arrays
-        encode_sample_info(sampIndex, &ps);
+        // encode part of PSTOR struct (ps) into samp_hedr array for sample data transmission
+        encode_samp_hedr(sampIndex, &ps);
 
         print_ps_info(&ps);
 
@@ -1969,12 +1959,10 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
             if (countSent < ps.sampleCount)
             {
               ps.sampleCount = countSent;
-              ps.endpoint = ps.sampleCount;
+              ps.endpoint = ps.sampleCount-1;
               ps.looplen = ps.endpoint;
               ps.startpoint = 0;
 
-              // re-encode modified values
-              encode_sample_info(sampIndex, &ps);
               printm("sample length was truncated!");
             }
 
@@ -2029,6 +2017,34 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           return false;
         }
 
+        // encode PSTOR struct (ps) into samp_parms array for transmission to machine
+        encode_samp_parms(sampIndex, &ps);
+        
+// --------------------------------------- PATCH 7/11/2025 ------------------------------------        
+        // read sample parameters from machine and store in m_temp_array
+        //
+        // NOTE: only need to do this because we need the sampleCount stored on the machine after
+        // we have written a sample. The S950 internally is padding the sampleCount to an even number
+        // and cannot save then load a sample from the floppy-disk (emulator) unless the sampleCount
+        // is an EVEN number! Thanks to my friend in England, Oliver Tann for discovering this issue
+        // and for working with me to find out the cause! - Scott Swift 7/11/2025
+        int iError = LoadSampParmsToTempArray(sampIndex);
+        if (iError < 0)
+        {
+          PrintLoadSampParmsErrorMessage(iError);
+          return false;
+        }
+
+        // diagnostic:
+        //  uint32_t  countWeThinkWeAreSending = decodeDD(&samp_parms[39]); // 8=>4
+        //  uint32_t  countMachineExpects = decodeDD(&m_temp_array[39]); // 8=>4
+        //  printm("# samples we think we are sending: " + String(countWeThinkWeAreSending));  
+        //  printm("# samples machine says that it got: " + String(countMachineExpects));  
+
+        memcpy(&samp_parms[39], &m_temp_array[39], 8); // # samples (new ps.sampleCount)        
+        compute_checksum(7, 127, samp_parms); // recompute checksum (and save at index 127)
+// ----------------------------------------- END PATCH ------------------------------------------        
+        
         send_samp_parms(sampIndex); // write samp_parms to midi or com port
 
         if (!bSendAborted)
@@ -2170,7 +2186,7 @@ void __fastcall TFormMain::queue(int64_t acc, uint8_t* &ptbuf,
 //        DD  x   Undefined 8
 //        DD  x   Undefined 8
 //        DD  x   Undefined 8
-void __fastcall TFormMain::encode_sample_info(uint16_t index, PSTOR* ps)
+void __fastcall TFormMain::encode_samp_parms(uint16_t index, PSTOR* ps)
 {
   //
   // SAMPLE PARAMETERS 129 bytes (do this before encoding header)
@@ -2248,10 +2264,13 @@ void __fastcall TFormMain::encode_sample_info(uint16_t index, PSTOR* ps)
 
   // checksum is exclusive or of 7-126 (120 bytes)
   // and the value is put in index 127
-  compute_checksum(7, 127, &samp_parms[0]);
+  compute_checksum(7, 127, samp_parms);
 
   samp_parms[128] = EEX;
-
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::encode_samp_hedr(uint16_t index, PSTOR* ps)
+{
   //
   // SAMPLE HEADER, 19 bytes (21 bytes for sample-dump-standard (SDS))
   //
@@ -3967,6 +3986,30 @@ int __fastcall TFormMain::LoadSampParmsToTempArray(int iSampIdx)
   }
 
   return 0;
+}
+//---------------------------------------------------------------------------
+void __fastcall TFormMain::PrintLoadSampParmsErrorMessage(int iError)
+{
+  switch(iError)
+  {
+    case -2:
+        printm("transmit timeout!");
+    break;
+    case -3:
+        printm("timeout receiving sample parameters!");
+    break;
+    case -4:
+        printm("received wrong bytecount for sample parameters!");
+    break;
+    case -5:
+        printm("bad checksum for sample parameters!");
+    break;
+    case -6:
+        printm("exception in LoadSampParmsToTempArray()!");
+    break;
+    default:
+    break;
+  };
 }
 //---------------------------------------------------------------------------
 // returns: 0=OK, -1 if error printed

@@ -311,12 +311,12 @@ int __fastcall TFormEditSampParms::ParmsToGui(int iMode)
       UpDownEnd->Min = 0;
       UpDownLoop->Min = 0;
 
-      TBStart->Max = m_ps.sampleCount;
-      TBEnd->Max = m_ps.sampleCount;
-      TBLoop->Max = m_ps.sampleCount;
-      UpDownStart->Max = m_ps.sampleCount;
-      UpDownEnd->Max = m_ps.sampleCount;
-      UpDownLoop->Max = m_ps.sampleCount;
+      TBStart->Max = m_ps.sampleCount-1;
+      TBEnd->Max = m_ps.sampleCount-1;
+      TBLoop->Max = m_ps.sampleCount-1;
+      UpDownStart->Max = m_ps.sampleCount-1;
+      UpDownEnd->Max = m_ps.sampleCount-1;
+      UpDownLoop->Max = m_ps.sampleCount-1;
 
       TBStart->Position = m_ps.startpoint;
       UpDownStart->Position = TBStart->Position;
@@ -404,9 +404,9 @@ int __fastcall TFormEditSampParms::ParmsFromGui(void)
     int iSampleLength = LabelSampleLength->Tag; // (we saved this constant in the Tag property)
 
     iTemp = TBEnd->Position;
-    if (iTemp > iSampleLength || iTemp < 0)
+    if (iTemp > iSampleLength-1 || iTemp < 0)
     {
-      ShowMessage("Endpoint must be 0 to " + String(iSampleLength) + "!");
+      ShowMessage("Endpoint must be 0 to " + String(iSampleLength-1) + "!");
       EditEnd->SetFocus();
       return -1;
     }
@@ -422,9 +422,9 @@ int __fastcall TFormEditSampParms::ParmsFromGui(void)
     m_ps.startpoint = iTemp;
 
     iTemp = TBEnd->Position-TBLoop->Position;
-    if (iTemp < 5 || iTemp > iSampleLength)
+    if (iTemp < MINLOOP || iTemp > iSampleLength-1)
     {
-      ShowMessage("Loop length must be 5 to " + String(iSampleLength-(int)m_ps.startpoint) + "!");
+      ShowMessage("Loop length must be 5 to " + String((iSampleLength-1)-(int)m_ps.startpoint) + "!");
       EditLoop->SetFocus();
       return -1;
     }
@@ -894,26 +894,7 @@ int __fastcall TFormEditSampParms::LoadSampParmsFromMachine(int iSampIdx)
     int iError = FormMain->LoadSampParmsToTempArray(iSampIdx);
     if (iError < 0)
     {
-      switch(iError)
-      {
-        case -2:
-            ShowMessage("transmit timeout!");
-        break;
-        case -3:
-            ShowMessage("timeout receiving sample parameters!");
-        break;
-        case -4:
-            ShowMessage("received wrong bytecount for sample parameters!");
-        break;
-        case -5:
-            ShowMessage("bad checksum for sample parameters!");
-        break;
-        case -6:
-          ShowMessage("exception in LoadSampParmsToTempArray()!");
-        break;
-        default:
-        break;
-      };
+      FormMain->PrintLoadSampParmsErrorMessage(iError);
       return -1; // could not get sample parms
     }
 

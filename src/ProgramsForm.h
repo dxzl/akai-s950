@@ -207,13 +207,13 @@ typedef struct
   uint8_t VelXfadeFiftyPercent; // 0-127, 64
   uint8_t KyUndef1;
   uint16_t KyUndef2;
-  Int16 SoftSampTransposeOffset; // Signed, units of 1/16 semitone, 0
+  int16_t SoftSampTransposeOffset; // Signed, units of 1/16 semitone, 0
   uint8_t SoftSampFilter; // 0-99, 99 gives highest cuttoff, 99
   signed char SoftSampLoudness; // 0-255, signed +/- 50 units of .375dB, 0
   char LoudSampleName[MAX_NAME_S900+1]; // 10 chars
   uint32_t KyUndef3;
   uint32_t KyUndef4;
-  Int16 LoudSampTransposeOffset; // Signed, units of 1/16 semitone, 0
+  int16_t LoudSampTransposeOffset; // Signed, units of 1/16 semitone, 0
   uint8_t LoudSampFilter; // 0-99, 99 gives highest cuttoff, 99
   signed char LoudSampLoudness; // 0-255, signed +/- 50 units of .375dB, 0
   uint16_t KyUndef5;
@@ -224,7 +224,7 @@ typedef struct
   char ProgName[MAX_NAME_S900+1]; // 10 chars "DEFAULT PR"
   uint32_t PrUndef1;
   uint16_t PrUndef2;
-  Int16 KeyTilt; // Key vs Loudness -50 to +50
+  int16_t KeyTilt; // Key vs Loudness -50 to +50
   uint16_t PrUndef3;
   uint8_t PrUndef4;
   uint8_t PosXfade; // positional crossfade 0=disable 1=enable
@@ -339,8 +339,8 @@ private:    // User declarations
   int __fastcall KeygroupToArray(void);
   int __fastcall KeygroupLoadDefaults(void);
   int __fastcall HeaderLoadDefaults(int numKeyGroups);
-  String __fastcall GetFinePitch(Int16 rawPitch);
-  String __fastcall GetCoarsePitch(Int16 rawPitch);
+  String __fastcall GetFinePitch(int16_t rawPitch);
+  String __fastcall GetCoarsePitch(int16_t rawPitch);
   String __fastcall GetNewProgName(String sName);
   int __fastcall ReadNamesInPrgFile(long lFileHandle, TStringList* sl);
   int __fastcall ProgFromFileToTempArray(long lFileHandle, int iFileOffset);
