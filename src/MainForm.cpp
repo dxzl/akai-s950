@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//Software written by Scott Swift 2017 - This program is distributed under the
+//Software written by Scott Swift 1991-2025 - This program is distributed under the
 //terms of the GNU General Public License.
 //---------------------------------------------------------------------------
 #include <vcl.h>
@@ -2017,32 +2017,37 @@ bool __fastcall TFormMain::PutSample(String sFilePath)
           return false;
         }
 
+// --------------------------------------- PATCH 7/11/2025 ----------------------------------------------
+        // The S950 cannot save then load a sample from the floppy-disk (emulator) unless the sampleCount
+        // is an EVEN number! Internally, the S950 is padding-out the sample by one to make an even
+        // number of samples. So, we need to adjust ps.sampleCount up by 1 if the count is odd!
+        // Thanks to my friend in England, Oliver Tann for discovering this issue and for working with me
+        // to find out the cause! - Scott Swift 7/11/2025
+        if (ps.sampleCount & 1)
+          ps.sampleCount++;
+// ----------------------------------------- END PATCH ------------------------------------------        
+          
         // encode PSTOR struct (ps) into samp_parms array for transmission to machine
         encode_samp_parms(sampIndex, &ps);
         
-// --------------------------------------- PATCH 7/11/2025 ------------------------------------        
-        // read sample parameters from machine and store in m_temp_array
-        //
-        // NOTE: only need to do this because we need the sampleCount stored on the machine after
-        // we have written a sample. The S950 internally is padding the sampleCount to an even number
-        // and cannot save then load a sample from the floppy-disk (emulator) unless the sampleCount
-        // is an EVEN number! Thanks to my friend in England, Oliver Tann for discovering this issue
-        // and for working with me to find out the cause! - Scott Swift 7/11/2025
-        int iError = LoadSampParmsToTempArray(sampIndex);
-        if (iError < 0)
-        {
-          PrintLoadSampParmsErrorMessage(iError);
-          return false;
-        }
-
-        // diagnostic:
-        //  uint32_t  countWeThinkWeAreSending = decodeDD(&samp_parms[39]); // 8=>4
-        //  uint32_t  countMachineExpects = decodeDD(&m_temp_array[39]); // 8=>4
-        //  printm("# samples we think we are sending: " + String(countWeThinkWeAreSending));  
-        //  printm("# samples machine says that it got: " + String(countMachineExpects));  
-
-        memcpy(&samp_parms[39], &m_temp_array[39], 8); // # samples (new ps.sampleCount)        
-        compute_checksum(7, 127, samp_parms); // recompute checksum (and save at index 127)
+// --------------------------------------- PATCH 7/11/2025 ------------------------------------
+// Below is an alternative to the above patch. It was tested by Oliver Tann and works well!
+// --------------------------------------------------------------------------------------------
+//      int iError = LoadSampParmsToTempArray(sampIndex);
+//      if (iError < 0)
+//      {
+//        PrintLoadSampParmsErrorMessage(iError);
+//        return false;
+//      }
+//
+//      diagnostic/development messages:
+//      uint32_t  countWeThinkWeAreSending = decodeDD(&samp_parms[39]); // 8=>4
+//      uint32_t  countMachineExpects = decodeDD(&m_temp_array[39]); // 8=>4
+//      printm("# samples we think we are sending: " + String(countWeThinkWeAreSending));  
+//      printm("# samples machine says that it got: " + String(countMachineExpects));  
+//
+//      memcpy(&samp_parms[39], &m_temp_array[39], 8); // # samples (new ps.sampleCount)        
+//      compute_checksum(7, 127, samp_parms); // recompute checksum (and save at index 127)
 // ----------------------------------------- END PATCH ------------------------------------------        
         
         send_samp_parms(sampIndex); // write samp_parms to midi or com port

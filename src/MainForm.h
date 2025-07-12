@@ -21,7 +21,7 @@
 // Note: Use String() to wrap this for the overloaded RegHelper write method!
 // (set MainForm Height to 350 when help is clicked)
 #define FORM_HEIGHT 350
-#define VERSION_STR "Version 2.4 ALPHA_TEST A"
+#define VERSION_STR "Version 2.4"
 #define DIAGNOSTIC_MODE false
 //---------------------------------------------------------------------------
 
